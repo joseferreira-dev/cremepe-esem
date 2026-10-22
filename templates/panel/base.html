@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{% block titulo %}Painel{% endblock %} — CREMEPE / ESEM{% endblock %}
+
+{% block corpo %}
+<div class="mx-auto flex max-w-7xl gap-8 px-4 py-8 sm:px-6 lg:px-8">
+
+  <aside class="hidden w-60 shrink-0 lg:block">
+    <div class="sticky top-24 space-y-1">
+      <div class="mb-4 rounded-2xl bg-marca-gradiente p-4 text-white sombra-suave">
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-white/70">
+          Portal de cursos
+        </p>
+        <p class="mt-1 text-sm font-bold leading-tight">Escola Superior de Ética Médica</p>
+        <p class="mt-0.5 text-[11px] text-white/70">CREMEPE</p>
+      </div>
+
+      <p class="rotulo px-3 pb-2">Operação</p>
+      <a href="{% url 'painel_index' %}"
+         class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition
+                {% if request.resolver_match.url_name == 'painel_index' %}bg-marca-50 text-marca-700{% else %}text-slate-600 hover:bg-slate-100{% endif %}">
+        {{ icons.painel|safe }} Visão geral
+      </a>
+      <a href="{% url 'painel_cursos' %}"
+         class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition
+                {% if 'painel_curso' in request.resolver_match.url_name or 'painel_video' in request.resolver_match.url_name %}bg-marca-50 text-marca-700{% else %}text-slate-600 hover:bg-slate-100{% endif %}">
+        {{ icons.curso|safe }} Cursos
+      </a>
+      <a href="{% url 'painel_medicos' %}"
+         class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition
+                {% if 'painel_medico' in request.resolver_match.url_name %}bg-marca-50 text-marca-700{% else %}text-slate-600 hover:bg-slate-100{% endif %}">
+        {{ icons.medicos|safe }} Médicos
+      </a>
+      <a href="{% url 'painel_matriculas' %}"
+         class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition
+                {% if 'painel_matricula' in request.resolver_match.url_name %}bg-marca-50 text-marca-700{% else %}text-slate-600 hover:bg-slate-100{% endif %}">
+        {{ icons.matriculas|safe }} Matrículas
+      </a>
+      <a href="{% url 'upload_page' %}"
+         class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition
+                {% if request.resolver_match.url_name == 'upload_page' %}bg-marca-50 text-marca-700{% else %}text-slate-600 hover:bg-slate-100{% endif %}">
+        {{ icons.enviar|safe }} Enviar gravação
+      </a>
+      <a href="{% url 'painel_auditoria' %}"
+         class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition
+                {% if request.resolver_match.url_name == 'painel_auditoria' %}bg-marca-50 text-marca-700{% else %}text-slate-600 hover:bg-slate-100{% endif %}">
+        {{ icons.auditoria|safe }} Auditoria
+      </a>
+
+      <div class="pt-5">
+        <p class="rotulo px-3 pb-2">Atalhos</p>
+        <a href="{% url 'admin:index' %}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-slate-500 transition hover:bg-slate-100">
+          {{ icons.ajustes|safe }} Django admin (avançado)
+        </a>
+        <a href="{% url 'my_courses' %}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-slate-500 transition hover:bg-slate-100">
+          {{ icons.olho|safe }} Ver como médico
+        </a>
+      </div>
+    </div>
+  </aside>
+
+  <div class="min-w-0 flex-1">
+    {% if messages %}
+      {% for message in messages %}
+        <div class="mb-5 rounded-xl px-4 py-3 text-sm ring-1
+                    {% if message.tags == 'success' %}bg-marca-50 text-marca-800 ring-marca-200
+                    {% elif message.tags == 'error' %}bg-rose-50 text-rose-700 ring-rose-200
+                    {% else %}bg-slate-100 text-slate-700 ring-slate-200{% endif %}">
+          {{ message }}
+        </div>
+      {% endfor %}
+    {% endif %}
+
+    <div class="mb-6 flex flex-wrap items-center gap-2 lg:hidden">
+      <a href="{% url 'painel_index' %}" class="etiqueta bg-slate-100 text-slate-700">Visão geral</a>
+      <a href="{% url 'painel_cursos' %}" class="etiqueta bg-slate-100 text-slate-700">Cursos</a>
+      <a href="{% url 'painel_medicos' %}" class="etiqueta bg-slate-100 text-slate-700">Médicos</a>
+      <a href="{% url 'painel_matriculas' %}" class="etiqueta bg-slate-100 text-slate-700">Matrículas</a>
+      <a href="{% url 'upload_page' %}" class="etiqueta bg-slate-100 text-slate-700">Enviar</a>
+      <a href="{% url 'painel_auditoria' %}" class="etiqueta bg-slate-100 text-slate-700">Auditoria</a>
+    </div>
+
+    {% block painel %}{% endblock %}
+  </div>
+</div>
+{% endblock %}

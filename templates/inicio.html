@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Escola Superior de Ética Médica — CREMEPE / ESEM{% endblock %}
+
+{% block corpo %}
+<div class="bg-marca-gradiente relative overflow-hidden">
+  <div class="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-white/10"></div>
+  <div class="pointer-events-none absolute -bottom-32 -left-16 h-80 w-80 rounded-full bg-white/5"></div>
+
+  <div class="relative mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
+    <div class="max-w-2xl">
+      <div>
+        <img src="{% static 'img/logomarca-esem.png' %}" alt="Escola Superior de Ética Médica do CREMEPE"
+             class="h-16 w-auto sm:h-20">
+        <p class="mt-3 text-sm font-medium text-white/70">Educação Médica Continuada</p>
+      </div>
+
+      <h1 class="mt-8 text-3xl font-bold leading-tight tracking-tight text-white sm:text-5xl">
+        Ética e bioética a serviço<br class="hidden sm:block">
+        de quem está se formando médico.
+      </h1>
+
+      <p class="mt-5 max-w-xl text-base leading-relaxed text-white/80 sm:text-lg">
+        Cursos, simpósios e encontros de discussão sobre ética e bioética na medicina,
+        promovidos pela Escola Superior de Ética Médica do CREMEPE.
+      </p>
+
+      <div class="mt-9 flex flex-wrap items-center gap-3">
+        {% if usuario_autenticado %}
+          <a href="{% url 'my_courses' %}" class="btn bg-white px-6 py-3 text-marca-700 hover:bg-marca-50">
+            {{ icons.reproduzir|safe }} Ir para os meus cursos
+          </a>
+        {% else %}
+          <a href="{% url 'login' %}" class="btn bg-white px-6 py-3 text-marca-700 hover:bg-marca-50">
+            {{ icons.seta_direita|safe }} Acessar os cursos
+          </a>
+        {% endif %}
+        <a href="{% url 'sobre' %}" class="btn border border-white/30 px-6 py-3 text-white hover:bg-white/10">
+          Sobre a ESEM
+        </a>
+      </div>
+
+      <p class="mt-6 flex items-center gap-2 text-xs text-white/60">
+        {{ icons.cadeado|safe }}
+        O acesso é feito com o CPF e a senha enviados pelo CREMEPE.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- O que a ESEM discute -->
+<section class="mx-auto max-w-6xl px-5 py-14 sm:px-8 sm:py-20">
+  <p class="rotulo">Temas em debate</p>
+  <h2 class="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+    As questões que chegam à mesa
+  </h2>
+
+  <div class="mt-10 grid gap-6 sm:grid-cols-2">
+    <div class="cartao cartao-padrao">
+      <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-marca-50 text-marca-600">
+        {{ icons.medicos|safe }}
+      </span>
+      <h3 class="mt-5 text-base font-semibold text-slate-900">Relação e autonomia</h3>
+      <p class="mt-2 text-sm leading-relaxed text-slate-600">
+        A relação médico-paciente e a autonomia dos pacientes e dos médicos.
+      </p>
+    </div>
+
+    <div class="cartao cartao-padrao">
+      <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-marca-50 text-marca-600">
+        {{ icons.curso|safe }}
+      </span>
+      <h3 class="mt-5 text-base font-semibold text-slate-900">Corpo, vida e morte</h3>
+      <p class="mt-2 text-sm leading-relaxed text-slate-600">
+        As decisões morais em torno da gestão do corpo, da vida e da morte.
+      </p>
+    </div>
+
+    <div class="cartao cartao-padrao">
+      <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-marca-50 text-marca-600">
+        {{ icons.auditoria|safe }}
+      </span>
+      <h3 class="mt-5 text-base font-semibold text-slate-900">Intimidade e privacidade</h3>
+      <p class="mt-2 text-sm leading-relaxed text-slate-600">
+        O respeito aos direitos de intimidade e privacidade.
+      </p>
+    </div>
+
+    <div class="cartao cartao-padrao">
+      <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-marca-50 text-marca-600">
+        {{ icons.check|safe }}
+      </span>
+      <h3 class="mt-5 text-base font-semibold text-slate-900">Responsabilidade</h3>
+      <p class="mt-2 text-sm leading-relaxed text-slate-600">
+        A promoção da responsabilidade profissional.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Sobre a ESEM (resumo) -->
+<section class="bg-white py-14 sm:py-20">
+  <div class="mx-auto grid max-w-6xl gap-10 px-5 sm:px-8 lg:grid-cols-3">
+    <div class="lg:col-span-2">
+      <p class="rotulo">A Escola</p>
+      <h2 class="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+        Núcleo técnico permanente do CREMEPE
+      </h2>
+      <p class="mt-5 max-w-2xl text-base leading-relaxed text-slate-600">
+        A Escola Superior de Ética Médica do CREMEPE (ESEM) é o núcleo técnico permanente
+        responsável pela realização de eventos — conferências, seminários, fóruns e cursos —
+        para a apresentação e a discussão de temas específicos e atuais que envolvem a
+        ética e a bioética na medicina.
+      </p>
+      <p class="mt-4 max-w-2xl text-base leading-relaxed text-slate-600">
+        Criada pelas Resoluções CREMEPE 03/2005 e 08/2011, a Escola tem como finalidade
+        aprimorar sistematicamente os estudos sobre ética médica e bioética, contemplando a
+        visão humanística da medicina à luz dos avanços da ciência, da tecnologia e das
+        transformações da sociedade. Pioneira no Nordeste, integra as instituições de
+        ensino médico do Estado.
+      </p>
+      <a href="{% url 'sobre' %}" class="btn btn-secundario mt-7">
+        {{ icons.seta_direita|safe }} Sobre a ESEM
+      </a>
+    </div>
+
+    <aside class="cartao cartao-padrao">
+      <p class="rotulo">No portal</p>
+      <p class="mt-3 text-sm leading-relaxed text-slate-600">
+        O acesso aos cursos é feito com o CPF e a senha enviados pelo CREMEPE. O portal
+        registra a evolução de cada médico e emite a comprovação de conclusão conforme
+        as regras do Conselho.
+      </p>
+      {% if not usuario_autenticado %}
+        <a href="{% url 'login' %}" class="btn btn-primary mt-6 w-full">
+          {{ icons.seta_direita|safe }} Acessar os cursos
+        </a>
+      {% endif %}
+    </aside>
+  </div>
+</section>
+{% endblock %}

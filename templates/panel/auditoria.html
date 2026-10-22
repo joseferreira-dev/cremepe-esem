@@ -1,0 +1,44 @@
+{% extends "panel/base.html" %}
+
+{% block titulo %}Auditoria{% endblock %}
+
+{% block painel %}
+<div>
+  <p class="rotulo">Operação</p>
+  <h1 class="mt-1 text-3xl font-bold tracking-tight text-slate-900">Auditoria</h1>
+  <p class="mt-2 text-sm text-slate-500">
+    Registro das ações administrativas e das aprovações realizadas no portal.
+  </p>
+</div>
+
+<div class="cartao mt-8 overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="min-w-full divide-y divide-slate-100">
+      <thead class="bg-slate-50/80">
+        <tr>
+          <th class="cabecalho-tabela">Quando</th>
+          <th class="cabecalho-tabela">Ação</th>
+          <th class="cabecalho-tabela">Objeto</th>
+          <th class="cabecalho-tabela">Autor</th>
+          <th class="cabecalho-tabela">Detalhes</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        {% for log in logs %}
+          <tr class="transition hover:bg-slate-50/70">
+            <td class="celula whitespace-nowrap text-xs text-slate-500">{{ log.created_at|date:"d/m/Y H:i" }}</td>
+            <td class="celula">
+              <span class="font-mono text-xs font-semibold text-slate-700">{{ log.action }}</span>
+            </td>
+            <td class="celula text-slate-600">{{ log.target|default:"—" }}</td>
+            <td class="celula text-xs text-slate-500">{{ log.actor.username|default:"sistema" }}</td>
+            <td class="celula text-xs text-slate-400">{{ log.detail|default_if_none:"—" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="px-5 py-12 text-center text-sm text-slate-400">Nenhum registro.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

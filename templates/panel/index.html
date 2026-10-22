@@ -1,0 +1,222 @@
+{% extends "panel/base.html" %}
+{% load web %}
+
+{% block titulo %}Visão geral{% endblock %}
+
+{% block painel %}
+<div class="flex flex-wrap items-end justify-between gap-4">
+  <div>
+    <p class="rotulo">Painel administrativo</p>
+    <h1 class="mt-1 text-3xl font-bold tracking-tight text-slate-900">Visão geral</h1>
+    <p class="mt-2 text-sm text-slate-500">
+      Acompanhamento das turmas, dos médicos e do processamento das gravações.
+    </p>
+  </div>
+  <div class="flex gap-2">
+    <a href="{% url 'painel_curso_novo' %}" class="btn btn-secundario">
+      {{ icons.mais|safe }} Novo curso
+    </a>
+    <a href="{% url 'painel_video_novo' %}" class="btn btn-primary">
+      {{ icons.enviar|safe }} Enviar gravação
+    </a>
+  </div>
+</div>
+
+<!-- Indicadores -->
+<div class="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+  <div class="cartao cartao-padrao">
+    <div class="flex items-start justify-between">
+      <div>
+        <p class="rotulo">Cursos</p>
+        <p class="mt-2 text-3xl font-bold tracking-tight text-slate-900">{{ total_cursos }}</p>
+        <p class="mt-1 text-xs text-slate-500">cadastrados no portal</p>
+      </div>
+      <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-marca-50 text-marca-600">
+        {{ icons.curso|safe }}
+      </span>
+    </div>
+  </div>
+
+  <div class="cartao cartao-padrao">
+    <div class="flex items-start justify-between">
+      <div>
+        <p class="rotulo">Médicos ativos</p>
+        <p class="mt-2 text-3xl font-bold tracking-tight text-slate-900">{{ total_medicos }}</p>
+        <p class="mt-1 text-xs text-slate-500">{{ total_matriculas }} matrícula(s) em aberto</p>
+      </div>
+      <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-pacifico-50 text-pacifico-600">
+        {{ icons.medicos|safe }}
+      </span>
+    </div>
+  </div>
+
+  <div class="cartao cartao-padrao">
+    <div class="flex items-start justify-between">
+      <div>
+        <p class="rotulo">Aprovados</p>
+        <p class="mt-2 text-3xl font-bold tracking-tight text-slate-900">{{ total_aprovados }}</p>
+        <p class="mt-1 text-xs text-slate-500">{{ taxa_aprovacao }}% das matrículas ativas</p>
+      </div>
+      <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-marca-50 text-marca-600">
+        {{ icons.check|safe }}
+      </span>
+    </div>
+  </div>
+
+  <div class="cartao cartao-padrao">
+    <div class="flex items-start justify-between">
+      <div>
+        <p class="rotulo">Sessões hoje</p>
+        <p class="mt-2 text-3xl font-bold tracking-tight text-slate-900">{{ sessoes_hoje }}</p>
+        <p class="mt-1 text-xs text-slate-500">acessos ao player</p>
+      </div>
+      <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+        {{ icons.relogio|safe }}
+      </span>
+    </div>
+  </div>
+</div>
+
+<!-- Alertas -->
+{% if videos_com_erro or videos_processando %}
+  <div class="mt-6 grid gap-4 lg:grid-cols-2">
+    {% if videos_com_erro %}
+      <div class="cartao border-l-4 border-l-rose-500 p-5">
+        <div class="flex items-center gap-2 text-rose-700">
+          {{ icons.alerta|safe }}
+          <h2 class="text-sm font-semibold">Vídeos com erro no processamento</h2>
+        </div>
+        <ul class="mt-3 space-y-2 text-sm text-slate-600">
+          {% for video in videos_com_erro %}
+            <li class="flex items-center justify-between gap-3">
+              <span class="truncate">{{ video.title }} <span class="text-xs text-slate-400">({{ video.course.title }})</span></span>
+              <a href="{% url 'painel_video' video.id %}" class="shrink-0 text-xs font-semibold text-rose-600 hover:underline">ver</a>
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+
+    {% if videos_processando %}
+      <div class="cartao border-l-4 border-l-amber-400 p-5">
+        <div class="flex items-center gap-2 text-amber-700">
+          {{ icons.relogio|safe }}
+          <h2 class="text-sm font-semibold">Processando gravações</h2>
+        </div>
+        <ul class="mt-3 space-y-2 text-sm text-slate-600">
+          {% for video in videos_processando %}
+            <li class="flex items-center justify-between gap-3">
+              <span class="truncate">{{ video.title }} <span class="text-xs text-slate-400">({{ video.course.title }})</span></span>
+              <span class="etiqueta shrink-0 {{ video.status|cor_status }}">{{ video.get_status_display }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+  </div>
+{% endif %}
+
+<div class="mt-6 grid gap-6 lg:grid-cols-3">
+  <!-- Desempenho -->
+  <div class="cartao cartao-padrao lg:col-span-1">
+    <h2 class="text-sm font-semibold text-slate-800">Distribuição do progresso</h2>
+    <p class="mt-1 text-xs text-slate-500">Matrículas ativas por faixa assistida</p>
+    <div class="mt-6 space-y-4">
+      {% for faixa in faixa_desempenho %}
+        <div>
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-medium text-slate-600">{{ faixa.rotulo }}</span>
+            <span class="font-semibold text-slate-900">{{ faixa.total }}</span>
+          </div>
+          <div class="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100">
+            <div class="h-full rounded-full {{ faixa.cor }}"
+                 style="width: {% widthratio faixa.total total_matriculas 100 %}%"></div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Cursos -->
+  <div class="cartao overflow-hidden lg:col-span-2">
+    <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+      <h2 class="text-sm font-semibold text-slate-800">Progresso por curso</h2>
+      <a href="{% url 'painel_cursos' %}" class="text-xs font-semibold text-marca-600 hover:underline">ver todos</a>
+    </div>
+    <div class="divide-y divide-slate-100">
+      {% for linha in linhas %}
+        <a href="{% url 'painel_curso' linha.curso.id %}" class="flex items-center gap-4 px-5 py-4 transition hover:bg-slate-50">
+          <span class="min-w-0 flex-1">
+            <span class="block truncate text-sm font-semibold text-slate-800">{{ linha.curso.title }}</span>
+            <span class="block text-xs text-slate-500">
+              {{ linha.total }} matriculado(s) · {{ linha.aprovados }} aprovado(s) · {{ linha.duracao }}
+            </span>
+          </span>
+          <span class="w-32 shrink-0">
+            <span class="flex h-2 overflow-hidden rounded-full bg-slate-100">
+              <span class="h-full rounded-full bg-marca-gradiente" style="width: {{ linha.media }}%"></span>
+            </span>
+            <span class="mt-1 block text-right text-xs font-semibold text-slate-600">{{ linha.media }}%</span>
+          </span>
+        </a>
+      {% empty %}
+        <p class="px-5 py-10 text-center text-sm text-slate-400">Nenhum curso com matrículas.</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="mt-6 grid gap-6 lg:grid-cols-2">
+  <!-- Maiores coberturas -->
+  <div class="cartao overflow-hidden">
+    <div class="border-b border-slate-100 px-5 py-4">
+      <h2 class="text-sm font-semibold text-slate-800">Quem está mais adiantado</h2>
+    </div>
+    <div class="divide-y divide-slate-100">
+      {% for item in em_andamento %}
+        <div class="flex items-center gap-4 px-5 py-3.5">
+          <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-marca-gradiente text-xs font-bold text-white">
+            {{ item.matricula.medico.nome|slice:":1"|upper }}
+          </span>
+          <span class="min-w-0 flex-1">
+            <span class="block truncate text-sm font-medium text-slate-800">{{ item.matricula.medico.nome }}</span>
+            <span class="block truncate text-xs text-slate-500">{{ item.matricula.course.title }}</span>
+          </span>
+          <span class="shrink-0 text-right">
+            <span class="block text-sm font-bold text-slate-800">{{ item.cobertura }}%</span>
+            <span class="block text-xs text-slate-400">
+              {% if item.ultima %}{{ item.ultima|date:"d/m H:i" }}{% else %}—{% endif %}
+            </span>
+          </span>
+        </div>
+      {% empty %}
+        <p class="px-5 py-10 text-center text-sm text-slate-400">Nenhuma matrícula ativa.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Auditoria recente -->
+  <div class="cartao overflow-hidden">
+    <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+      <h2 class="text-sm font-semibold text-slate-800">Atividade recente</h2>
+      <a href="{% url 'painel_auditoria' %}" class="text-xs font-semibold text-marca-600 hover:underline">ver tudo</a>
+    </div>
+    <div class="divide-y divide-slate-100">
+      {% for log in ultimos_logs %}
+        <div class="px-5 py-3.5">
+          <p class="text-sm text-slate-700">
+            <span class="font-medium">{{ log.action|default:"ação" }}</span>
+            {% if log.target %} · {{ log.target }}{% endif %}
+          </p>
+          <p class="mt-0.5 text-xs text-slate-400">
+            {{ log.created_at|date:"d/m/Y H:i" }}
+            {% if log.actor %} · {{ log.actor.username }}{% endif %}
+          </p>
+        </div>
+      {% empty %}
+        <p class="px-5 py-10 text-center text-sm text-slate-400">Nenhum registro.</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

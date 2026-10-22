@@ -1,0 +1,38 @@
+{% extends "panel/base.html" %}
+
+{% block titulo %}{% if video %}Editar vídeo{% else %}Novo vídeo{% endif %}{% endblock %}
+
+{% block painel %}
+<a href="{% if video %}{% url 'painel_video' video.id %}{% else %}{% url 'painel_cursos' %}{% endif %}"
+   class="inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-slate-800">
+  {{ icons.voltar|safe }} Voltar
+</a>
+
+<h1 class="mt-4 text-3xl font-bold tracking-tight text-slate-900">
+  {% if video %}Editar vídeo{% else %}Novo vídeo{% endif %}
+</h1>
+<p class="mt-2 text-sm text-slate-500">
+  Cadastre o vídeo e depois envie o arquivo da gravação na tela de upload.
+</p>
+
+<form method="post" class="mt-8 max-w-2xl space-y-6">
+  {% csrf_token %}
+  <div class="cartao cartao-padrao space-y-6">
+    {% include "partials/campo.html" with field=form.course %}
+    {% include "partials/campo.html" with field=form.order %}
+    {% include "partials/campo.html" with field=form.title %}
+    <div class="flex items-start gap-3">
+      <div class="pt-0.5">{{ form.is_required }}</div>
+      <div>
+        <label class="text-sm font-semibold text-slate-800">{{ form.is_required.label }}</label>
+        <p class="mt-1 text-xs text-slate-500">Vídeos obrigatórios entram no cálculo do percentual do curso.</p>
+      </div>
+    </div>
+  </div>
+  <div class="flex gap-2">
+    <button class="btn btn-primary" type="submit">Salvar vídeo</button>
+    <a href="{% if video %}{% url 'painel_video' video.id %}{% else %}{% url 'painel_cursos' %}{% endif %}"
+       class="btn btn-secundario">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

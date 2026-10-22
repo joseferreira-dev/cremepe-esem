@@ -1,0 +1,62 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-cremepe}
+      POSTGRES_USER: ${POSTGRES_USER:-cremepe}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cremepe}
+    volumes:
+      - ./dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cremepe} -d ${POSTGRES_DB:-cremepe}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    build: .
+    restart: unless-stopped
+    command: ./scripts/start_app.sh
+    environment:
+      RUN_MIGRATIONS: "true"
+    env_file:
+      - .env
+    volumes:
+      - ./apps:/app/apps
+      - ./config:/app/config
+      - ./templates:/app/templates
+      - ./static:/app/static
+      - ./manage.py:/app/manage.py
+      - ./media:/srv/media
+      - ./staticfiles:/app/staticfiles
+    depends_on:
+      db:
+        condition: service_healthy
+
+  worker:
+    build: .
+    restart: unless-stopped
+    command: python manage.py runworker
+    env_file:
+      - .env
+    volumes:
+      - ./apps:/app/apps
+      - ./config:/app/config
+      - ./manage.py:/app/manage.py
+      - ./media:/srv/media
+    depends_on:
+      db:
+        condition: service_healthy
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-8080}:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./media:/srv/media:ro
+      - ./staticfiles:/var/www/static:ro
+    depends_on:
+      - app

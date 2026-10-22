@@ -1,0 +1,123 @@
+{% extends "panel/base.html" %}
+{% load web %}
+
+{% block titulo %}{{ video.title }}{% endblock %}
+
+{% block painel %}
+<a href="{% url 'painel_curso' video.course_id %}"
+   class="inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-slate-800">
+  {{ icons.voltar|safe }} {{ video.course.title }}
+</a>
+
+<div class="mt-4 flex flex-wrap items-start justify-between gap-4">
+  <div>
+    <h1 class="text-2xl font-bold tracking-tight text-slate-900">{{ video.title }}</h1>
+    <p class="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+      <span class="etiqueta {{ video.status|cor_status }}">{{ video.get_status_display }}</span>
+      <span>{{ video.course.title }}</span>
+      <span>· ordem {{ video.order }}</span>
+      <span>· {{ video.duration|duracao }}</span>
+    </p>
+  </div>
+  <div class="flex gap-2">
+    <a href="{% url 'upload_page' %}" class="btn btn-primary">{{ icons.enviar|safe }} Enviar arquivo</a>
+    <a href="{% url 'painel_video_editar' video.id %}" class="btn btn-secundario">Editar</a>
+  </div>
+</div>
+
+<div class="mt-8 grid gap-6 lg:grid-cols-3">
+  <div class="space-y-6 lg:col-span-2">
+    {% if video.error_message %}
+      <div class="cartao border-l-4 border-l-rose-500 p-5">
+        <h2 class="flex items-center gap-2 text-sm font-semibold text-rose-700">{{ icons.alerta|safe }} Erro no processamento</h2>
+        <pre class="mt-3 overflow-x-auto whitespace-pre-wrap text-xs text-slate-600">{{ video.error_message }}</pre>
+      </div>
+    {% endif %}
+
+    <div class="cartao cartao-padrao">
+      <h2 class="text-sm font-semibold text-slate-800">Arquivo</h2>
+      <dl class="mt-4 grid gap-4 sm:grid-cols-2 text-sm">
+        <div>
+          <dt class="rotulo">Nome original</dt>
+          <dd class="mt-1 break-all text-slate-700">{{ video.original_filename|default:"—" }}</dd>
+        </div>
+        <div>
+          <dt class="rotulo">Caminho</dt>
+          <dd class="mt-1 break-all text-slate-700">{{ video.original_path|default:"—" }}</dd>
+        </div>
+        <div>
+          <dt class="rotulo">Streaming (HLS)</dt>
+          <dd class="mt-1 text-slate-700">{{ video.hls_path|default:"—" }}</dd>
+        </div>
+        <div>
+          <dt class="rotulo">Qualidades geradas</dt>
+          <dd class="mt-1 text-slate-700">
+            {% if video.qualities %}
+              {% for qualidade in video.qualities %}
+                <span class="etiqueta bg-slate-100 text-slate-700">{{ qualidade.name }}</span>
+              {% endfor %}
+            {% else %}—{% endif %}
+          </dd>
+        </div>
+      </dl>
+    </div>
+
+    <div class="cartao cartao-padrao">
+      <h2 class="text-sm font-semibold text-slate-800">Progresso dos médicos neste vídeo</h2>
+      <div class="mt-4 overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-100 text-sm">
+          <thead>
+            <tr>
+              <th class="cabecalho-tabela">Médico</th>
+              <th class="cabecalho-tabela">Avanço</th>
+              <th class="cabecalho-tabela">Última posição</th>
+              <th class="cabecalho-tabela">Atualizado</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {% for progresso in progresses %}
+              <tr>
+                <td class="celula">{{ progresso.enrollment.medico.nome }}</td>
+                <td class="celula w-40">
+                  <div class="flex items-center gap-2">
+                    <span class="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                      <span class="block h-full rounded-full bg-marca-gradiente"
+                            style="width: {% widthratio progresso.furthest video.duration 100 %}%"></span>
+                    </span>
+                    <span class="text-xs font-semibold text-slate-600">
+                      {{ progresso.furthest|floatformat:0 }}s
+                    </span>
+                  </div>
+                </td>
+                <td class="celula text-xs">{{ progresso.last_position|duracao }}</td>
+                <td class="celula text-xs text-slate-500">
+                  {% if progresso.last_seen_at %}{{ progresso.last_seen_at|date:"d/m H:i" }}{% else %}—{% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="4" class="px-5 py-10 text-center text-sm text-slate-400">Nenhum médico começou este vídeo.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <aside class="space-y-6">
+    <div class="cartao cartao-padrao">
+      <h2 class="text-sm font-semibold text-slate-800">Ações</h2>
+      <div class="mt-4 space-y-2">
+        <form method="post" action="{% url 'painel_video_reprocessar' video.id %}">
+          {% csrf_token %}
+          <button class="btn btn-secundario w-full" type="submit">{{ icons.atualizar|safe }} Reprocessar gravação</button>
+        </form>
+        <form method="post" action="{% url 'painel_video_remover' video.id %}"
+              onsubmit="return confirm('Remover o vídeo “{{ video.title }}”?');">
+          {% csrf_token %}
+          <button class="btn btn-perigo w-full" type="submit">Remover vídeo</button>
+        </form>
+      </div>
+    </div>
+  </aside>
+</div>
+{% endblock %}

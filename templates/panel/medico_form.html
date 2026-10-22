@@ -1,0 +1,55 @@
+{% extends "panel/base.html" %}
+
+{% block titulo %}{% if medico %}Editar médico{% else %}Novo médico{% endif %}{% endblock %}
+
+{% block painel %}
+<a href="{% url 'painel_medicos' %}" class="inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-slate-800">
+  {{ icons.voltar|safe }} Médicos
+</a>
+
+<h1 class="mt-4 text-3xl font-bold tracking-tight text-slate-900">
+  {% if medico %}Editar médico{% else %}Novo médico{% endif %}
+</h1>
+<p class="mt-2 text-sm text-slate-500">
+  O médico acessa o portal com o CPF e a senha definida aqui.
+</p>
+
+{% if senha_utilizada %}
+  <div class="mt-6 rounded-xl bg-amber-50 px-5 py-4 ring-1 ring-amber-200">
+    <p class="text-sm font-semibold text-amber-800">Senha inicial do médico</p>
+    <p class="mt-1 font-mono text-lg font-bold text-amber-900">{{ senha_utilizada }}</p>
+    <p class="mt-1 text-xs leading-relaxed text-amber-700">
+      Entregue a senha ao médico. Ele será <strong>obrigado a trocá-la</strong> no primeiro
+      acesso ao portal.
+    </p>
+  </div>
+{% endif %}
+
+<form method="post" class="mt-8 grid gap-6 lg:grid-cols-3">
+  {% csrf_token %}
+  <div class="cartao cartao-padrao space-y-6 lg:col-span-2">
+    {% include "partials/campo.html" with field=form.nome %}
+    {% include "partials/campo.html" with field=form.cpf %}
+    {% include "partials/campo.html" with field=form.crm %}
+    {% include "partials/campo.html" with field=form.telefone %}
+    {% include "partials/campo.html" with field=form.email %}
+  </div>
+
+  <div class="space-y-6">
+    <div class="cartao cartao-padrao space-y-6">
+      {% include "partials/campo.html" with field=form.senha_provisoria %}
+      <div class="flex items-start gap-3">
+        <div class="pt-0.5">{{ form.ativo }}</div>
+        <div>
+          <label class="text-sm font-semibold text-slate-800">{{ form.ativo.label }}</label>
+          <p class="mt-1 text-xs text-slate-500">Médicos inativos não conseguem entrar no portal.</p>
+        </div>
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <button class="btn btn-primary flex-1" type="submit">Salvar médico</button>
+      <a href="{% url 'painel_medicos' %}" class="btn btn-secundario">Cancelar</a>
+    </div>
+  </div>
+</form>
+{% endblock %}

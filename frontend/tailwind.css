@@ -1,0 +1,146 @@
+@import "tailwindcss";
+
+@source "../../templates/**/*.html";
+@source "../../apps/**/*.py";
+@source "../../static/js/**/*.js";
+
+/* ------------------------------------------------------------------
+   Paleta extraída da identidade visual do CREMEPE
+   (logotipo-cremepe.png e banner.jpg do 17º Curso)
+   ------------------------------------------------------------------ */
+@theme {
+  --font-sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+
+  /* Verde institucional (anel do logotipo) */
+  --color-marca-50: #edfbf6;
+  --color-marca-100: #c9f4e6;
+  --color-marca-200: #96e8ce;
+  --color-marca-300: #57d6b2;
+  --color-marca-400: #21be96;
+  --color-marca-500: #009965;
+  --color-marca-600: #007f55;
+  --color-marca-700: #006448;
+  --color-marca-800: #00503b;
+  --color-marca-900: #043f2f;
+
+  /* Turquesa (gradiente do banner) */
+  --color-turquesa-300: #6ad3cb;
+  --color-turquesa-400: #22b9af;
+  --color-turquesa-500: #00a396;
+  --color-turquesa-600: #00857c;
+
+  /* Pacífico (azul do banner) */
+  --color-pacifico-50: #eff8fd;
+  --color-pacifico-100: #d7eefa;
+  --color-pacifico-200: #b3e0f4;
+  --color-pacifico-300: #6bb9db;
+  --color-pacifico-400: #2a97c9;
+  --color-pacifico-500: #0079b0;
+  --color-pacifico-600: #00638f;
+  --color-pacifico-700: #005072;
+  --color-pacifico-800: #003f5a;
+  --color-pacifico-900: #002f42;
+
+  /* Abissal (azul profundo do rodapé do banner) */
+  --color-abissal-600: #0a5c7a;
+  --color-abissal-700: #064b63;
+  --color-abissal-800: #053c50;
+  --color-abissal-900: #00455f;
+  --color-abissal-950: #022c3c;
+
+  /* Ardesia (cinza do logotipo) */
+  --color-ardesia-500: #595959;
+}
+
+@utility bg-marca-gradiente {
+  background-image: linear-gradient(
+    135deg,
+    var(--color-marca-500) 0%,
+    var(--color-turquesa-500) 48%,
+    var(--color-pacifico-500) 100%
+  );
+}
+
+@utility bg-abissal-gradiente {
+  background-image: linear-gradient(
+    135deg,
+    var(--color-abissal-900) 0%,
+    var(--color-abissal-700) 60%,
+    var(--color-marca-700) 100%
+  );
+}
+
+@utility sombra-suave {
+  box-shadow:
+    0 1px 2px 0 rgb(4 63 47 / 0.04),
+    0 8px 24px -12px rgb(4 63 47 / 0.18);
+}
+
+@utility sombra-forte {
+  box-shadow:
+    0 2px 4px -2px rgb(4 63 47 / 0.08),
+    0 18px 40px -20px rgb(4 63 47 / 0.35);
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold
+      transition-all duration-150 focus-visible:outline-2 focus-visible:outline-offset-2
+      focus-visible:outline-marca-500 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply bg-marca-500 text-white hover:bg-marca-600 active:bg-marca-700 sombra-suave;
+  }
+
+  .btn-secundario {
+    @apply bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50 hover:text-slate-900;
+  }
+
+  .btn-fantasma {
+    @apply text-slate-600 hover:bg-slate-100 hover:text-slate-900;
+  }
+
+  .btn-perigo {
+    @apply bg-rose-600 text-white hover:bg-rose-700;
+  }
+
+  .btn-sm {
+    @apply rounded-lg px-3 py-1.5 text-xs;
+  }
+
+  .cartao {
+    @apply rounded-2xl bg-white ring-1 ring-slate-200/80 sombra-suave;
+  }
+
+  .cartao-padrao {
+    @apply p-5 sm:p-6;
+  }
+
+  .rotulo {
+    @apply block text-xs font-semibold uppercase tracking-wider text-slate-500;
+  }
+
+  .campo {
+    @apply w-full rounded-xl border-0 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm
+      ring-1 ring-slate-200 transition placeholder:text-slate-400
+      focus:ring-2 focus:ring-inset focus:ring-marca-500 focus:outline-none;
+  }
+
+  .etiqueta {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold;
+  }
+
+  .link-menu {
+    @apply rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition
+      hover:bg-slate-100 hover:text-slate-900;
+  }
+
+  .celula {
+    @apply px-5 py-3.5 text-sm text-slate-700;
+  }
+
+  .cabecalho-tabela {
+    @apply px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500;
+  }
+}

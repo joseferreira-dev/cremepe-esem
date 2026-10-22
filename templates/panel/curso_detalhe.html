@@ -1,0 +1,205 @@
+{% extends "panel/base.html" %}
+{% load web %}
+
+{% block titulo %}{{ curso.title }}{% endblock %}
+
+{% block painel %}
+<div class="flex flex-wrap items-start justify-between gap-4">
+  <div class="flex items-start gap-4">
+    {% if curso.cover %}
+      <img src="{{ curso.cover.url }}" alt="" class="h-16 w-24 rounded-xl object-cover ring-1 ring-slate-200">
+    {% endif %}
+    <div>
+      <a href="{% url 'painel_cursos' %}" class="inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-slate-800">
+        {{ icons.voltar|safe }} Cursos
+      </a>
+      <h1 class="mt-1 text-2xl font-bold tracking-tight text-slate-900">{{ curso.title }}</h1>
+      <p class="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+        <span class="etiqueta {{ curso.status|cor_status }}">{{ curso.get_status_display }}</span>
+        <span>{{ curso.edition|default:"—" }}</span>
+        <span>· {{ curso.videos.count }} vídeo(s)</span>
+        <span>· {{ duracao }}</span>
+        <span>· exige {{ curso.min_percent|floatformat:0 }}%</span>
+      </p>
+    </div>
+  </div>
+  <div class="flex flex-wrap gap-2">
+    <a href="{% url 'painel_curso_exportar' curso.id %}" class="btn btn-secundario">Exportar CSV</a>
+    <a href="{% url 'painel_curso_editar' curso.id %}" class="btn btn-secundario">Editar</a>
+    <a href="{% url 'painel_video_novo' %}" class="btn btn-primary">{{ icons.mais|safe }} Vídeo</a>
+  </div>
+</div>
+
+<div class="mt-8 grid gap-6 lg:grid-cols-3">
+  <div class="space-y-6 lg:col-span-2">
+
+    <!-- Vídeos -->
+    <div class="cartao overflow-hidden">
+      <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+        <h2 class="text-sm font-semibold text-slate-800">Gravações</h2>
+        <a href="{% url 'upload_page' %}" class="text-xs font-semibold text-marca-600 hover:underline">enviar arquivo</a>
+      </div>
+      <div class="divide-y divide-slate-100">
+        {% for video in videos %}
+          <div class="flex items-center gap-4 px-5 py-4">
+            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs font-bold text-slate-600">
+              {{ video.order }}
+            </span>
+            <span class="min-w-0 flex-1">
+              <a href="{% url 'painel_video' video.id %}" class="block truncate text-sm font-semibold text-slate-800 hover:text-marca-600">
+                {{ video.title }}
+              </a>
+              <span class="mt-0.5 block text-xs text-slate-500">
+                {{ video.duration|duracao }}
+                {% if video.original_filename %} · {{ video.original_filename|tamanho_arquivo }}{% endif %}
+              </span>
+            </span>
+            <span class="etiqueta shrink-0 {{ video.status|cor_status }}">{{ video.get_status_display }}</span>
+            <a href="{% url 'painel_video' video.id %}" class="btn btn-secundario btn-sm shrink-0">Abrir</a>
+          </div>
+        {% empty %}
+          <p class="px-5 py-10 text-center text-sm text-slate-400">
+            Nenhuma gravação neste curso. <a class="font-semibold text-marca-600 hover:underline" href="{% url 'painel_video_novo' %}">Cadastrar o primeiro vídeo</a>.
+          </p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Turma -->
+    <div class="cartao overflow-hidden">
+      <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+        <h2 class="text-sm font-semibold text-slate-800">Turma ({{ linhas|length }})</h2>
+        <button type="button" data-dropdown-toggle="form-matricula"
+                class="text-xs font-semibold text-marca-600 hover:underline">+ matricular médico</button>
+      </div>
+
+      <div id="form-matricula" data-dropdown-menu class="hidden border-b border-slate-100 bg-slate-50/60 p-5">
+        <form method="post" action="{% url 'painel_matricula_nova' %}" class="grid gap-4 sm:grid-cols-2">
+          {% csrf_token %}
+          <input type="hidden" name="course" value="{{ curso.id }}">
+          {% for field in form_matricula %}
+            {% if field.name == "course" %}{% else %}
+              <div class="{% if field.name == 'medico' %}sm:col-span-2{% endif %}">
+                <label class="rotulo" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                <div class="mt-1.5">{{ field }}</div>
+                {% for error in field.errors %}<p class="mt-1 text-xs text-rose-600">{{ error }}</p>{% endfor %}
+              </div>
+            {% endif %}
+          {% endfor %}
+          <div class="sm:col-span-2 flex gap-2">
+            <button class="btn btn-primary btn-sm" type="submit">Confirmar matrícula</button>
+            <a href="{% url 'painel_medico_novo' %}" class="btn btn-secundario btn-sm">Cadastrar novo médico</a>
+          </div>
+        </form>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-100">
+          <thead class="bg-slate-50/80">
+            <tr>
+              <th class="cabecalho-tabela">Médico</th>
+              <th class="cabecalho-tabela">Progresso</th>
+              <th class="cabecalho-tabela">Situação</th>
+              <th class="cabecalho-tabela">Tempo</th>
+              <th class="cabecalho-tabela">Última atividade</th>
+              <th class="cabecalho-tabela"></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {% for linha in linhas %}
+              <tr class="transition hover:bg-slate-50/70">
+                <td class="celula">
+                  <span class="font-semibold text-slate-800">{{ linha.matricula.medico.nome }}</span>
+                  <span class="block text-xs text-slate-500">{{ linha.matricula.medico.cpf }}</span>
+                </td>
+                <td class="celula w-48">
+                  <div class="flex items-center gap-2">
+                    <span class="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                      <span class="block h-full rounded-full {% if linha.aprovado %}bg-marca-500{% else %}bg-pacifico-500{% endif %}"
+                            style="width: {{ linha.cobertura }}%"></span>
+                    </span>
+                    <span class="w-10 text-right text-xs font-semibold text-slate-600">{{ linha.cobertura }}%</span>
+                  </div>
+                </td>
+                <td class="celula">
+                  <span class="etiqueta {{ linha.matricula.status|cor_status }}">{{ linha.matricula.get_status_display }}</span>
+                </td>
+                <td class="celula text-xs">{{ linha.tempo }}</td>
+                <td class="celula text-xs text-slate-500">
+                  {% if linha.ultima %}{{ linha.ultima|date:"d/m H:i" }}{% else %}—{% endif %}
+                </td>
+                <td class="celula text-right">
+                  <div class="flex justify-end gap-1.5">
+                    {% if not linha.aprovado %}
+                      <form method="post" action="{% url 'painel_matricula_acao' linha.matricula.id %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="acao" value="aprovar">
+                        <button class="btn btn-secundario btn-sm" type="submit" title="Aprovar manualmente">Aprovar</button>
+                      </form>
+                    {% endif %}
+                    <form method="post" action="{% url 'painel_matricula_acao' linha.matricula.id %}">
+                      {% csrf_token %}
+                      <input type="hidden" name="acao" value="resetar">
+                      <button class="btn btn-fantasma btn-sm" type="submit" title="Zerar o progresso">Resetar</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="6" class="px-5 py-12 text-center text-sm text-slate-400">Nenhum médico matriculado.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lateral -->
+  <aside class="space-y-6">
+    <div class="cartao cartao-padrao">
+      <h2 class="text-sm font-semibold text-slate-800">Regras do curso</h2>
+      <dl class="mt-4 space-y-3 text-sm">
+        <div class="flex justify-between gap-4">
+          <dt class="text-slate-500">Aprovação</dt>
+          <dd class="font-semibold text-slate-800">{{ curso.min_percent|floatformat:0 }}%</dd>
+        </div>
+        <div class="flex justify-between gap-4">
+          <dt class="text-slate-500">Liberação</dt>
+          <dd class="font-semibold text-slate-800">
+            {% if curso.sequential %}Sequencial ({{ curso.unlock_threshold|floatformat:0 }}%){% else %}Livre{% endif %}
+          </dd>
+        </div>
+        <div class="flex justify-between gap-4">
+          <dt class="text-slate-500">Prazo</dt>
+          <dd class="font-semibold text-slate-800">
+            {% if curso.deadline %}{{ curso.deadline|date:"d/m/Y" }}{% else %}—{% endif %}
+          </dd>
+        </div>
+        <div class="flex justify-between gap-4">
+          <dt class="text-slate-500">Duração</dt>
+          <dd class="font-semibold text-slate-800">{{ duracao }}</dd>
+        </div>
+      </dl>
+    </div>
+
+    {% if curso.description %}
+      <div class="cartao cartao-padrao">
+        <h2 class="text-sm font-semibold text-slate-800">Descrição</h2>
+        <p class="mt-3 whitespace-pre-line text-sm leading-relaxed text-slate-600">{{ curso.description }}</p>
+      </div>
+    {% endif %}
+
+    <div class="cartao cartao-padrao">
+      <h2 class="text-sm font-semibold text-rose-700">Zona de risco</h2>
+      <p class="mt-2 text-xs text-slate-500">
+        A exclusão remove o curso e todas as suas gravações. Só é possível excluir cursos sem matrículas.
+      </p>
+      <form method="post" action="{% url 'painel_curso_remover' curso.id %}" class="mt-4"
+            onsubmit="return confirm('Excluir o curso “{{ curso.title }}”? Esta ação não pode ser desfeita.');">
+        {% csrf_token %}
+        <button class="btn btn-perigo btn-sm" type="submit">Excluir curso</button>
+      </form>
+    </div>
+  </aside>
+</div>
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends "panel/base.html" %}
+
+{% block titulo %}Nova matrícula{% endblock %}
+
+{% block painel %}
+<a href="{% url 'painel_matriculas' %}" class="inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-slate-800">
+  {{ icons.voltar|safe }} Matrículas
+</a>
+
+<h1 class="mt-4 text-3xl font-bold tracking-tight text-slate-900">Nova matrícula</h1>
+<p class="mt-2 text-sm text-slate-500">
+  O percentual exigido é copiado do curso e pode ser ajustado para esta matrícula.
+</p>
+
+<form method="post" class="mt-8 max-w-2xl">
+  {% csrf_token %}
+  <div class="cartao cartao-padrao space-y-6">
+    {% include "partials/campo.html" with field=form.medico %}
+    {% include "partials/campo.html" with field=form.course %}
+    {% include "partials/campo.html" with field=form.min_percent %}
+    {% include "partials/campo.html" with field=form.deadline %}
+  </div>
+  <div class="mt-6 flex gap-2">
+    <button class="btn btn-primary" type="submit">Confirmar matrícula</button>
+    <a href="{% url 'painel_matriculas' %}" class="btn btn-secundario">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

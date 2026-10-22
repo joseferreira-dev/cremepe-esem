@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Acessar os cursos — CREMEPE / ESEM{% endblock %}
+
+{% block topo %}{% endblock %}
+{% block corpo %}
+<div class="min-h-screen lg:grid lg:grid-cols-2">
+
+  <!-- Banner lateral -->
+  <div class="bg-marca-gradiente relative flex flex-col justify-center overflow-hidden px-6 py-12 sm:px-10 lg:px-14 lg:py-16">
+    <div class="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-white/10"></div>
+    <div class="pointer-events-none absolute -bottom-32 -left-16 h-80 w-80 rounded-full bg-white/5"></div>
+
+    <div class="relative mx-auto w-full max-w-xl">
+      <div class="flex flex-col items-start gap-5">
+        <img src="{% static 'img/logomarca-esem.png' %}" alt="Escola Superior de Ética Médica do CREMEPE"
+             class="h-16 w-auto sm:h-20">
+        <img src="{% static 'img/logotipo-cremepe.png' %}" alt="CREMEPE"
+             class="h-10 w-auto brightness-0 invert sm:h-12">
+      </div>
+      <p class="mt-4 text-sm font-medium text-white/70">Educação Médica Continuada</p>
+
+      <h1 class="mt-8 text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl">
+        Acesso aos cursos
+      </h1>
+      <p class="mt-5 text-lg leading-relaxed text-white/80">
+        Cursos, simpósios e encontros de discussão sobre ética e bioética na medicina,
+        promovidos pela Escola Superior de Ética Médica do CREMEPE.
+      </p>
+    </div>
+  </div>
+
+  <!-- Formulário -->
+  <div class="flex items-center justify-center bg-slate-50 px-5 py-12 sm:px-8">
+    <div class="w-full max-w-md">
+      <div class="cartao cartao-padrao">
+        <h2 class="text-lg font-bold tracking-tight text-slate-900">Entrar no portal</h2>
+        <p class="mt-1 text-sm text-slate-500">
+          Informe o CPF cadastrado e a senha enviada pelo CREMEPE.
+        </p>
+
+        {% if messages %}
+          {% for message in messages %}
+            <div class="mt-5 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700 ring-1 ring-rose-200">
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endif %}
+
+        <form method="post" class="mt-6 space-y-5" novalidate>
+          {% csrf_token %}
+          <div>
+            <label class="rotulo" for="{{ form.cpf.id_for_label }}">CPF</label>
+            <div class="mt-2">{{ form.cpf }}</div>
+            {% for error in form.cpf.errors %}
+              <p class="mt-1.5 text-xs text-rose-600">{{ error }}</p>
+            {% endfor %}
+          </div>
+
+          <div>
+            <label class="rotulo" for="{{ form.senha.id_for_label }}">Senha</label>
+            <div class="mt-2">{{ form.senha }}</div>
+            {% for error in form.senha.errors %}
+              <p class="mt-1.5 text-xs text-rose-600">{{ error }}</p>
+            {% endfor %}
+          </div>
+
+          <button class="btn btn-primary w-full" type="submit">Entrar</button>
+        </form>
+
+        <p class="mt-6 border-t border-slate-100 pt-5 text-xs leading-relaxed text-slate-500">
+          <strong class="font-semibold text-slate-700">Primeiro acesso?</strong>
+          Use a senha inicial recebida do CREMEPE
+          (PrimeiroNome@CPFsemseparadores) — o sistema solicitará uma nova senha em seguida.
+          Dúvidas? Procure a secretaria do CREMEPE.
+        </p>
+      </div>
+
+      <p class="mt-6 text-center text-sm">
+        <a href="{% url 'sobre' %}" class="font-medium text-slate-500 underline-offset-4 hover:text-slate-800 hover:underline">
+          Sobre a ESEM
+        </a>
+      </p>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

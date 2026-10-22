@@ -1,0 +1,10 @@
+<div>
+  <label class="rotulo" for="{{ field.id_for_label }}">{{ field.label }}</label>
+  <div class="mt-2">{{ field }}</div>
+  {% if field.help_text %}
+    <p class="mt-1.5 text-xs text-slate-500">{{ field.help_text }}</p>
+  {% endif %}
+  {% for error in field.errors %}
+    <p class="mt-1.5 text-xs text-rose-600">{{ error }}</p>
+  {% endfor %}
+</div>

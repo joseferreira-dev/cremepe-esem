@@ -1,0 +1,99 @@
+{% extends "panel/base.html" %}
+{% load web %}
+
+{% block titulo %}Médicos{% endblock %}
+
+{% block painel %}
+<div class="flex flex-wrap items-end justify-between gap-4">
+  <div>
+    <p class="rotulo">Operação</p>
+    <h1 class="mt-1 text-3xl font-bold tracking-tight text-slate-900">Médicos</h1>
+    <p class="mt-2 text-sm text-slate-500">
+      Cadastre os médicos reprovados, defina a senha provisória e acompanhe as matrículas.
+    </p>
+  </div>
+  <a href="{% url 'painel_medico_novo' %}" class="btn btn-primary">{{ icons.mais|safe }} Novo médico</a>
+</div>
+
+<form method="get" class="mt-6 flex max-w-md gap-2">
+  <div class="relative flex-1">
+    <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">{{ icons.busca|safe }}</span>
+    <input type="search" name="q" value="{{ busca }}" class="campo pl-10" placeholder="Buscar por nome, CPF ou CRM">
+  </div>
+  <button class="btn btn-secundario" type="submit">Buscar</button>
+</form>
+
+<div class="cartao mt-6 overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="min-w-full divide-y divide-slate-100">
+      <thead class="bg-slate-50/80">
+        <tr>
+          <th class="cabecalho-tabela">Médico</th>
+          <th class="cabecalho-tabela">CPF</th>
+          <th class="cabecalho-tabela">CRM</th>
+          <th class="cabecalho-tabela">Matrículas</th>
+          <th class="cabecalho-tabela">Última atividade</th>
+          <th class="cabecalho-tabela">Situação</th>
+          <th class="cabecalho-tabela"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        {% for linha in linhas %}
+          <tr class="transition hover:bg-slate-50/70 {% if not linha.medico.ativo %}opacity-60{% endif %}">
+            <td class="celula">
+              <div class="flex items-center gap-3">
+                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-marca-gradiente text-xs font-bold text-white">
+                  {{ linha.medico.nome|slice:":1"|upper }}
+                </span>
+                <span>
+                  <span class="block font-semibold text-slate-800">{{ linha.medico.nome }}</span>
+                  <span class="block text-xs text-slate-500">{{ linha.medico.email|default:"—" }}</span>
+                </span>
+              </div>
+            </td>
+            <td class="celula text-slate-600">{{ linha.medico.cpf }}</td>
+            <td class="celula text-slate-600">{{ linha.medico.crm|default:"—" }}</td>
+            <td class="celula">
+              {{ linha.matriculas }}
+              {% if linha.aprovado %}
+                <span class="ml-1 text-xs font-semibold text-marca-600">({{ linha.aprovado }} aprovado{{ linha.aprovado|pluralize:"s" }})</span>
+              {% endif %}
+            </td>
+            <td class="celula text-xs text-slate-500">
+              {% if linha.ultimo %}{{ linha.ultimo|date:"d/m/Y H:i" }}{% else %}nunca acessou{% endif %}
+            </td>
+            <td class="celula">
+              {% if linha.medico.ativo %}
+                <span class="etiqueta bg-marca-100 text-marca-700 ring-1 ring-marca-200">Ativo</span>
+              {% else %}
+                <span class="etiqueta bg-slate-100 text-slate-500 ring-1 ring-slate-200">Inativo</span>
+              {% endif %}
+              {% if linha.medico.must_change_password %}
+                <span class="etiqueta ml-1 bg-amber-50 text-amber-700 ring-1 ring-amber-200">Senha provisória</span>
+              {% endif %}
+            </td>
+            <td class="celula">
+              <div class="flex justify-end gap-1.5">
+                <a href="{% url 'painel_medico_editar' linha.medico.id %}" class="btn btn-secundario btn-sm">Editar</a>
+                <form method="post" action="{% url 'painel_medico_acao' linha.medico.id %}">
+                  {% csrf_token %}
+                  <input type="hidden" name="acao" value="{% if linha.medico.ativo %}desativar{% else %}ativar{% endif %}">
+                  <button class="btn btn-fantasma btn-sm" type="submit">
+                    {% if linha.medico.ativo %}Desativar{% else %}Ativar{% endif %}
+                  </button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="7" class="px-5 py-12 text-center text-sm text-slate-400">
+              {% if busca %}Nenhum médico encontrado.{% else %}Nenhum médico cadastrado.{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

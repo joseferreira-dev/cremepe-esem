@@ -1,0 +1,57 @@
+{% extends "panel/base.html" %}
+
+{% block titulo %}{% if curso %}Editar curso{% else %}Novo curso{% endif %}{% endblock %}
+
+{% block painel %}
+<a href="{% if curso %}{% url 'painel_curso' curso.id %}{% else %}{% url 'painel_cursos' %}{% endif %}"
+   class="inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-slate-800">
+  {{ icons.voltar|safe }} Voltar
+</a>
+
+<h1 class="mt-4 text-3xl font-bold tracking-tight text-slate-900">
+  {% if curso %}Editar curso{% else %}Novo curso{% endif %}
+</h1>
+<p class="mt-2 text-sm text-slate-500">
+  As regras definidas aqui valem para todos os médicos matriculados neste curso.
+</p>
+
+<form method="post" enctype="multipart/form-data" class="mt-8 grid gap-6 lg:grid-cols-3">
+  {% csrf_token %}
+
+  <div class="cartao cartao-padrao space-y-6 lg:col-span-2">
+    {% include "partials/campo.html" with field=form.title %}
+    {% include "partials/campo.html" with field=form.edition %}
+    {% include "partials/campo.html" with field=form.description %}
+    {% include "partials/campo.html" with field=form.cover %}
+  </div>
+
+  <div class="space-y-6">
+    <div class="cartao cartao-padrao space-y-6">
+      {% include "partials/campo.html" with field=form.status %}
+      {% include "partials/campo.html" with field=form.min_percent %}
+      {% include "partials/campo.html" with field=form.deadline %}
+    </div>
+
+    <div class="cartao cartao-padrao space-y-6">
+      <div class="flex items-start gap-3">
+        <div class="pt-0.5">{{ form.sequential }}</div>
+        <div>
+          <label class="text-sm font-semibold text-slate-800">{{ form.sequential.label }}</label>
+          <p class="mt-1 text-xs text-slate-500">
+            O médico só acessa o vídeo seguinte após concluir o anterior.
+          </p>
+        </div>
+      </div>
+      {% if form.sequential.value %}
+        {% include "partials/campo.html" with field=form.unlock_threshold %}
+      {% endif %}
+    </div>
+
+    <div class="flex gap-2">
+      <button class="btn btn-primary flex-1" type="submit">Salvar curso</button>
+      <a href="{% if curso %}{% url 'painel_curso' curso.id %}{% else %}{% url 'painel_cursos' %}{% endif %}"
+         class="btn btn-secundario">Cancelar</a>
+    </div>
+  </div>
+</form>
+{% endblock %}
