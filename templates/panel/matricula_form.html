@@ -11,8 +11,8 @@
 <form method="post" class="mt-8 max-w-2xl">
   {% csrf_token %}
   <div class="cartao cartao-padrao space-y-6">
-    {% include "partials/campo.html" with field=form.medico %}
-    {% include "partials/campo.html" with field=form.course %}
+    {% include "partials/campo_busca.html" with field=form.medico placeholder="Buscar médico…" %}
+    {% include "partials/campo_busca.html" with field=form.course placeholder="Buscar curso…" %}
     {% include "partials/campo.html" with field=form.min_percent %}
     {% include "partials/campo.html" with field=form.deadline %}
   </div>

@@ -6,6 +6,7 @@ import csv
 import secrets
 
 from django.contrib import messages
+from django.contrib.auth.models import User
 from django.db import transaction
 from django.db.models import F, Max, Q, Sum
 from django.http import HttpResponse, JsonResponse
@@ -27,7 +28,9 @@ from apps.courses.services import (
 from apps.media.services import enqueue_transcode
 from apps.web.templatetags.web import cor_status
 
+from .decorators import somente_admin, somente_superuser
 from .forms import (
+    AdministradorForm,
     CursoForm,
     MatriculaForm,
     MatriculaLoteForm,
@@ -40,6 +43,27 @@ from .forms import (
 # --------------------------------------------------------------------------
 # Visão geral
 # --------------------------------------------------------------------------
+def _faixa_desempenho(matriculas) -> list[dict]:
+    """Agrupa matrículas por faixa de cobertura assistida."""
+    faixas = [
+        {"rotulo": "0–25%", "total": 0, "cor": "bg-slate-300"},
+        {"rotulo": "25–50%", "total": 0, "cor": "bg-sky-400"},
+        {"rotulo": "50–75%", "total": 0, "cor": "bg-pacifico-500"},
+        {"rotulo": "75–100%", "total": 0, "cor": "bg-marca-500"},
+    ]
+    for matricula in matriculas:
+        cobertura = course_coverage(matricula)
+        if cobertura < 25:
+            faixas[0]["total"] += 1
+        elif cobertura < 50:
+            faixas[1]["total"] += 1
+        elif cobertura < 75:
+            faixas[2]["total"] += 1
+        else:
+            faixas[3]["total"] += 1
+    return faixas
+
+
 def index(request):
     cursos = list(Course.objects.all())
     matriculas = Enrollment.objects.select_related("medico", "course")
@@ -62,23 +86,6 @@ def index(request):
             }
         )
     em_andamento.sort(key=lambda item: item["cobertura"], reverse=True)
-
-    faixa_desempenho = [
-        {"rotulo": "0–25%", "total": 0, "cor": "bg-slate-300"},
-        {"rotulo": "25–50%", "total": 0, "cor": "bg-sky-400"},
-        {"rotulo": "50–75%", "total": 0, "cor": "bg-pacifico-500"},
-        {"rotulo": "75–100%", "total": 0, "cor": "bg-marca-500"},
-    ]
-    for item in em_andamento:
-        cobertura = item["cobertura"]
-        if cobertura < 25:
-            faixa_desempenho[0]["total"] += 1
-        elif cobertura < 50:
-            faixa_desempenho[1]["total"] += 1
-        elif cobertura < 75:
-            faixa_desempenho[2]["total"] += 1
-        else:
-            faixa_desempenho[3]["total"] += 1
 
     videos_processando = list(
         Video.objects.filter(status__in=[Video.Status.QUEUED, Video.Status.PROCESSING])
@@ -120,7 +127,6 @@ def index(request):
                 (aprovadas / ativas.count() * 100) if ativas.count() else 0, 1
             ),
             "em_andamento": em_andamento[:8],
-            "faixa_desempenho": faixa_desempenho,
             "linhas": linhas,
             "videos_processando": videos_processando,
             "videos_com_erro": videos_com_erro,
@@ -226,6 +232,12 @@ def curso_detalhe(request, pk):
             }
         )
 
+    ativas = curso.enrollments.exclude(
+        status__in=[Enrollment.Status.CANCELLED, Enrollment.Status.REJECTED]
+    )
+    faixa_desempenho = _faixa_desempenho(ativas)
+    total_ativas = ativas.count()
+
     return render(
         request,
         "panel/curso_detalhe.html",
@@ -236,6 +248,8 @@ def curso_detalhe(request, pk):
             "form_matricula_lote": form_matricula_lote,
             "medicos_disponiveis": form_matricula_lote.fields["medicos"].queryset.count(),
             "duracao": format_hours(curso.total_duration),
+            "faixa_desempenho": faixa_desempenho,
+            "total_ativas": total_ativas,
         },
     )
 
@@ -410,7 +424,7 @@ def medico_form(request, pk=None):
 
 
 def medico_lote(request):
-    form = MedicoLoteForm(request.POST or None)
+    form = MedicoLoteForm(request.POST or None, request.FILES or None)
     criados = []
     if request.method == "POST" and form.is_valid():
         criados = form.save()
@@ -575,6 +589,20 @@ def matricula_acao(request, pk):
         matricula.status = Enrollment.Status.CANCELLED
         matricula.save(update_fields=["status"])
         mensagem = "Matrícula cancelada."
+    elif acao == "remover":
+        nome = matricula.medico.nome
+        curso = matricula.course.title
+        record_audit(
+            "matricula_removida",
+            actor=request.user,
+            target=f"{nome} — {curso}",
+            ip=request.META.get("REMOTE_ADDR"),
+        )
+        matricula.delete()
+        if request.headers.get("x-requested-with") == "XMLHttpRequest":
+            return JsonResponse({"ok": True, "removido": True})
+        messages.success(request, "Matrícula removida.")
+        return redirect(_destino_matricula(request, curso_id))
 
     if request.headers.get("x-requested-with") == "XMLHttpRequest":
         return JsonResponse(
@@ -639,3 +667,105 @@ def matricula_exportar(request, pk):
 def auditoria(request):
     logs = AuditLog.objects.select_related("actor").all()[:300]
     return render(request, "panel/auditoria.html", {"logs": logs})
+
+
+# --------------------------------------------------------------------------
+# Usuários administradores do painel
+# --------------------------------------------------------------------------
+@somente_superuser
+def administradores(request):
+    busca = request.GET.get("q", "").strip()
+    consulta = User.objects.filter(is_staff=True, is_superuser=False).order_by(
+        "first_name", "last_name", "username"
+    )
+    if busca:
+        consulta = consulta.filter(
+            Q(username__icontains=busca)
+            | Q(first_name__icontains=busca)
+            | Q(last_name__icontains=busca)
+            | Q(email__icontains=busca)
+        )
+    linhas = list(consulta)
+    return render(
+        request,
+        "panel/administradores.html",
+        {"linhas": linhas, "busca": busca},
+    )
+
+
+@somente_superuser
+def administrador_form(request, pk=None):
+    usuario = get_object_or_404(User, pk=pk) if pk else None
+    if usuario and usuario.is_superuser:
+        messages.error(request, "Superusuários são gerenciados pelo suporte de TI.")
+        return redirect("painel_administradores")
+
+    form = AdministradorForm(request.POST or None, instance=usuario)
+    if request.method == "POST" and form.is_valid():
+        novo = usuario is None
+        usuario = form.save()
+        record_audit(
+            "administrador_criado" if novo else "administrador_salvo",
+            actor=request.user,
+            target=usuario.username,
+            detail={"email": usuario.email, "ativo": usuario.is_active},
+            ip=request.META.get("REMOTE_ADDR"),
+        )
+        messages.success(
+            request,
+            f"Usuário “{usuario.username}” {'criado' if novo else 'salvo'}.",
+        )
+        return redirect("painel_administradores")
+
+    return render(
+        request,
+        "panel/administrador_form.html",
+        {"form": form, "usuario": usuario},
+    )
+
+
+@somente_superuser
+@require_POST
+def administrador_acao(request, pk):
+    usuario = get_object_or_404(User, pk=pk, is_staff=True, is_superuser=False)
+    acao = request.POST.get("acao")
+
+    if acao == "ativar":
+        usuario.is_active = True
+        usuario.save(update_fields=["is_active"])
+        record_audit(
+            "administrador_ativado",
+            actor=request.user,
+            target=usuario.username,
+            ip=request.META.get("REMOTE_ADDR"),
+        )
+        messages.success(request, f"Usuário “{usuario.username}” ativado.")
+    elif acao == "desativar":
+        usuario.is_active = False
+        usuario.save(update_fields=["is_active"])
+        record_audit(
+            "administrador_desativado",
+            actor=request.user,
+            target=usuario.username,
+            ip=request.META.get("REMOTE_ADDR"),
+        )
+        messages.success(
+            request,
+            f"Usuário “{usuario.username}” desativado — o acesso ao painel foi bloqueado.",
+        )
+    elif acao == "resetar_senha":
+        senha = secrets.token_urlsafe(9)
+        usuario.set_password(senha)
+        usuario.save(update_fields=["password"])
+        record_audit(
+            "administrador_senha_resetada",
+            actor=request.user,
+            target=usuario.username,
+            ip=request.META.get("REMOTE_ADDR"),
+        )
+        messages.success(
+            request,
+            f"Senha provisória de {usuario.username}: {senha}",
+        )
+
+    return redirect("painel_administradores")

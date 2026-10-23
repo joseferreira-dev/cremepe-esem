@@ -51,7 +51,8 @@ def covered_seconds(intervals) -> float:
 
 
 def course_videos(course) -> list[Video]:
-    return list(course.videos.all())
+    """Vídeos disponíveis ao aluno (prontos ou com substituição em andamento)."""
+    return [v for v in course.videos.all() if v.disponivel]
 
 
 def course_coverage(enrollment: Enrollment) -> float:
@@ -78,11 +79,12 @@ def is_video_unlocked(enrollment: Enrollment, video: Video) -> bool:
     """Vídeos são liberados na ordem quando o curso é sequencial."""
     if not enrollment.course.sequential:
         return True
-    previous = (
-        Video.objects.filter(course=enrollment.course, order__lt=video.order)
-        .order_by("-order")
-        .first()
-    )
+    previous = None
+    for candidato in course_videos(enrollment.course):
+        if candidato.order < video.order:
+            previous = candidato
+        else:
+            break
     if previous is None:
         return True
     progress = Progress.objects.filter(enrollment=enrollment, video=previous).first()
@@ -244,6 +246,22 @@ def reset_progress(enrollment: Enrollment, actor=None) -> None:
         target=f"Matrícula #{enrollment.id}",
         detail={"medico": enrollment.medico.nome, "curso": enrollment.course.title},
     )
+
+
+def reset_video_progress(video: Video, actor=None) -> int:
+    """Apaga o progresso de um vídeo substituído por outro conteúdo.
+
+    Usado quando a substituição é de um vídeo totalmente diferente: o tempo
+    assistido não faz sentido na nova gravação. Devolve quantos registros
+    foram removidos.
+    """
+    matriculas = list(
+        Enrollment.objects.filter(progress_records__video=video).distinct()
+    )
+    removidos, _ = Progress.objects.filter(video=video).delete()
+    for matricula in matriculas:
+        refresh_enrollment_status(matricula, actor=actor)
+    return removidos
 
 
 def record_audit(

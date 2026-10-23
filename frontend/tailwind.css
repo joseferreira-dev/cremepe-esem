@@ -152,4 +152,36 @@
   .cabecalho-tabela {
     @apply px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500;
   }
+
+  .campo-busca {
+    @apply relative;
+  }
+
+  .campo-busca-select {
+    @apply absolute h-0 w-0 opacity-0;
+  }
+
+  .campo-busca-entrada {
+    @apply w-full cursor-pointer pr-10;
+  }
+
+  .campo-busca-seta {
+    @apply pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400;
+  }
+
+  .campo-busca-lista {
+    @apply absolute left-0 right-0 top-full z-30 mt-1 max-h-64 overflow-y-auto rounded-xl bg-white py-1 ring-1 ring-slate-200 sombra-forte;
+  }
+
+  .campo-busca-item {
+    @apply block w-full px-3.5 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50;
+  }
+
+  .campo-busca-item[aria-selected="true"] {
+    @apply bg-marca-50 font-semibold text-marca-700;
+  }
+
+  .campo-busca-vazio {
+    @apply px-3.5 py-2 text-sm text-slate-400;
+  }
 }

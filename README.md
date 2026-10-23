@@ -273,7 +273,7 @@ Gera `backups/db-<timestamp>.dump` e `backups/media/`, com retenção de 30 dias
 ## Testes
 
 ```bash
-docker compose exec app python manage.py test apps      # 136 testes automatizados
+docker compose exec app python manage.py test apps      # 172 testes automatizados
 MEDICO_CPF=... MEDICO_SENHA=... python scripts/smoke_test.py  # teste de ponta a ponta
 ```
 

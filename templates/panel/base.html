@@ -49,6 +49,15 @@
         {{ icons.auditoria|safe }} Auditoria
       </a>
 
+      {% if request.user.is_superuser %}
+        <p class="rotulo px-3 pt-5 pb-2">Sistema</p>
+        <a href="{% url 'painel_administradores' %}"
+           class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition
+                  {% if 'painel_administrador' in request.resolver_match.url_name %}bg-marca-50 text-marca-700{% else %}text-slate-600 hover:bg-slate-100{% endif %}">
+          {{ icons.ajustes|safe }} Usuários do painel
+        </a>
+      {% endif %}
+
       {% if request.user.medico %}
         <div class="pt-5">
           <p class="rotulo px-3 pb-2">Atalhos</p>
@@ -95,6 +104,9 @@
       <a href="{% url 'painel_matriculas' %}" class="etiqueta bg-slate-100 text-slate-700">Matrículas</a>
       <a href="{% url 'upload_page' %}" class="etiqueta bg-slate-100 text-slate-700">Enviar</a>
       <a href="{% url 'painel_auditoria' %}" class="etiqueta bg-slate-100 text-slate-700">Auditoria</a>
+      {% if request.user.is_superuser %}
+        <a href="{% url 'painel_administradores' %}" class="etiqueta bg-slate-100 text-slate-700">Usuários</a>
+      {% endif %}
     </div>
 
     {% block painel %}{% endblock %}

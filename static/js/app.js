@@ -211,4 +211,92 @@
     })[0];
     ativar(inicial || botoes[0]);
   });
+
+  // Filtro de lista (checkboxes multipla escolha).
+  document.querySelectorAll('[data-filtro-entrada]').forEach(function (entrada) {
+    var bloco = entrada.parentElement;
+    var lista = bloco ? bloco.querySelector('[data-filtro-lista]') : null;
+    if (!lista) { return; }
+    var itens = lista.querySelectorAll('[data-filtro-item]');
+    entrada.addEventListener('input', function () {
+      var termo = entrada.value.trim().toLowerCase();
+      itens.forEach(function (item) {
+        var rotulo = item.getAttribute('data-rotulo') || '';
+        item.classList.toggle('hidden', termo !== '' && rotulo.indexOf(termo) === -1);
+      });
+    });
+  });
+
+  // Campos de busca e seleção (substituem <select> com muitas opções).
+  document.querySelectorAll('[data-busca]').forEach(function (bloco) {
+    var select = bloco.querySelector('.campo-busca-select');
+    var entrada = bloco.querySelector('[data-busca-entrada]');
+    var lista = bloco.querySelector('[data-busca-lista]');
+    if (!select || !entrada || !lista) { return; }
+
+    var opcoes = Array.prototype.map.call(select.options, function (op) {
+      return { valor: op.value, rotulo: (op.textContent || '').trim(), desativada: op.disabled };
+    });
+
+    function selecionada() {
+      var atual = opcoes.filter(function (o) { return o.valor === select.value; })[0];
+      return atual ? atual.rotulo : '';
+    }
+
+    function desenhar(termo) {
+      var filtradas = opcoes.filter(function (o) {
+        if (!o.valor) { return false; }
+        if (!termo) { return true; }
+        return o.rotulo.toLowerCase().indexOf(termo) !== -1;
+      });
+      lista.innerHTML = '';
+      if (!filtradas.length) {
+        var vazio = document.createElement('div');
+        vazio.className = 'campo-busca-vazio';
+        vazio.textContent = 'Nenhum resultado.';
+        lista.appendChild(vazio);
+        return;
+      }
+      filtradas.forEach(function (o) {
+        var item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'campo-busca-item';
+        item.textContent = o.rotulo;
+        item.setAttribute('aria-selected', o.valor === select.value ? 'true' : 'false');
+        item.addEventListener('click', function () {
+          select.value = o.valor;
+          entrada.value = o.rotulo;
+          lista.classList.add('hidden');
+          select.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+        lista.appendChild(item);
+      });
+    }
+
+    function abrirLista() {
+      desenhar(entrada.value.trim().toLowerCase() === selecionada().toLowerCase() ? '' : entrada.value.trim().toLowerCase());
+      lista.classList.remove('hidden');
+    }
+
+    entrada.value = selecionada();
+    entrada.addEventListener('focus', function () {
+      entrada.select();
+      abrirLista();
+    });
+    entrada.addEventListener('input', function () {
+      desenhar(entrada.value.trim().toLowerCase());
+      lista.classList.remove('hidden');
+    });
+    entrada.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') { lista.classList.add('hidden'); }
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        var primeiro = lista.querySelector('.campo-busca-item');
+        if (primeiro) { primeiro.click(); }
+      }
+    });
+    document.addEventListener('click', function (event) {
+      if (!bloco.contains(event.target)) { lista.classList.add('hidden'); }
+    });
+  });
 })();

@@ -1,0 +1,45 @@
+{% extends "panel/base.html" %}
+
+{% block titulo %}{% if usuario %}Editar usuário{% else %}Novo usuário{% endif %}{% endblock %}
+
+{% block painel %}
+<h1 class="text-3xl font-bold tracking-tight text-slate-900">
+  {% if usuario %}Editar usuário{% else %}Novo usuário administrador{% endif %}
+</h1>
+<p class="mt-2 max-w-2xl text-sm text-slate-500">
+  O usuário terá acesso ao Painel Administrativo (cursos, matrículas e médicos),
+  mas <strong>não</strong> ao Django — esse é exclusivo do suporte de TI.
+</p>
+
+{% if senha_utilizada %}
+  <div class="mt-6 rounded-xl bg-amber-50 px-5 py-4 ring-1 ring-amber-200">
+    <p class="text-sm font-semibold text-amber-800">Senha inicial do usuário</p>
+    <p class="mt-1 font-mono text-lg font-bold text-amber-900">{{ senha_utilizada }}</p>
+    <p class="mt-1 text-xs leading-relaxed text-amber-700">
+      Entregue a senha ao usuário. Ele deverá usá-la para entrar no painel.
+    </p>
+  </div>
+{% endif %}
+
+<form method="post" class="mt-8 max-w-2xl">
+  {% csrf_token %}
+  <div class="cartao cartao-padrao space-y-6">
+    {% include "partials/campo.html" with field=form.username %}
+    {% include "partials/campo.html" with field=form.first_name %}
+    {% include "partials/campo.html" with field=form.last_name %}
+    {% include "partials/campo.html" with field=form.email %}
+    {% include "partials/campo.html" with field=form.senha %}
+    <div class="flex items-start gap-3">
+      <div class="pt-0.5">{{ form.is_active }}</div>
+      <div>
+        <label class="text-sm font-semibold text-slate-800">{{ form.is_active.label }}</label>
+        <p class="mt-1 text-xs text-slate-500">Usuários inativos não conseguem entrar no painel.</p>
+      </div>
+    </div>
+  </div>
+  <div class="mt-6 flex gap-2">
+    <button class="btn btn-primary" type="submit">Salvar usuário</button>
+    <a href="{% url 'painel_administradores' %}" class="btn btn-secundario">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

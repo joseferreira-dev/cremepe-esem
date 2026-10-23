@@ -11,8 +11,25 @@
   var progressWrap = document.getElementById('upload-progress-wrap');
   var progressBar = document.getElementById('upload-progress');
   var message = document.getElementById('upload-message');
+  var substituicaoBloco = document.getElementById('substituicao-bloco');
 
   if (!button) { return; }
+
+  function opcaoSelecionada() {
+    return videoSelect && videoSelect.options[videoSelect.selectedIndex];
+  }
+
+  function atualizarSubstituicao() {
+    if (!substituicaoBloco || !videoSelect) { return; }
+    var opcao = opcaoSelecionada();
+    var temMedia = opcao && opcao.getAttribute('data-tem-media') === '1';
+    substituicaoBloco.classList.toggle('hidden', !temMedia);
+  }
+
+  if (videoSelect) {
+    videoSelect.addEventListener('change', atualizarSubstituicao);
+    atualizarSubstituicao();
+  }
 
   function setMessage(text, kind) {
     message.textContent = text;
@@ -55,6 +72,13 @@
     var config = window.CREMEPE_UPLOAD || {};
     var file = fileInput.files && fileInput.files[0];
     var videoId = videoSelect.value;
+    var opcao = opcaoSelecionada();
+    var temMedia = opcao && opcao.getAttribute('data-tem-media') === '1';
+    var substituicao = 'nenhuma';
+    if (temMedia && substituicaoBloco) {
+      var marcado = substituicaoBloco.querySelector('input[name="substituicao"]:checked');
+      substituicao = marcado ? marcado.value : 'nenhuma';
+    }
 
     if (!config.initUrl || !config.chunkTemplate || !config.completeTemplate) {
       setMessage('Configuração de envio indisponível. Recarregue a página.', 'error');
@@ -72,7 +96,7 @@
         method: 'POST',
         headers: headers({ 'Content-Type': 'application/json', 'X-CSRFToken': CSRF }),
         credentials: 'same-origin',
-        body: JSON.stringify({ video_id: parseInt(videoId, 10), filename: file.name, size: file.size })
+        body: JSON.stringify({ video_id: parseInt(videoId, 10), filename: file.name, size: file.size, substituicao: substituicao })
       });
       if (!initResponse.ok) {
         var initError = await initResponse.json().catch(function () { return {}; });

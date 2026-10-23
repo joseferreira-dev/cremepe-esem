@@ -5,6 +5,13 @@ from django.contrib.auth.models import User
 from .models import Medico
 
 
+# Restringe o Django admin (/admin/) ao time de suporte de TI (superusuários).
+# O painel administrativo (/painel/) continua acessível a qualquer staff.
+admin.site.has_permission = lambda request: (
+    request.user.is_active and request.user.is_superuser
+)
+
+
 class MedicoInline(admin.StackedInline):
     model = Medico
     can_delete = False

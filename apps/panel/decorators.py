@@ -25,3 +25,25 @@ def somente_admin(view):
         return view(request, *args, **kwargs)
 
     return wrapper
+
+
+def somente_superuser(view):
+    """Exige superusuário (equipe de suporte de TI).
+
+    Usado para operações sensíveis como a gestão de contas administrativas,
+    que define quem pode entrar no painel.
+    """
+
+    @wraps(view)
+    def wrapper(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect_to_login(
+                request.get_full_path(), login_url=reverse("painel_login")
+            )
+        if not request.user.is_superuser:
+            raise PermissionDenied(
+                "Acesso restrito à equipe de suporte de TI."
+            )
+        return view(request, *args, **kwargs)
+
+    return wrapper

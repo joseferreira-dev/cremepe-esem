@@ -86,6 +86,27 @@
             </div>
           </div>
         </div>
+
+        <div class="cartao cartao-padrao">
+          <h2 class="text-sm font-semibold text-slate-800">Distribuição do progresso</h2>
+          <p class="mt-1 text-xs text-slate-500">Matrículas ativas por faixa assistida</p>
+          <div class="mt-6 space-y-4">
+            {% for faixa in faixa_desempenho %}
+              <div>
+                <div class="flex items-center justify-between text-xs">
+                  <span class="font-medium text-slate-600">{{ faixa.rotulo }}</span>
+                  <span class="font-semibold text-slate-900">{{ faixa.total }}</span>
+                </div>
+                <div class="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100">
+                  <div class="h-full rounded-full {{ faixa.cor }}"
+                       style="width: {% widthratio faixa.total total_ativas 100 %}%"></div>
+                </div>
+              </div>
+            {% empty %}
+              <p class="text-sm text-slate-400">Nenhuma matrícula ativa neste curso.</p>
+            {% endfor %}
+          </div>
+        </div>
       </div>
 
       <aside class="space-y-6">
@@ -175,9 +196,13 @@
             <input type="hidden" name="acao" value="matricular_lote">
             <div>
               <p class="rotulo">Médicos disponíveis ({{ medicos_disponiveis }})</p>
-              <div class="mt-2 grid max-h-64 gap-2 overflow-y-auto rounded-xl border border-slate-200 p-3 sm:grid-cols-2">
+              <input type="search" class="campo mt-2" placeholder="Buscar médico por nome ou CPF…"
+                     data-filtro-entrada autocomplete="off">
+              <div class="mt-2 grid max-h-64 gap-2 overflow-y-auto rounded-xl border border-slate-200 p-3 sm:grid-cols-2"
+                   data-filtro-lista>
                 {% for checkbox in form_matricula_lote.medicos %}
-                  <label class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-700 transition hover:bg-slate-50">
+                  <label class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-700 transition hover:bg-slate-50"
+                         data-filtro-item data-rotulo="{{ checkbox.choice_label|lower }}">
                     {{ checkbox.tag }}
                     <span>{{ checkbox.choice_label }}</span>
                   </label>
@@ -265,6 +290,12 @@
                         {% csrf_token %}
                         <input type="hidden" name="acao" value="resetar">
                         <button class="btn btn-fantasma btn-sm" type="submit" title="Zerar o progresso">Resetar</button>
+                      </form>
+                      <form method="post" action="{% url 'painel_matricula_acao' linha.matricula.id %}"
+                            data-confirm="Remover a matrícula de {{ linha.matricula.medico.nome }} neste curso? O progresso será apagado.">
+                        {% csrf_token %}
+                        <input type="hidden" name="acao" value="remover">
+                        <button class="btn btn-fantasma btn-sm text-rose-600" type="submit" title="Remover matrícula">Remover</button>
                       </form>
                     </div>
                   </td>

@@ -1,5 +1,7 @@
 """Testes da página do curso (área do aluno)."""
 
+from datetime import date
+
 from django.contrib.auth.models import User
 from django.test import TestCase
 
@@ -20,7 +22,8 @@ class TestPaginaDoCurso(TestCase):
             title="Etica Medica", status=Course.Status.ACTIVE, sequential=True
         )
         self.video = Video.objects.create(
-            course=self.curso, order=1, title="Aula 1", duration=600
+            course=self.curso, order=1, title="Aula 1", duration=600,
+            status=Video.Status.READY,
         )
         self.enrollment = Enrollment.objects.create(
             medico=self.medico, course=self.curso, min_percent=50
@@ -261,3 +264,139 @@ class TestPaginaDeLogin(TestCase):
         )
         self.assertEqual(resposta.status_code, 200)
         self.assertIn("CPF ou senha inválidos", resposta.content.decode())
+
+
+class TestVisibilidadeDoCursoParaAluno(TestCase):
+    """Regras 1 e 2: rascunho oculto; arquivado/expirado bloqueado e em cinza."""
+
+    def setUp(self):
+        self.user = User.objects.create_user("medico-visib", password="senha12345")
+        self.medico = Medico.objects.create(
+            user=self.user,
+            cpf="66655544433",
+            nome="Medico Visib",
+            must_change_password=False,
+        )
+        self.client.force_login(self.user)
+
+    def _curso(self, **kwargs):
+        padrao = {"title": "Curso Teste", "status": Course.Status.ACTIVE}
+        padrao.update(kwargs)
+        return Course.objects.create(**padrao)
+
+    def _matricular(self, curso, **kwargs):
+        padrao = {"min_percent": 50}
+        padrao.update(kwargs)
+        return Enrollment.objects.create(medico=self.medico, course=curso, **padrao)
+
+    def test_rascunho_nao_aparece_para_aluno(self):
+        curso = self._curso(status=Course.Status.DRAFT)
+        Video.objects.create(
+            course=curso, order=1, title="Aula", duration=100, status=Video.Status.READY
+        )
+        self._matricular(curso)
+        html = self.client.get("/cursos/").content.decode()
+        self.assertNotIn(curso.title, html)
+
+    def test_rascunho_nao_pode_ser_acessado(self):
+        curso = self._curso(status=Course.Status.DRAFT)
+        Video.objects.create(
+            course=curso, order=1, title="Aula", duration=100, status=Video.Status.READY
+        )
+        matricula = self._matricular(curso)
+        self.assertEqual(self.client.get(f"/cursos/{matricula.id}/").status_code, 403)
+
+    def test_arquivado_aparece_em_cinza_e_bloqueado(self):
+        curso = self._curso(status=Course.Status.ARCHIVED)
+        Video.objects.create(
+            course=curso, order=1, title="Aula", duration=100, status=Video.Status.READY
+        )
+        matricula = self._matricular(curso)
+        html = self.client.get("/cursos/").content.decode()
+        self.assertIn(curso.title, html)
+        self.assertIn("grayscale", html)
+        self.assertIn("Arquivado", html)
+        self.assertNotIn(f'href="/cursos/{matricula.id}/"', html)
+        self.assertEqual(self.client.get(f"/cursos/{matricula.id}/").status_code, 403)
+
+    def test_fora_do_prazo_aparece_em_cinza_e_bloqueado(self):
+        curso = self._curso(deadline=date(2000, 1, 1))
+        Video.objects.create(
+            course=curso, order=1, title="Aula", duration=100, status=Video.Status.READY
+        )
+        matricula = self._matricular(curso)
+        html = self.client.get("/cursos/").content.decode()
+        self.assertIn(curso.title, html)
+        self.assertIn("grayscale", html)
+        self.assertIn("Prazo encerrado", html)
+        self.assertNotIn(f'href="/cursos/{matricula.id}/"', html)
+        self.assertEqual(self.client.get(f"/cursos/{matricula.id}/").status_code, 403)
+
+    def test_prazo_da_matricula_tambem_bloqueia(self):
+        curso = self._curso()
+        Video.objects.create(
+            course=curso, order=1, title="Aula", duration=100, status=Video.Status.READY
+        )
+        matricula = self._matricular(curso, deadline=date(2000, 1, 1))
+        html = self.client.get("/cursos/").content.decode()
+        self.assertIn("Prazo encerrado", html)
+        self.assertEqual(self.client.get(f"/cursos/{matricula.id}/").status_code, 403)
+
+    def test_ativo_normal_continua_acessivel(self):
+        curso = self._curso()
+        video = Video.objects.create(
+            course=curso, order=1, title="Aula", duration=100, status=Video.Status.READY
+        )
+        matricula = self._matricular(curso)
+        resposta = self.client.get(f"/cursos/{matricula.id}/")
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn("data-video-id", resposta.content.decode())
+
+
+class TestDisponibilidadeDeVideo(TestCase):
+    """Regra 3: vídeos em envio/processamento ficam ocultos ou mantêm a versão antiga."""
+
+    def setUp(self):
+        self.user = User.objects.create_user("medico-videos", password="senha12345")
+        self.medico = Medico.objects.create(
+            user=self.user,
+            cpf="77788899901",
+            nome="Medico Videos",
+            must_change_password=False,
+        )
+        self.curso = Course.objects.create(
+            title="Curso Videos", status=Course.Status.ACTIVE
+        )
+        self.matricula = Enrollment.objects.create(
+            medico=self.medico, course=self.curso, min_percent=50
+        )
+        self.client.force_login(self.user)
+
+    def _pagina(self):
+        return self.client.get(f"/cursos/{self.matricula.id}/").content.decode()
+
+    def test_video_novo_em_processamento_nao_aparece(self):
+        Video.objects.create(
+            course=self.curso, order=1, title="Novo", duration=0,
+            status=Video.Status.PROCESSING,
+        )
+        html = self._pagina()
+        self.assertNotIn("data-video-id", html)
+        self.assertIn("Nenhum vídeo cadastrado", html)
+
+    def test_substituicao_mantem_versao_antiga_disponivel(self):
+        antigo = Video.objects.create(
+            course=self.curso, order=1, title="Antigo", duration=100,
+            status=Video.Status.PROCESSING, hls_path=f"hls/{self.curso.id}",
+        )
+        html = self._pagina()
+        self.assertIn("data-video-id", html)
+        self.assertIn(antigo.title, html)
+
+    def test_video_novo_sem_status_pronto_nao_aparece(self):
+        Video.objects.create(
+            course=self.curso, order=1, title="Vazio", duration=60,
+            status=Video.Status.EMPTY,
+        )
+        html = self._pagina()
+        self.assertNotIn("data-video-id", html)

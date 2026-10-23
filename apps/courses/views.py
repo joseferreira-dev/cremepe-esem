@@ -4,6 +4,7 @@ from django.conf import settings
 from django.core.exceptions import PermissionDenied
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
+from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET
 
@@ -62,12 +63,33 @@ def my_courses(request):
 
     items = []
     for enrollment in enrollments:
+        curso = enrollment.course
+        # Rascunhos nunca aparecem para o aluno, mesmo com matrícula.
+        if curso.status == Course.Status.DRAFT:
+            continue
+        videos = [v for v in curso.videos.all() if v.disponivel]
+        bloqueado = (
+            curso.status == Course.Status.ARCHIVED
+            or curso.expirado
+            or bool(enrollment.deadline and enrollment.deadline < timezone.localdate())
+        )
         items.append(
             {
                 "enrollment": enrollment,
                 "coverage": course_coverage(enrollment),
-                "videos": list(enrollment.course.videos.all()),
-                "duration": format_hours(enrollment.course.total_duration),
+                "videos": videos,
+                "duration": format_hours(curso.total_duration),
+                "bloqueado": bloqueado,
+                "motivo": (
+                    "Arquivado"
+                    if curso.status == Course.Status.ARCHIVED
+                    else (
+                        "Prazo encerrado"
+                        if curso.expirado
+                        or (enrollment.deadline and enrollment.deadline < timezone.localdate())
+                        else ""
+                    )
+                ),
             }
         )
 
@@ -83,7 +105,13 @@ def course_view(request, enrollment_id: int):
     if enrollment.medico.user_id != request.user.id and not request.user.is_staff:
         raise PermissionDenied
 
-    videos = list(enrollment.course.videos.all())
+    # Rascunho, arquivado ou fora do prazo: o aluno não acessa a página do curso.
+    if not request.user.is_staff:
+        prazo_matricula = enrollment.deadline and enrollment.deadline < timezone.localdate()
+        if enrollment.course.indisponivel_para_aluno or prazo_matricula:
+            raise PermissionDenied
+
+    videos = [v for v in enrollment.course.videos.all() if v.disponivel]
     unlocked = {video.id for video in unlocked_videos(enrollment)}
     progresses = {
         progress.video_id: progress

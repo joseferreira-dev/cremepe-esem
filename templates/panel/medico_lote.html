@@ -42,9 +42,20 @@
   </div>
 {% endif %}
 
-<form method="post" class="mt-8 max-w-3xl">
+<form method="post" enctype="multipart/form-data" class="mt-8 max-w-3xl">
   {% csrf_token %}
-  <div class="cartao cartao-padrao">
+  <div class="cartao cartao-padrao space-y-6">
+    {% if form.non_field_errors %}
+      <div class="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700 ring-1 ring-rose-200">
+        {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+      </div>
+    {% endif %}
+    {% include "partials/campo.html" with field=form.arquivo %}
+    <div class="relative flex items-center gap-3">
+      <span class="h-px flex-1 bg-slate-200"></span>
+      <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">ou cole os dados</span>
+      <span class="h-px flex-1 bg-slate-200"></span>
+    </div>
     {% include "partials/campo.html" with field=form.dados %}
   </div>
   <div class="mt-6 flex gap-2">

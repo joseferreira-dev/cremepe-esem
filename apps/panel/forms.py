@@ -1,6 +1,10 @@
 """Formulários do painel administrativo."""
 
+import csv
+import io
+
 from django import forms
+from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.db import transaction
@@ -8,6 +12,92 @@ from django.db import transaction
 from apps.accounts.models import Medico, normalize_cpf
 from apps.accounts.services import criar_conta_medico
 from apps.courses.models import Course, Enrollment, Video
+
+
+class AdministradorForm(forms.ModelForm):
+    """Cria/edita usuários com acesso ao painel (staff), sem acesso ao Django."""
+
+    senha = forms.CharField(
+        required=False,
+        label="Senha",
+        help_text=(
+            "Deixe em branco para manter a senha atual. Ao criar um novo usuário, "
+            "a senha é obrigatória."
+        ),
+        widget=forms.TextInput(attrs={"class": "campo", "autocomplete": "new-password"}),
+    )
+
+    class Meta:
+        model = User
+        fields = ("username", "first_name", "last_name", "email", "is_active")
+        widgets = {
+            "username": forms.TextInput(
+                attrs={"class": "campo", "placeholder": "Ex.: ana.souza"}
+            ),
+            "first_name": forms.TextInput(
+                attrs={"class": "campo", "placeholder": "Nome"}
+            ),
+            "last_name": forms.TextInput(
+                attrs={"class": "campo", "placeholder": "Sobrenome"}
+            ),
+            "email": forms.EmailInput(
+                attrs={"class": "campo", "placeholder": "nome@exemplo.com"}
+            ),
+            "is_active": forms.CheckboxInput(
+                attrs={"class": "h-4 w-4 rounded border-slate-300 text-marca-600 focus:ring-marca-500"}
+            ),
+        }
+        labels = {
+            "username": "Usuário",
+            "first_name": "Nome",
+            "last_name": "Sobrenome",
+            "email": "E-mail",
+            "is_active": "Ativo",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._novo = self.instance.pk is None
+        if self._novo:
+            self.fields["senha"].required = True
+            self.fields["senha"].help_text = (
+                "Senha inicial que o usuário deverá usar para entrar no painel."
+            )
+
+    def clean_username(self):
+        username = (self.cleaned_data.get("username") or "").strip()
+        if not username:
+            raise forms.ValidationError("Informe o usuário.")
+        queryset = User.objects.filter(username=username)
+        if self.instance.pk:
+            queryset = queryset.exclude(pk=self.instance.pk)
+        if queryset.exists():
+            raise forms.ValidationError("Já existe um usuário com este nome.")
+        return username
+
+    def clean(self):
+        limpo = super().clean()
+        senha = (limpo.get("senha") or "").strip()
+        if self._novo and not senha:
+            raise forms.ValidationError("Informe a senha inicial do usuário.")
+        return limpo
+
+    def save(self, commit=True):
+        senha = (self.cleaned_data.get("senha") or "").strip()
+        usuario = super().save(commit=False)
+        usuario.is_staff = True
+        # O acesso ao Django admin é exclusivo de superusuários (suporte de TI).
+        usuario.is_superuser = False
+        if senha:
+            usuario.set_password(senha)
+        if commit:
+            usuario.save()
+            if senha and not self._novo:
+                # Mantém a sessão atual do usuário se ele estiver logado.
+                from django.contrib.auth import update_session_auth_hash
+
+                update_session_auth_hash(self.instance, senha) if usuario == self.instance else None
+        return usuario
 
 
 class CursoForm(forms.ModelForm):
@@ -63,7 +153,7 @@ class VideoForm(forms.ModelForm):
         model = Video
         fields = ("course", "order", "title", "is_required")
         widgets = {
-            "course": forms.Select(attrs={"class": "campo"}),
+            "course": forms.Select(attrs={"class": "campo campo-busca-select"}),
             "order": forms.NumberInput(attrs={"class": "campo", "min": "1"}),
             "title": forms.TextInput(attrs={"class": "campo", "placeholder": "Ex.: Encontro 1"}),
             "is_required": forms.CheckboxInput(attrs={"class": "h-4 w-4 rounded border-slate-300 text-marca-600 focus:ring-marca-500"}),
@@ -151,8 +241,8 @@ class MatriculaForm(forms.ModelForm):
         model = Enrollment
         fields = ("medico", "course", "min_percent", "deadline")
         widgets = {
-            "medico": forms.Select(attrs={"class": "campo"}),
-            "course": forms.Select(attrs={"class": "campo"}),
+            "medico": forms.Select(attrs={"class": "campo campo-busca-select"}),
+            "course": forms.Select(attrs={"class": "campo campo-busca-select"}),
             "min_percent": forms.NumberInput(attrs={"class": "campo", "step": "0.01", "min": "0", "max": "100"}),
             "deadline": forms.DateInput(attrs={"class": "campo", "type": "date"}),
         }
@@ -246,47 +336,91 @@ class MatriculaLoteForm(forms.Form):
 
 
 class MedicoLoteForm(forms.Form):
-    """Cadastra médicos em lote a partir de linhas separadas por ponto e vírgula.
+    """Cadastra médicos em lote via arquivo .csv ou dados colados.
 
-    Formato de cada linha::
+    Formato de cada linha (separador padrão vírgula)::
 
-        Nome completo; CPF; e-mail
+        Nome completo, CPF, e-mail
     """
 
+    arquivo = forms.FileField(
+        label="Arquivo .csv",
+        required=False,
+        widget=forms.ClearableFileInput(
+            attrs={
+                "class": "campo",
+                "accept": ".csv,text/csv",
+            }
+        ),
+        help_text=(
+            "Envie um arquivo .csv com as colunas: nome, CPF e e-mail "
+            "(o e-mail é opcional)."
+        ),
+    )
     dados = forms.CharField(
-        label="Alunos",
+        label="Ou cole os dados aqui",
+        required=False,
         widget=forms.Textarea(
             attrs={
                 "class": "campo font-mono",
                 "rows": 10,
                 "placeholder": (
-                    "Maria da Silva; 111.222.333-44; maria@exemplo.com\n"
-                    "João Pereira; 555.666.777-88; joao@exemplo.com"
+                    "Maria da Silva,111.222.333-44,maria@exemplo.com\n"
+                    "João Pereira,555.666.777-88,joao@exemplo.com"
                 ),
             }
         ),
         help_text=(
-            "Uma pessoa por linha, separada por ponto e vírgula: "
-            "Nome completo; CPF; e-mail. O e-mail é opcional."
+            "Uma pessoa por linha, separada por vírgula: "
+            "Nome completo, CPF, e-mail. O e-mail é opcional."
         ),
     )
 
-    def clean_dados(self):
+    def _iterar_linhas(self):
+        """Gera (numero, nome, cpf, email) a partir do arquivo ou do texto colado."""
+        linhas_brutas = []
+        arquivo = self.cleaned_data.get("arquivo")
+        if arquivo is not None:
+            try:
+                conteudo = arquivo.read().decode("utf-8-sig")
+            except UnicodeDecodeError as exc:
+                raise forms.ValidationError(
+                    "O arquivo precisa estar em UTF-8."
+                ) from exc
+            linhas_brutas = conteudo.splitlines()
+
         texto = (self.cleaned_data.get("dados") or "").strip()
-        if not texto:
+        if texto:
+            linhas_brutas.extend(texto.splitlines())
+
+        if not linhas_brutas:
             raise forms.ValidationError("Informe pelo menos um aluno.")
 
-        linhas = []
+        # Detecta o separador: vírgula por padrão; ponto-e-vírgula aceito como
+        # alternativa para colar direto do Excel pt-BR.
+        primeira = next((l for l in linhas_brutas if l.strip()), "")
+        separador = ";" if (";" in primeira and "," not in primeira) else ","
+
+        numero = 0
         cpfs_no_lote = set()
-        for numero, linha in enumerate(texto.splitlines(), start=1):
+        primeira_dados = True
+        for linha in linhas_brutas:
             linha = linha.strip()
             if not linha or linha.startswith("#"):
                 continue
-            partes = [parte.strip() for parte in linha.replace("\t", ";").split(";")]
+            partes = [
+                parte.strip() for parte in linha.split(separador)
+            ]
             if len(partes) < 2 or len(partes) > 3:
                 raise forms.ValidationError(
-                    f"Linha {numero}: use o formato Nome; CPF; e-mail."
+                    f"Linha {numero + 1}: use o formato Nome, CPF, e-mail."
                 )
+            # Pula o cabeçalho do CSV (ex.: "nome,cpf,e-mail").
+            if primeira_dados and not any(ch.isdigit() for ch in partes[1]):
+                primeira_dados = False
+                continue
+            primeira_dados = False
+            numero += 1
             partes += [""] * (3 - len(partes))
             nome, cpf, email = partes
             cpf = normalize_cpf(cpf)
@@ -314,12 +448,15 @@ class MedicoLoteForm(forms.Form):
                     ) from exc
 
             cpfs_no_lote.add(cpf)
-            linhas.append({"nome": nome, "cpf": cpf, "email": email})
+            yield {"nome": nome, "cpf": cpf, "email": email}
 
+    def clean(self):
+        limpo = super().clean()
+        linhas = list(self._iterar_linhas())
         if not linhas:
             raise forms.ValidationError("Nenhuma linha válida foi encontrada.")
         self.linhas = linhas
-        return texto
+        return limpo
 
     def save(self):
         criados = []

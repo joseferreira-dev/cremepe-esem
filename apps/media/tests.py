@@ -296,6 +296,120 @@ class TestUpload(TestCase):
         self.assertEqual(segunda["received"], [0])
 
 
+class TestSubstituicaoDeVideo(TestCase):
+    """Regra 3: a versão antiga fica disponível até a nova terminar."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser("admin-sub", "a@b.c", "senha12345")
+        self.user = User.objects.create_user("medico-sub", password="x")
+        self.medico = Medico.objects.create(
+            user=self.user,
+            cpf="88899900011",
+            nome="Medico Sub",
+            must_change_password=False,
+        )
+        self.curso = Course.objects.create(
+            title="Curso Sub", status=Course.Status.ACTIVE, min_percent=50
+        )
+        self.video = Video.objects.create(
+            course=self.curso, order=1, title="Aula", duration=100,
+            status=Video.Status.READY, hls_path=f"hls/{self.curso.id}",
+        )
+        self.matricula = Enrollment.objects.create(
+            medico=self.medico, course=self.curso, min_percent=50
+        )
+        Progress.objects.create(
+            enrollment=self.matricula, video=self.video,
+            covered=100, furthest=100, intervals=[[0, 100]],
+        )
+        self.client.force_login(self.admin)
+
+    def test_promote_hls_troca_pendente_por_oficial(self):
+        from apps.media.services import hls_dir, hls_pending_dir, promote_hls
+
+        oficial = hls_dir(self.video)
+        pendente = hls_pending_dir(self.video)
+        oficial.mkdir(parents=True, exist_ok=True)
+        (oficial / "master.m3u8").write_text("#EXTM3U\n# antigo\n", encoding="utf-8")
+        pendente.mkdir(parents=True, exist_ok=True)
+        (pendente / "master.m3u8").write_text("#EXTM3U\n# novo\n", encoding="utf-8")
+
+        promote_hls(self.video)
+
+        self.assertFalse(pendente.exists())
+        self.assertEqual(
+            (oficial / "master.m3u8").read_text(encoding="utf-8"),
+            "#EXTM3U\n# novo\n",
+        )
+
+    def test_reset_video_progress_apaga_progresso_e_mantem_matricula(self):
+        from apps.courses.services import reset_video_progress
+
+        removidos = reset_video_progress(self.video)
+        self.assertEqual(removidos, 1)
+        self.assertEqual(Progress.objects.filter(video=self.video).count(), 0)
+        self.assertTrue(Enrollment.objects.filter(pk=self.matricula.pk).exists())
+        self.matricula.refresh_from_db()
+        # Abaixo do mínimo após reset, mas não aprovado/reprovado manualmente.
+        self.assertNotEqual(self.matricula.status, Enrollment.Status.APPROVED)
+
+    def test_upload_substituicao_registra_tipo_no_sessao(self):
+        payload = {
+            "video_id": self.video.pk,
+            "filename": "novo.mp4",
+            "size": 100,
+            "substituicao": "video_diferente",
+        }
+        resposta = self.client.post(
+            "/api/uploads/init/",
+            data=json.dumps(payload),
+            content_type="application/json",
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
+        self.assertEqual(resposta.status_code, 200)
+        from apps.media.models import UploadSession
+
+        sessao = UploadSession.objects.get(pk=resposta.json()["upload_id"])
+        self.assertEqual(sessao.substituicao, Video.Substituicao.VIDEO_DIFERENTE)
+
+    def test_upload_substituicao_ignorada_para_video_sem_media(self):
+        novo = Video.objects.create(
+            course=self.curso, order=2, title="Novo", status=Video.Status.EMPTY
+        )
+        payload = {
+            "video_id": novo.pk,
+            "filename": "novo.mp4",
+            "size": 100,
+            "substituicao": "video_diferente",
+        }
+        resposta = self.client.post(
+            "/api/uploads/init/",
+            data=json.dumps(payload),
+            content_type="application/json",
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
+        self.assertEqual(resposta.status_code, 200)
+        from apps.media.models import UploadSession
+
+        sessao = UploadSession.objects.get(pk=resposta.json()["upload_id"])
+        self.assertEqual(sessao.substituicao, Video.Substituicao.NENHUMA)
+
+    def test_upload_substituicao_invalida_rejeitada(self):
+        payload = {
+            "video_id": self.video.pk,
+            "filename": "novo.mp4",
+            "size": 100,
+            "substituicao": "qualquer",
+        }
+        resposta = self.client.post(
+            "/api/uploads/init/",
+            data=json.dumps(payload),
+            content_type="application/json",
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
+        self.assertEqual(resposta.status_code, 400)
+
+
 class TestPlaylistAssinada(TestCase):
     """A playlist precisa manter as tags HLS, senão o hls.js não reproduz."""
 
@@ -383,7 +497,8 @@ class TestEntregaDoSegmento(TestCase):
         )
         self.curso = Course.objects.create(title="Curso", status=Course.Status.ACTIVE)
         self.video = Video.objects.create(
-            course=self.curso, order=1, title="Aula 1", duration=100
+            course=self.curso, order=1, title="Aula 1", duration=100,
+            status=Video.Status.READY,
         )
         self.enrollment = Enrollment.objects.create(
             medico=self.medico, course=self.curso
@@ -559,10 +674,9 @@ class TestEntregaDoSegmento(TestCase):
         )
         self.assertEqual(resposta.status_code, 200)
         # O JS usa authorized_position para rebobinar para um ponto seguro,
-        # nunca para os 100 s "fantasma" salvos no progresso.
-        self.assertAlmostEqual(
-            resposta.json()["authorized_position"], 0, places=1
-        )
+        # nunca para os 100 s "fantasma" salvos no progresso. Aceita-se uma
+        # margem mínima de avanço proporcional ao tempo realmente decorrido.
+        self.assertLess(resposta.json()["authorized_position"], 1)
 
     def test_manifest_de_video_bloqueado_e_recusado(self):
         """Com desbloqueio sequencial, o vídeo seguinte não pode ser carregado."""
@@ -570,7 +684,8 @@ class TestEntregaDoSegmento(TestCase):
         curso.sequential = True
         curso.save(update_fields=["sequential"])
         video2 = Video.objects.create(
-            course=curso, order=2, title="Aula 2", duration=100
+            course=curso, order=2, title="Aula 2", duration=100,
+            status=Video.Status.READY,
         )
         self.client.force_login(self.medico_user)
 

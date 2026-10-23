@@ -1,0 +1,22 @@
+<div>
+  <label class="rotulo" for="{{ field.id_for_label }}_busca">{{ field.label }}</label>
+  <div class="campo-busca mt-2" data-busca>
+    {{ field }}
+    <span class="campo-busca-seta">{{ icons.seta_baixo|safe }}</span>
+    <input
+      type="text"
+      class="campo campo-busca-entrada"
+      id="{{ field.id_for_label }}_busca"
+      placeholder="{{ placeholder|default:'Buscar…' }}"
+      autocomplete="off"
+      data-busca-entrada
+    >
+    <div class="campo-busca-lista hidden" data-busca-lista></div>
+  </div>
+  {% if field.help_text %}
+    <p class="mt-1.5 text-xs text-slate-500">{{ field.help_text }}</p>
+  {% endif %}
+  {% for error in field.errors %}
+    <p class="mt-1.5 text-xs text-rose-600">{{ error }}</p>
+  {% endfor %}
+</div>

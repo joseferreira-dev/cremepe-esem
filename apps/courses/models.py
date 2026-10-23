@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from django.contrib.auth.models import User
 from django.db import models
+from django.utils import timezone
 
 from apps.accounts.models import Medico
 
@@ -58,6 +59,16 @@ class Course(models.Model):
     def video_count(self) -> int:
         return self.videos.count()
 
+    @property
+    def expirado(self) -> bool:
+        """Prazo de conclusão do curso já encerrado."""
+        return self.deadline is not None and self.deadline < timezone.localdate()
+
+    @property
+    def indisponivel_para_aluno(self) -> bool:
+        """Curso que o aluno não pode acessar: rascunho, arquivado ou vencido."""
+        return self.status in {self.Status.DRAFT, self.Status.ARCHIVED} or self.expirado
+
 
 class Video(models.Model):
     """Um vídeo (gravação) pertencente a um curso."""
@@ -69,6 +80,11 @@ class Video(models.Model):
         PROCESSING = "processing", "Processando"
         READY = "ready", "Pronto"
         ERROR = "error", "Erro no processamento"
+
+    class Substituicao(models.TextChoices):
+        NENHUMA = "nenhuma", "Novo vídeo"
+        NOVA_VERSAO = "nova_versao", "Nova versão do mesmo vídeo"
+        VIDEO_DIFERENTE = "video_diferente", "Vídeo diferente"
 
     course = models.ForeignKey(
         Course, on_delete=models.CASCADE, related_name="videos", verbose_name="Curso"
@@ -91,6 +107,16 @@ class Video(models.Model):
     )
     error_message = models.TextField("Mensagem de erro", blank=True)
     is_required = models.BooleanField("Vídeo obrigatório", default=True)
+    substituicao = models.CharField(
+        "Tipo de substituição",
+        max_length=20,
+        choices=Substituicao.choices,
+        default=Substituicao.NENHUMA,
+        help_text=(
+            "Define o que acontece com o progresso dos alunos quando um novo "
+            "arquivo substitui este vídeo."
+        ),
+    )
     created_at = models.DateTimeField("Criado em", auto_now_add=True)
 
     class Meta:
@@ -104,6 +130,21 @@ class Video(models.Model):
     @property
     def is_ready(self) -> bool:
         return self.status == self.Status.READY
+
+    @property
+    def tem_media(self) -> bool:
+        """Possui um HLS já gerado (versão atualmente servida)."""
+        return bool(self.hls_path)
+
+    @property
+    def substituindo(self) -> bool:
+        """Está recebendo um arquivo que substituirá a versão atual."""
+        return self.substituicao != self.Substituicao.NENHUMA
+
+    @property
+    def disponivel(self) -> bool:
+        """Visível ao aluno: pronto, ou substituição em andamento que mantém a versão antiga."""
+        return self.status == self.Status.READY or self.tem_media
 
 
 class Enrollment(models.Model):

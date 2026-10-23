@@ -74,4 +74,25 @@ urlpatterns = [
     ),
     # Auditoria
     path("auditoria/", somente_admin(views.auditoria), name="painel_auditoria"),
+    # Usuários administradores do painel
+    path(
+        "usuarios/",
+        views.administradores,
+        name="painel_administradores",
+    ),
+    path(
+        "usuarios/novo/",
+        views.administrador_form,
+        name="painel_administrador_novo",
+    ),
+    path(
+        "usuarios/<int:pk>/editar/",
+        views.administrador_form,
+        name="painel_administrador_editar",
+    ),
+    path(
+        "usuarios/<int:pk>/acao/",
+        views.administrador_acao,
+        name="painel_administrador_acao",
+    ),
 ]

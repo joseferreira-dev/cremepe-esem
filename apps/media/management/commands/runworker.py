@@ -1,5 +1,6 @@
 """Worker que processa as tarefas de mídia (transcodificação) em segundo plano."""
 
+import shutil
 import time
 
 from django.core.management.base import BaseCommand
@@ -7,8 +8,14 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.courses.models import Video
+from apps.courses.services import reset_video_progress
 from apps.media.models import Job
-from apps.media.services import limpar_uploads_abandonados, process_transcode
+from apps.media.services import (
+    hls_pending_dir,
+    limpar_uploads_abandonados,
+    process_transcode,
+    promote_hls,
+)
 
 
 class Command(BaseCommand):
@@ -78,11 +85,15 @@ class Command(BaseCommand):
 
         try:
             result = process_transcode(video)
+            substituicao = video.substituicao
+            promote_hls(video)
+
             video.duration = round(result["duration"] or 0, 2)
             video.qualities = result["qualities"]
             video.hls_path = f"hls/{video.pk}"
             video.poster = f"hls/{video.pk}/poster.jpg"
             video.status = Video.Status.READY
+            video.substituicao = Video.Substituicao.NENHUMA
             video.save(
                 update_fields=[
                     "duration",
@@ -91,17 +102,29 @@ class Command(BaseCommand):
                     "poster",
                     "status",
                     "error_message",
+                    "substituicao",
                 ]
             )
+
+            if substituicao == Video.Substituicao.VIDEO_DIFERENTE:
+                reset_video_progress(video)
+                self.stdout.write(
+                    f"Progresso do v��deo #{video.pk} resetado (substitui��ǜo por v��deo diferente)."
+                )
+
             job.status = Job.Status.DONE
-            self.stdout.write(self.style.SUCCESS(f"Vídeo #{video.pk} pronto."))
+            self.stdout.write(self.style.SUCCESS(f"V��deo #{video.pk} pronto."))
         except Exception as exc:  # noqa: BLE001
+            pendente = hls_pending_dir(video)
+            if pendente.exists():
+                shutil.rmtree(pendente, ignore_errors=True)
             video.status = Video.Status.ERROR
             video.error_message = str(exc)[:4000]
-            video.save(update_fields=["status", "error_message"])
+            video.substituicao = Video.Substituicao.NENHUMA
+            video.save(update_fields=["status", "error_message", "substituicao"])
             job.status = Job.Status.FAILED
             job.error = str(exc)[:4000]
-            self.stderr.write(self.style.ERROR(f"Falha no vídeo #{video.pk}: {exc}"))
+            self.stderr.write(self.style.ERROR(f"Falha no v��deo #{video.pk}: {exc}"))
         finally:
             job.finished_at = timezone.now()
             job.save(update_fields=["status", "error", "finished_at"])

@@ -248,6 +248,27 @@ def hls_dir(video: Video) -> Path:
     return Path(settings.MEDIA_ROOT) / "hls" / str(video.pk)
 
 
+def hls_pending_dir(video: Video) -> Path:
+    """HLS de uma versão ainda em processamento (troca atômica no fim)."""
+    return Path(settings.MEDIA_ROOT) / "hls" / f"{video.pk}.pending"
+
+
+def promote_hls(video: Video) -> None:
+    """Promove o HLS pendente para a versão oficial.
+
+    A versão antiga continua sendo servida até este ponto; a troca é feita
+    só depois que o processamento termina com sucesso.
+    """
+    pendente = hls_pending_dir(video)
+    if not pendente.exists():
+        raise FileNotFoundError(f"HLS pendente não encontrado: {pendente}")
+
+    oficial = hls_dir(video)
+    if oficial.exists():
+        shutil.rmtree(oficial)
+    pendente.rename(oficial)
+
+
 # --------------------------------------------------------------------------
 # ffmpeg
 # --------------------------------------------------------------------------
@@ -441,12 +462,17 @@ def enqueue_transcode(video: Video) -> None:
 
 
 def process_transcode(video: Video) -> dict:
-    """Processa o arquivo original e gera o HLS. Devolve as qualidades."""
+    """Processa o arquivo original e gera o HLS. Devolve as qualidades.
+
+    O HLS é gerado num diretório *pendente*; a troca pela versão oficial é
+    feita por ``promote_hls`` só após o sucesso. Assim a versão anterior
+    permanece disponível para os alunos durante o processamento.
+    """
     source = original_path(video)
     if not source.exists():
         raise FileNotFoundError(f"Arquivo original não encontrado: {source}")
 
-    out_root = hls_dir(video)
+    out_root = hls_pending_dir(video)
     if out_root.exists():
         shutil.rmtree(out_root)
     out_root.mkdir(parents=True, exist_ok=True)

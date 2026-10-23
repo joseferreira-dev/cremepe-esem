@@ -3,6 +3,7 @@
 import json
 
 from django.contrib.auth.models import User
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 
 from apps.accounts.models import Medico
@@ -127,6 +128,166 @@ class TestAcessoAoPainel(TestCase):
         self.client.force_login(self.admin)
         resposta = self.client.get("/painel/")
         self.assertContains(resposta, "bg-painel-gradiente")
+
+
+class TestDistribuicaoDoProgresso(TestCase):
+    """Regra 1: o card 'Distribuição do progresso' vai para o detalhe do curso."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            "admin-dist", "a@b.c", "senha12345"
+        )
+        user = User.objects.create_user("medico-dist", password="x")
+        self.medico = Medico.objects.create(
+            user=user, cpf="11122233300", nome="Medico Dist", must_change_password=False
+        )
+        self.curso = Course.objects.create(
+            title="Curso Dist", status=Course.Status.ACTIVE, min_percent=50
+        )
+        self.video = Video.objects.create(
+            course=self.curso, order=1, title="Aula", duration=100,
+            status=Video.Status.READY,
+        )
+        self.matricula = Enrollment.objects.create(
+            medico=self.medico, course=self.curso, min_percent=50
+        )
+        Progress.objects.create(
+            enrollment=self.matricula, video=self.video,
+            covered=60, furthest=60, intervals=[[0, 60]],
+        )
+        self.client.force_login(self.admin)
+
+    def test_visao_geral_nao_mostra_distribuicao(self):
+        html = self.client.get("/painel/").content.decode()
+        self.assertNotIn("Distribuição do progresso", html)
+        self.assertIn("Progresso por curso", html)
+
+    def test_detalhe_do_curso_mostra_distribuicao(self):
+        html = self.client.get(f"/painel/cursos/{self.curso.pk}/").content.decode()
+        self.assertIn("Distribuição do progresso", html)
+        self.assertIn("50–75%", html)
+        self.assertIn('data-tab-target="visao"', html)
+
+
+class TestGestaoDeAdministradores(TestCase):
+    """Regra 2: gestão de usuários do painel restrita ao superusuário."""
+
+    def setUp(self):
+        self.super = User.objects.create_superuser(
+            "suporte", "a@b.c", "senha12345"
+        )
+        self.staff = User.objects.create_user(
+            "gestor", password="senha12345", is_staff=True
+        )
+        self.client.force_login(self.super)
+
+    def test_staff_comum_nao_acessa_gestao(self):
+        self.client.force_login(self.staff)
+        self.assertEqual(self.client.get("/painel/usuarios/").status_code, 403)
+        self.assertEqual(
+            self.client.get("/painel/usuarios/novo/").status_code, 403
+        )
+
+    def test_superusuário_lista_e_cria(self):
+        resposta = self.client.get("/painel/usuarios/")
+        self.assertContains(resposta, self.staff.username)
+
+        resposta = self.client.post(
+            "/painel/usuarios/novo/",
+            {
+                "username": "ana.souza",
+                "first_name": "Ana",
+                "last_name": "Souza",
+                "email": "ana@exemplo.com",
+                "senha": "SenhaForte@123",
+                "is_active": "on",
+            },
+        )
+        self.assertRedirects(resposta, "/painel/usuarios/")
+        novo = User.objects.get(username="ana.souza")
+        self.assertTrue(novo.is_staff)
+        self.assertFalse(novo.is_superuser)
+        self.assertTrue(novo.check_password("SenhaForte@123"))
+
+    def test_editar_mantem_staff_sem_superuser(self):
+        self.client.post(
+            "/painel/usuarios/novo/",
+            {
+                "username": "carlos",
+                "senha": "x",
+                "is_active": "on",
+            },
+        )
+        carlos = User.objects.get(username="carlos")
+        resposta = self.client.post(
+            f"/painel/usuarios/{carlos.pk}/editar/",
+            {
+                "username": "carlos",
+                "first_name": "Carlos",
+                "email": "carlos@exemplo.com",
+                "senha": "",
+                "is_active": "on",
+            },
+        )
+        self.assertRedirects(resposta, "/painel/usuarios/")
+        carlos.refresh_from_db()
+        self.assertEqual(carlos.first_name, "Carlos")
+        self.assertTrue(carlos.is_staff)
+        self.assertFalse(carlos.is_superuser)
+
+    def test_nao_edita_superusuario(self):
+        resposta = self.client.get(f"/painel/usuarios/{self.super.pk}/editar/")
+        self.assertRedirects(resposta, "/painel/usuarios/")
+
+    def test_desativar_bloqueia_acesso(self):
+        self.client.post(
+            "/painel/usuarios/novo/",
+            {"username": "temp", "senha": "x", "is_active": "on"},
+        )
+        temp = User.objects.get(username="temp")
+        self.client.post(
+            f"/painel/usuarios/{temp.pk}/acao/", {"acao": "desativar"}
+        )
+        temp.refresh_from_db()
+        self.assertFalse(temp.is_active)
+
+    def test_resetar_senha_gera_nova(self):
+        self.client.post(
+            "/painel/usuarios/novo/",
+            {"username": "redef", "senha": "Antiga@123", "is_active": "on"},
+        )
+        redef = User.objects.get(username="redef")
+        resposta = self.client.post(
+            f"/painel/usuarios/{redef.pk}/acao/", {"acao": "resetar_senha"}
+        )
+        redef.refresh_from_db()
+        self.assertFalse(redef.check_password("Antiga@123"))
+        self.assertTrue(redef.has_usable_password())
+
+
+class TestDjangoAdminRestritoAoSuporte(TestCase):
+    """Regra 2: /admin/ só para superusuários (suporte de TI)."""
+
+    def setUp(self):
+        self.super = User.objects.create_superuser(
+            "suporte", "a@b.c", "senha12345"
+        )
+        self.staff = User.objects.create_user(
+            "gestor", password="senha12345", is_staff=True
+        )
+
+    def test_staff_nao_acessa_django_admin(self):
+        self.client.force_login(self.staff)
+        self.assertEqual(self.client.get("/admin/").status_code, 302)
+        self.assertIn("/admin/login/", self.client.get("/admin/").url)
+
+    def test_superusuário_acessa_django_admin(self):
+        self.client.force_login(self.super)
+        self.assertEqual(self.client.get("/admin/").status_code, 200)
+
+    def test_staff_acessa_painel(self):
+        self.client.force_login(self.staff)
+        self.assertEqual(self.client.get("/painel/").status_code, 200)
 
 
 
@@ -488,3 +649,152 @@ class TestMatriculasEmLote(TestCase):
             Enrollment.objects.get(medico=self.medicos[1], course=self.curso).min_percent,
             70,
         )
+
+
+class TestRemoverMatricula(TestCase):
+    """Regra 4: é possível remover matrículas."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            "admin-remover", "a@b.c", "senha12345"
+        )
+        user = User.objects.create_user("medico-remover", password="x")
+        self.medico = Medico.objects.create(
+            user=user,
+            cpf="44455566677",
+            nome="Medico Remover",
+            must_change_password=False,
+        )
+        self.curso = Course.objects.create(
+            title="Curso remover", status=Course.Status.ACTIVE, min_percent=50
+        )
+        self.matricula = Enrollment.objects.create(
+            medico=self.medico, course=self.curso, min_percent=50
+        )
+        self.video = Video.objects.create(
+            course=self.curso, order=1, title="Aula", duration=100,
+            status=Video.Status.READY,
+        )
+        Progress.objects.create(
+            enrollment=self.matricula, video=self.video, covered=50, furthest=50
+        )
+        self.client.force_login(self.admin)
+
+    def test_remover_matricula_apaga_registro_e_progresso(self):
+        resposta = self.client.post(
+            f"/painel/matriculas/{self.matricula.pk}/acao/",
+            {"acao": "remover"},
+        )
+        self.assertRedirects(resposta, f"/painel/cursos/{self.curso.pk}/")
+        self.assertFalse(Enrollment.objects.filter(pk=self.matricula.pk).exists())
+        self.assertEqual(Progress.objects.count(), 0)
+        self.assertTrue(
+            AuditLog.objects.filter(action="matricula_removida").exists()
+        )
+
+    def test_botao_remover_aparece_na_turma(self):
+        html = self.client.get(f"/painel/cursos/{self.curso.pk}/").content.decode()
+        self.assertIn('value="remover"', html)
+        self.assertIn("Remover", html)
+
+    def test_remover_da_listagem_de_matriculas(self):
+        resposta = self.client.post(
+            f"/painel/matriculas/{self.matricula.pk}/acao/",
+            {"acao": "remover", "voltar": "/painel/matriculas/"},
+        )
+        self.assertRedirects(resposta, "/painel/matriculas/")
+        self.assertFalse(Enrollment.objects.filter(pk=self.matricula.pk).exists())
+
+
+class TestCadastroCsv(TestCase):
+    """Regra 6: cadastro em lote via arquivo .csv ou colado, separador vírgula."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser("admin-csv", "a@b.c", "senha12345")
+        self.client.force_login(self.admin)
+
+    def test_cadastra_via_arquivo_csv(self):
+        conteudo = (
+            "nome,cpf,e-mail\n"
+            "Maria da Silva,11122233344,maria@exemplo.com\n"
+            "João Pereira,55566677788,joao@exemplo.com\n"
+        ).encode("utf-8")
+        arquivo = SimpleUploadedFile("alunos.csv", conteudo, content_type="text/csv")
+        resposta = self.client.post("/painel/medicos/lote/", {"arquivo": arquivo})
+        self.assertContains(resposta, "2 aluno(s) cadastrado(s)")
+        self.assertEqual(Medico.objects.filter(cpf__in=["11122233344", "55566677788"]).count(), 2)
+
+    def test_cadastra_via_dados_colados_com_virgula(self):
+        resposta = self.client.post(
+            "/painel/medicos/lote/",
+            {
+                "dados": (
+                    "Maria da Silva,11122233344,maria@exemplo.com\n"
+                    "João Pereira,55566677788,joao@exemplo.com"
+                )
+            },
+        )
+        self.assertContains(resposta, "2 aluno(s) cadastrado(s)")
+        self.assertEqual(Medico.objects.count(), 2)
+
+    def test_aceita_ponto_e_virgula_do_excel(self):
+        resposta = self.client.post(
+            "/painel/medicos/lote/",
+            {"dados": "Maria da Silva; 11122233344; maria@exemplo.com"},
+        )
+        self.assertContains(resposta, "1 aluno(s) cadastrado(s)")
+
+    def test_csv_com_cpf_invalido_rejeitado(self):
+        arquivo = SimpleUploadedFile(
+            "alunos.csv",
+            b"Maria da Silva,123,maria@exemplo.com\n",
+            content_type="text/csv",
+        )
+        resposta = self.client.post("/painel/medicos/lote/", {"arquivo": arquivo})
+        self.assertContains(resposta, "CPF deve ter 11 dígitos")
+        self.assertEqual(Medico.objects.count(), 0)
+
+    def test_erro_do_lote_aparece_na_pagina(self):
+        resposta = self.client.post(
+            "/painel/medicos/lote/",
+            {"dados": "Maria da Silva,11122233344"},
+        )
+        # Primeiro cria, depois o mesmo CPF é rejeitado.
+        self.assertEqual(Medico.objects.count(), 1)
+        resposta2 = self.client.post(
+            "/painel/medicos/lote/",
+            {"dados": "Maria da Silva,11122233344"},
+        )
+        self.assertContains(resposta2, "já existe um médico cadastrado")
+
+
+class TestCamposDeBusca(TestCase):
+    """Regra 5: selects de vídeo/matrícula viram campos de busca."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            "admin-busca", "a@b.c", "senha12345"
+        )
+        self.client.force_login(self.admin)
+
+    def test_formulario_de_video_usa_campo_de_busca(self):
+        curso = Course.objects.create(title="Curso Busca", status=Course.Status.ACTIVE)
+        html = self.client.get("/painel/videos/novo/").content.decode()
+        self.assertIn("data-busca", html)
+        self.assertIn("campo-busca-select", html)
+
+    def test_formulario_de_matricula_usa_campo_de_busca(self):
+        html = self.client.get("/painel/matriculas/nova/").content.decode()
+        self.assertIn("data-busca", html)
+        self.assertIn("campo-busca-select", html)
+
+    def test_formulario_de_upload_usa_campo_de_busca(self):
+        Video.objects.create(
+            course=Course.objects.create(title="C", status=Course.Status.ACTIVE),
+            order=1,
+            title="Aula",
+            status=Video.Status.READY,
+        )
+        html = self.client.get("/api/uploads/pagina/").content.decode()
+        self.assertIn("data-busca", html)
+        self.assertIn("substituicao-bloco", html)

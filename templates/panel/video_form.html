@@ -13,9 +13,9 @@
 <form method="post" class="mt-8 max-w-2xl space-y-6">
   {% csrf_token %}
   <div class="cartao cartao-padrao space-y-6">
-    {% include "partials/campo.html" with field=form.course %}
-    {% include "partials/campo.html" with field=form.order %}
-    {% include "partials/campo.html" with field=form.title %}
+    {% include "partials/campo_busca.html" with field=form.course placeholder="Buscar curso…" %}
+    {% include "partials/campo.html" with field=form.order %} 
+    {% include "partials/campo.html" with field=form.title %} 
     <div class="flex items-start gap-3">
       <div class="pt-0.5">{{ form.is_required }}</div>
       <div>

@@ -18,6 +18,12 @@ class UploadSession(models.Model):
         Video, on_delete=models.CASCADE, related_name="uploads", verbose_name="Vídeo"
     )
     original_filename = models.CharField("Nome do arquivo", max_length=255)
+    substituicao = models.CharField(
+        "Tipo de substituição",
+        max_length=20,
+        choices=Video.Substituicao.choices,
+        default=Video.Substituicao.NENHUMA,
+    )
     total_size = models.BigIntegerField("Tamanho total (bytes)")
     chunk_size = models.IntegerField("Tamanho do bloco (bytes)")
     total_chunks = models.IntegerField("Total de blocos")

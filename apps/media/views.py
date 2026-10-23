@@ -229,6 +229,13 @@ def upload_init(request):
     if total_size <= 0:
         return JsonResponse({"error": "Tamanho do arquivo inválido."}, status=400)
 
+    substituicao = data.get("substituicao") or Video.Substituicao.NENHUMA
+    if substituicao not in Video.Substituicao.values:
+        return JsonResponse({"error": "Tipo de substituição inválido."}, status=400)
+    # Um vídeo que ainda não tem mídia nunca é substituição.
+    if not video.tem_media:
+        substituicao = Video.Substituicao.NENHUMA
+
     chunk_size = int(settings.UPLOAD_CHUNK_SIZE)
 
     # Retomada: se já existe um envio incompleto do mesmo vídeo com o mesmo
@@ -243,6 +250,9 @@ def upload_init(request):
         .first()
     )
     if existente is not None:
+        if existente.substituicao != substituicao:
+            existente.substituicao = substituicao
+            existente.save(update_fields=["substituicao"])
         return JsonResponse(
             {
                 "upload_id": str(existente.pk),
@@ -256,6 +266,7 @@ def upload_init(request):
     session = UploadSession.objects.create(
         video=video,
         original_filename=filename,
+        substituicao=substituicao,
         total_size=total_size,
         chunk_size=chunk_size,
         total_chunks=chunk_count(total_size, chunk_size),
@@ -370,8 +381,9 @@ def upload_complete(request, upload_id):
     source.replace(destination)
 
     video.original_path = str(destination.relative_to(settings.MEDIA_ROOT))
+    video.substituicao = session.substituicao
     video.status = Video.Status.QUEUED
-    video.save(update_fields=["original_path", "status"])
+    video.save(update_fields=["original_path", "status", "substituicao"])
 
     session.status = UploadSession.Status.COMPLETED
     session.save(update_fields=["status", "updated_at"])
@@ -382,7 +394,11 @@ def upload_complete(request, upload_id):
         "upload_concluido",
         actor=request.user,
         target=f"Vídeo #{video.pk}",
-        detail={"arquivo": session.original_filename, "bytes": session.total_size},
+        detail={
+            "arquivo": session.original_filename,
+            "bytes": session.total_size,
+            "substituicao": session.substituicao,
+        },
         ip=client_ip(request),
     )
 

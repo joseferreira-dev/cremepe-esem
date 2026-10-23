@@ -151,10 +151,12 @@ class TestDesbloqueio(TestCase):
             unlock_threshold=95,
         )
         self.video1 = Video.objects.create(
-            course=self.curso, order=1, title="Aula 1", duration=1000
+            course=self.curso, order=1, title="Aula 1", duration=1000,
+            status=Video.Status.READY,
         )
         self.video2 = Video.objects.create(
-            course=self.curso, order=2, title="Aula 2", duration=1000
+            course=self.curso, order=2, title="Aula 2", duration=1000,
+            status=Video.Status.READY,
         )
         self.enrollment = Enrollment.objects.create(
             medico=self.medico, course=self.curso
@@ -189,7 +191,8 @@ class TestAprovacao(TestCase):
             title="Ética Médica", status=Course.Status.ACTIVE, min_percent=50
         )
         self.video = Video.objects.create(
-            course=self.curso, order=1, title="Aula 1", duration=1000
+            course=self.curso, order=1, title="Aula 1", duration=1000,
+            status=Video.Status.READY,
         )
         self.enrollment = Enrollment.objects.create(
             medico=self.medico, course=self.curso, min_percent=50

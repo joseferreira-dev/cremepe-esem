@@ -1,0 +1,93 @@
+{% extends "panel/base.html" %}
+{% load web %}
+
+{% block titulo %}Usuários administradores{% endblock %}
+
+{% block painel %}
+<div class="flex flex-wrap items-end justify-between gap-4">
+  <div>
+    <p class="rotulo">Sistema</p>
+    <h1 class="mt-1 text-3xl font-bold tracking-tight text-slate-900">Usuários administradores</h1>
+    <p class="mt-2 max-w-2xl text-sm text-slate-500">
+      Contas com acesso ao Painel Administrativo (cursos, matrículas e médicos).
+      Estes usuários <strong>não</strong> acessam o Django — esse é exclusivo do suporte de TI.
+    </p>
+  </div>
+  <a href="{% url 'painel_administrador_novo' %}" class="btn btn-primary">
+    {{ icons.mais|safe }} Novo usuário
+  </a>
+</div>
+
+<form method="get" class="mt-6 flex max-w-md gap-2">
+  <div class="relative flex-1">
+    <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">{{ icons.busca|safe }}</span>
+    <input type="search" name="q" value="{{ busca }}" class="campo pl-10" placeholder="Buscar por usuário, nome ou e-mail">
+  </div>
+  <button class="btn btn-secundario" type="submit">Buscar</button>
+</form>
+
+<div class="cartao mt-6 overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="min-w-full divide-y divide-slate-100">
+      <thead class="bg-slate-50/80">
+        <tr>
+          <th class="cabecalho-tabela">Usuário</th>
+          <th class="cabecalho-tabela">Nome</th>
+          <th class="cabecalho-tabela">E-mail</th>
+          <th class="cabecalho-tabela">Situação</th>
+          <th class="cabecalho-tabela"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        {% for linha in linhas %}
+          <tr class="transition hover:bg-slate-50/70 {% if not linha.is_active %}opacity-60{% endif %}">
+            <td class="celula">
+              <div class="flex items-center gap-3">
+                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-marca-gradiente text-xs font-bold text-white">
+                  {{ linha.username|slice:":1"|upper }}
+                </span>
+                <span class="font-semibold text-slate-800">{{ linha.username }}</span>
+              </div>
+            </td>
+            <td class="celula text-slate-600">
+              {{ linha.get_full_name|default:"—" }}
+            </td>
+            <td class="celula text-slate-600">{{ linha.email|default:"—" }}</td>
+            <td class="celula">
+              {% if linha.is_active %}
+                <span class="etiqueta bg-marca-100 text-marca-700 ring-1 ring-marca-200">Ativo</span>
+              {% else %}
+                <span class="etiqueta bg-slate-100 text-slate-500 ring-1 ring-slate-200">Inativo</span>
+              {% endif %}
+            </td>
+            <td class="celula">
+              <div class="flex justify-end gap-1.5">
+                <a href="{% url 'painel_administrador_editar' linha.pk %}" class="btn btn-secundario btn-sm">Editar</a>
+                <form method="post" action="{% url 'painel_administrador_acao' linha.pk %}">
+                  {% csrf_token %}
+                  <input type="hidden" name="acao" value="{% if linha.is_active %}desativar{% else %}ativar{% endif %}">
+                  <button class="btn btn-fantasma btn-sm" type="submit">
+                    {% if linha.is_active %}Desativar{% else %}Ativar{% endif %}
+                  </button>
+                </form>
+                <form method="post" action="{% url 'painel_administrador_acao' linha.pk %}"
+                      data-confirm="Redefinir a senha de {{ linha.username }}? A nova senha provisória será exibida na próxima tela.">
+                  {% csrf_token %}
+                  <input type="hidden" name="acao" value="resetar_senha">
+                  <button class="btn btn-fantasma btn-sm" type="submit">Redefinir senha</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="5" class="px-5 py-12 text-center text-sm text-slate-400">
+              {% if busca %}Nenhum usuário encontrado.{% else %}Nenhum usuário administrador cadastrado.{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
