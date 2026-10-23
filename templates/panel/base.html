@@ -4,6 +4,7 @@
 {% block title %}{% block titulo %}Painel{% endblock %} — CREMEPE / ESEM{% endblock %}
 
 {% block corpo %}
+<div class="bg-painel-gradiente min-h-[calc(100vh-4rem)]">
 <div class="mx-auto flex max-w-7xl gap-8 px-4 py-8 sm:px-6 lg:px-8">
 
   <aside class="hidden w-60 shrink-0 lg:block">
@@ -48,19 +49,14 @@
         {{ icons.auditoria|safe }} Auditoria
       </a>
 
-      <div class="pt-5">
-        <p class="rotulo px-3 pb-2">Atalhos</p>
-        {% if request.user.is_superuser %}
-          <a href="{% url 'admin:index' %}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-slate-500 transition hover:bg-slate-100">
-            {{ icons.ajustes|safe }} Django admin (avançado)
-          </a>
-        {% endif %}
-        {% if request.user.medico %}
+      {% if request.user.medico %}
+        <div class="pt-5">
+          <p class="rotulo px-3 pb-2">Atalhos</p>
           <a href="{% url 'my_courses' %}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-slate-500 transition hover:bg-slate-100">
             {{ icons.olho|safe }} Ver como médico
           </a>
-        {% endif %}
-      </div>
+        </div>
+      {% endif %}
 
       <div class="mt-4 border-t border-slate-200 pt-4">
         <p class="px-3 text-xs text-slate-500">
@@ -103,5 +99,6 @@
 
     {% block painel %}{% endblock %}
   </div>
+</div>
 </div>
 {% endblock %}

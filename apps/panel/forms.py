@@ -1,6 +1,9 @@
 """Formulários do painel administrativo."""
 
 from django import forms
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
+from django.db import transaction
 
 from apps.accounts.models import Medico, normalize_cpf
 from apps.accounts.services import criar_conta_medico
@@ -90,7 +93,13 @@ class MedicoForm(forms.ModelForm):
         ),
         widget=forms.TextInput(attrs={"class": "campo", "autocomplete": "new-password"}),
     )
-    email = forms.EmailField(required=False, label="E-mail")
+    email = forms.EmailField(
+        required=False,
+        label="E-mail",
+        widget=forms.EmailInput(
+            attrs={"class": "campo", "placeholder": "nome@exemplo.com"}
+        ),
+    )
     ativo = forms.BooleanField(required=False, initial=True, label="Ativo")
 
     class Meta:
@@ -169,3 +178,163 @@ class MatriculaForm(forms.ModelForm):
             ).exists():
                 raise forms.ValidationError("Este médico já está matriculado neste curso.")
         return limpo
+
+
+class MatriculaLoteForm(forms.Form):
+    """Matricula vários médicos em um único curso."""
+
+    medicos = forms.ModelMultipleChoiceField(
+        queryset=Medico.objects.none(),
+        label="Médicos",
+        widget=forms.CheckboxSelectMultiple(
+            attrs={
+                "class": "h-4 w-4 rounded border-slate-300 text-marca-600 focus:ring-marca-500"
+            }
+        ),
+    )
+    min_percent = forms.DecimalField(
+        required=False,
+        label="Percentual exigido (%)",
+        max_digits=5,
+        decimal_places=2,
+        min_value=0,
+        max_value=100,
+        widget=forms.NumberInput(
+            attrs={"class": "campo", "step": "0.01", "min": "0", "max": "100"}
+        ),
+    )
+    deadline = forms.DateField(
+        required=False,
+        label="Prazo",
+        widget=forms.DateInput(attrs={"class": "campo", "type": "date"}),
+    )
+
+    def __init__(self, *args, curso=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.curso = curso
+        if curso:
+            self.fields["medicos"].queryset = (
+                Medico.objects.filter(ativo=True)
+                .exclude(enrollments__course=curso)
+                .order_by("nome")
+            )
+            self.fields["min_percent"].initial = curso.min_percent
+            self.fields["deadline"].initial = curso.deadline
+
+    def clean_medicos(self):
+        medicos = self.cleaned_data["medicos"]
+        if self.curso and not medicos:
+            raise forms.ValidationError("Selecione pelo menos um médico.")
+        return medicos
+
+    def save(self):
+        if self.curso is None:
+            raise ValueError("O curso é obrigatório para matricular em lote.")
+        min_percent = self.cleaned_data.get("min_percent") or self.curso.min_percent
+        deadline = self.cleaned_data.get("deadline") or self.curso.deadline
+        criadas = []
+        with transaction.atomic():
+            for medico in self.cleaned_data["medicos"]:
+                matricula, criada = Enrollment.objects.get_or_create(
+                    medico=medico,
+                    course=self.curso,
+                    defaults={"min_percent": min_percent, "deadline": deadline},
+                )
+                if criada:
+                    criadas.append(matricula)
+        return criadas
+
+
+class MedicoLoteForm(forms.Form):
+    """Cadastra médicos em lote a partir de linhas separadas por ponto e vírgula.
+
+    Formato de cada linha::
+
+        Nome completo; CPF; CRM; e-mail; telefone
+    """
+
+    dados = forms.CharField(
+        label="Alunos",
+        widget=forms.Textarea(
+            attrs={
+                "class": "campo font-mono",
+                "rows": 10,
+                "placeholder": (
+                    "Maria da Silva; 111.222.333-44; PE-1234; maria@exemplo.com; (81) 99999-0000\n"
+                    "João Pereira; 555.666.777-88; PE-5678; joao@exemplo.com; (81) 98888-0000"
+                ),
+            }
+        ),
+        help_text=(
+            "Uma pessoa por linha, separada por ponto e vírgula: "
+            "Nome; CPF; CRM; e-mail; telefone. CRM, e-mail e telefone são opcionais."
+        ),
+    )
+
+    def clean_dados(self):
+        texto = (self.cleaned_data.get("dados") or "").strip()
+        if not texto:
+            raise forms.ValidationError("Informe pelo menos um aluno.")
+
+        linhas = []
+        cpfs_no_lote = set()
+        for numero, linha in enumerate(texto.splitlines(), start=1):
+            linha = linha.strip()
+            if not linha or linha.startswith("#"):
+                continue
+            partes = [parte.strip() for parte in linha.replace("\t", ";").split(";")]
+            if len(partes) < 2:
+                raise forms.ValidationError(
+                    f"Linha {numero}: use o formato Nome; CPF; CRM; e-mail; telefone."
+                )
+            partes += [""] * (5 - len(partes))
+            nome, cpf, crm, email, telefone = partes[:5]
+            cpf = normalize_cpf(cpf)
+
+            if not nome:
+                raise forms.ValidationError(f"Linha {numero}: informe o nome.")
+            if len(cpf) != 11:
+                raise forms.ValidationError(
+                    f"Linha {numero}: o CPF deve ter 11 dígitos."
+                )
+            if cpf in cpfs_no_lote:
+                raise forms.ValidationError(
+                    f"Linha {numero}: CPF repetido dentro do lote."
+                )
+            if Medico.objects.filter(cpf=cpf).exists():
+                raise forms.ValidationError(
+                    f"Linha {numero}: já existe um médico cadastrado com este CPF."
+                )
+            if email:
+                try:
+                    validate_email(email)
+                except ValidationError as exc:
+                    raise forms.ValidationError(
+                        f"Linha {numero}: e-mail inválido."
+                    ) from exc
+
+            cpfs_no_lote.add(cpf)
+            linhas.append(
+                {
+                    "nome": nome,
+                    "cpf": cpf,
+                    "crm": crm,
+                    "email": email,
+                    "telefone": telefone,
+                }
+            )
+
+        if not linhas:
+            raise forms.ValidationError("Nenhuma linha válida foi encontrada.")
+        self.linhas = linhas
+        return texto
+
+    def save(self):
+        criados = []
+        with transaction.atomic():
+            for dados in self.linhas:
+                medico = Medico(ativo=True, **dados)
+                senha = criar_conta_medico(medico)
+                medico.save()
+                criados.append({"medico": medico, "senha": senha})
+        return criados

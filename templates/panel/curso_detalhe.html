@@ -17,7 +17,7 @@
       <p class="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500">
         <span class="etiqueta {{ curso.status|cor_status }}">{{ curso.get_status_display }}</span>
         <span>{{ curso.edition|default:"—" }}</span>
-        <span>· {{ curso.videos.count }} vídeo(s)</span>
+        <span>· {{ videos|length }} vídeo(s)</span>
         <span>· {{ duracao }}</span>
         <span>· exige {{ curso.min_percent|floatformat:0 }}%</span>
       </p>
@@ -30,14 +30,108 @@
   </div>
 </div>
 
-<div class="mt-8 grid gap-6 lg:grid-cols-3">
-  <div class="space-y-6 lg:col-span-2">
+<div class="mt-6" data-tabs>
+  <div class="flex flex-wrap gap-1 border-b border-slate-200" role="tablist" aria-label="Detalhes do curso">
+    <button type="button" role="tab" aria-selected="true" data-tab-target="visao"
+            class="border-b-2 border-marca-500 px-3 pb-3 text-sm font-semibold text-marca-700 transition">
+      Visão geral
+    </button>
+    <button type="button" role="tab" aria-selected="false" data-tab-target="videos"
+            class="border-b-2 border-transparent px-3 pb-3 text-sm font-medium text-slate-500 transition hover:text-slate-800">
+      Vídeos
+      <span class="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">{{ videos|length }}</span>
+    </button>
+    <button type="button" role="tab" aria-selected="false" data-tab-target="matriculados"
+            class="border-b-2 border-transparent px-3 pb-3 text-sm font-medium text-slate-500 transition hover:text-slate-800">
+      Matriculados
+      <span class="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">{{ linhas|length }}</span>
+    </button>
+    <button type="button" role="tab" aria-selected="false" data-tab-target="configuracoes"
+            class="border-b-2 border-transparent px-3 pb-3 text-sm font-medium text-slate-500 transition hover:text-slate-800">
+      Configurações
+    </button>
+  </div>
 
-    <!-- Vídeos -->
+  <!-- Visão geral -->
+  <div data-tab-panel="visao" class="pt-6">
+    <div class="grid gap-6 lg:grid-cols-3">
+      <div class="space-y-6 lg:col-span-2">
+        <div class="cartao cartao-padrao">
+          <div class="flex items-center justify-between gap-4">
+            <h2 class="flex items-center gap-2 text-sm font-semibold text-slate-800">
+              {{ icons.documento|safe }} Descrição
+            </h2>
+            <a href="{% url 'painel_curso_editar' curso.id %}" class="text-xs font-semibold text-marca-600 hover:underline">
+              editar
+            </a>
+          </div>
+          {% if curso.description %}
+            <p class="mt-4 whitespace-pre-line text-sm leading-relaxed text-slate-600">{{ curso.description }}</p>
+          {% else %}
+            <p class="mt-4 text-sm text-slate-400">Nenhuma descrição cadastrada.</p>
+          {% endif %}
+        </div>
+
+        <div class="cartao cartao-padrao">
+          <h2 class="text-sm font-semibold text-slate-800">Resumo da turma</h2>
+          <div class="mt-4 grid gap-3 sm:grid-cols-3">
+            <div class="rounded-xl bg-slate-50 p-4">
+              <p class="text-xs font-medium text-slate-500">Matriculados</p>
+              <p class="mt-1 text-2xl font-bold text-slate-900">{{ linhas|length }}</p>
+            </div>
+            <div class="rounded-xl bg-slate-50 p-4">
+              <p class="text-xs font-medium text-slate-500">Vídeos</p>
+              <p class="mt-1 text-2xl font-bold text-slate-900">{{ videos|length }}</p>
+            </div>
+            <div class="rounded-xl bg-slate-50 p-4">
+              <p class="text-xs font-medium text-slate-500">Duração</p>
+              <p class="mt-1 text-2xl font-bold text-slate-900">{{ duracao }}</p>
+            </div>
+          </div>
+          <a href="{% url 'painel_curso' curso.id %}#matriculados" data-tab-link="matriculados"
+             class="btn btn-secundario mt-5">Ver matriculados</a>
+        </div>
+      </div>
+
+      <aside class="space-y-6">
+        <div class="cartao cartao-padrao">
+          <h2 class="text-sm font-semibold text-slate-800">Regras do curso</h2>
+          <dl class="mt-4 space-y-3 text-sm">
+            <div class="flex justify-between gap-4">
+              <dt class="text-slate-500">Aprovação</dt>
+              <dd class="font-semibold text-slate-800">{{ curso.min_percent|floatformat:0 }}%</dd>
+            </div>
+            <div class="flex justify-between gap-4">
+              <dt class="text-slate-500">Liberação</dt>
+              <dd class="font-semibold text-slate-800">
+                {% if curso.sequential %}Sequencial ({{ curso.unlock_threshold|floatformat:0 }}%){% else %}Livre{% endif %}
+              </dd>
+            </div>
+            <div class="flex justify-between gap-4">
+              <dt class="text-slate-500">Prazo</dt>
+              <dd class="font-semibold text-slate-800">
+                {% if curso.deadline %}{{ curso.deadline|date:"d/m/Y" }}{% else %}—{% endif %}
+              </dd>
+            </div>
+            <div class="flex justify-between gap-4">
+              <dt class="text-slate-500">Duração</dt>
+              <dd class="font-semibold text-slate-800">{{ duracao }}</dd>
+            </div>
+          </dl>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Vídeos -->
+  <div data-tab-panel="videos" class="hidden pt-6">
     <div class="cartao overflow-hidden">
-      <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-        <h2 class="text-sm font-semibold text-slate-800">Gravações</h2>
-        <a href="{% url 'upload_page' %}" class="text-xs font-semibold text-marca-600 hover:underline">enviar arquivo</a>
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+        <h2 class="text-sm font-semibold text-slate-800">Lista de vídeos</h2>
+        <div class="flex flex-wrap gap-2">
+          <a href="{% url 'upload_page' %}" class="btn btn-secundario btn-sm">{{ icons.enviar|safe }} Enviar arquivo</a>
+          <a href="{% url 'painel_video_novo' %}" class="btn btn-primary btn-sm">{{ icons.mais|safe }} Novo vídeo</a>
+        </div>
       </div>
       <div class="divide-y divide-slate-100">
         {% for video in videos %}
@@ -58,148 +152,178 @@
             <a href="{% url 'painel_video' video.id %}" class="btn btn-secundario btn-sm shrink-0">Abrir</a>
           </div>
         {% empty %}
-          <p class="px-5 py-10 text-center text-sm text-slate-400">
-            Nenhuma gravação neste curso. <a class="font-semibold text-marca-600 hover:underline" href="{% url 'painel_video_novo' %}">Cadastrar o primeiro vídeo</a>.
-          </p>
-        {% endfor %}
-      </div>
-    </div>
-
-    <!-- Turma -->
-    <div class="cartao overflow-hidden">
-      <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-        <h2 class="text-sm font-semibold text-slate-800">Turma ({{ linhas|length }})</h2>
-        <button type="button" data-dropdown-toggle="form-matricula"
-                class="text-xs font-semibold text-marca-600 hover:underline">+ matricular médico</button>
-      </div>
-
-      <div id="form-matricula" data-dropdown-menu class="hidden border-b border-slate-100 bg-slate-50/60 p-5">
-        <form method="post" action="{% url 'painel_matricula_nova' %}" class="grid gap-4 sm:grid-cols-2">
-          {% csrf_token %}
-          <input type="hidden" name="course" value="{{ curso.id }}">
-          {% for field in form_matricula %}
-            {% if field.name == "course" %}{% else %}
-              <div class="{% if field.name == 'medico' %}sm:col-span-2{% endif %}">
-                <label class="rotulo" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                <div class="mt-1.5">{{ field }}</div>
-                {% for error in field.errors %}<p class="mt-1 text-xs text-rose-600">{{ error }}</p>{% endfor %}
-              </div>
-            {% endif %}
-          {% endfor %}
-          <div class="sm:col-span-2 flex gap-2">
-            <button class="btn btn-primary btn-sm" type="submit">Confirmar matrícula</button>
-            <a href="{% url 'painel_medico_novo' %}" class="btn btn-secundario btn-sm">Cadastrar novo médico</a>
+          <div class="px-5 py-12 text-center text-sm text-slate-400">
+            Nenhum vídeo cadastrado.
+            <a class="font-semibold text-marca-600 hover:underline" href="{% url 'painel_video_novo' %}">Cadastrar o primeiro vídeo</a>.
           </div>
-        </form>
-      </div>
-
-      <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-slate-100">
-          <thead class="bg-slate-50/80">
-            <tr>
-              <th class="cabecalho-tabela">Médico</th>
-              <th class="cabecalho-tabela">Progresso</th>
-              <th class="cabecalho-tabela">Situação</th>
-              <th class="cabecalho-tabela">Tempo</th>
-              <th class="cabecalho-tabela">Última atividade</th>
-              <th class="cabecalho-tabela"></th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100">
-            {% for linha in linhas %}
-              <tr class="transition hover:bg-slate-50/70">
-                <td class="celula">
-                  <span class="font-semibold text-slate-800">{{ linha.matricula.medico.nome }}</span>
-                  <span class="block text-xs text-slate-500">{{ linha.matricula.medico.cpf }}</span>
-                </td>
-                <td class="celula w-48">
-                  <div class="flex items-center gap-2">
-                    <span class="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
-                      <span class="block h-full rounded-full {% if linha.aprovado %}bg-marca-500{% else %}bg-pacifico-500{% endif %}"
-                            style="width: {{ linha.cobertura }}%"></span>
-                    </span>
-                    <span class="w-10 text-right text-xs font-semibold text-slate-600">{{ linha.cobertura }}%</span>
-                  </div>
-                </td>
-                <td class="celula">
-                  <span class="etiqueta {{ linha.matricula.status|cor_status }}">{{ linha.matricula.get_status_display }}</span>
-                </td>
-                <td class="celula text-xs">{{ linha.tempo }}</td>
-                <td class="celula text-xs text-slate-500">
-                  {% if linha.ultima %}{{ linha.ultima|date:"d/m H:i" }}{% else %}—{% endif %}
-                </td>
-                <td class="celula text-right">
-                  <div class="flex justify-end gap-1.5">
-                    {% if not linha.aprovado %}
-                      <form method="post" action="{% url 'painel_matricula_acao' linha.matricula.id %}">
-                        {% csrf_token %}
-                        <input type="hidden" name="acao" value="aprovar">
-                        <button class="btn btn-secundario btn-sm" type="submit" title="Aprovar manualmente">Aprovar</button>
-                      </form>
-                    {% endif %}
-                    <form method="post" action="{% url 'painel_matricula_acao' linha.matricula.id %}">
-                      {% csrf_token %}
-                      <input type="hidden" name="acao" value="resetar">
-                      <button class="btn btn-fantasma btn-sm" type="submit" title="Zerar o progresso">Resetar</button>
-                    </form>
-                  </div>
-                </td>
-              </tr>
-            {% empty %}
-              <tr><td colspan="6" class="px-5 py-12 text-center text-sm text-slate-400">Nenhum médico matriculado.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
+        {% endfor %}
       </div>
     </div>
   </div>
 
-  <!-- Lateral -->
-  <aside class="space-y-6">
-    <div class="cartao cartao-padrao">
-      <h2 class="text-sm font-semibold text-slate-800">Regras do curso</h2>
-      <dl class="mt-4 space-y-3 text-sm">
-        <div class="flex justify-between gap-4">
-          <dt class="text-slate-500">Aprovação</dt>
-          <dd class="font-semibold text-slate-800">{{ curso.min_percent|floatformat:0 }}%</dd>
-        </div>
-        <div class="flex justify-between gap-4">
-          <dt class="text-slate-500">Liberação</dt>
-          <dd class="font-semibold text-slate-800">
-            {% if curso.sequential %}Sequencial ({{ curso.unlock_threshold|floatformat:0 }}%){% else %}Livre{% endif %}
-          </dd>
-        </div>
-        <div class="flex justify-between gap-4">
-          <dt class="text-slate-500">Prazo</dt>
-          <dd class="font-semibold text-slate-800">
-            {% if curso.deadline %}{{ curso.deadline|date:"d/m/Y" }}{% else %}—{% endif %}
-          </dd>
-        </div>
-        <div class="flex justify-between gap-4">
-          <dt class="text-slate-500">Duração</dt>
-          <dd class="font-semibold text-slate-800">{{ duracao }}</dd>
-        </div>
-      </dl>
-    </div>
-
-    {% if curso.description %}
+  <!-- Matriculados -->
+  <div data-tab-panel="matriculados" class="hidden pt-6">
+    <div class="space-y-6">
       <div class="cartao cartao-padrao">
-        <h2 class="text-sm font-semibold text-slate-800">Descrição</h2>
-        <p class="mt-3 whitespace-pre-line text-sm leading-relaxed text-slate-600">{{ curso.description }}</p>
-      </div>
-    {% endif %}
+        <div class="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 class="text-sm font-semibold text-slate-800">Matricular médicos</h2>
+            <p class="mt-1 text-xs text-slate-500">
+              Selecione um ou mais médicos ativos que ainda não estão neste curso.
+            </p>
+          </div>
+          <a href="{% url 'painel_medico_lote' %}" class="btn btn-secundario btn-sm">Cadastrar alunos em lote</a>
+        </div>
 
-    <div class="cartao cartao-padrao">
-      <h2 class="text-sm font-semibold text-rose-700">Zona de risco</h2>
-      <p class="mt-2 text-xs text-slate-500">
-        A exclusão remove o curso e todas as suas gravações. Só é possível excluir cursos sem matrículas.
-      </p>
-      <form method="post" action="{% url 'painel_curso_remover' curso.id %}" class="mt-4"
-            onsubmit="return confirm('Excluir o curso “{{ curso.title }}”? Esta ação não pode ser desfeita.');">
-        {% csrf_token %}
-        <button class="btn btn-perigo btn-sm" type="submit">Excluir curso</button>
-      </form>
+        {% if medicos_disponiveis %}
+          <form method="post" class="mt-5 space-y-5">
+            {% csrf_token %}
+            <input type="hidden" name="acao" value="matricular_lote">
+            <div>
+              <p class="rotulo">Médicos disponíveis ({{ medicos_disponiveis }})</p>
+              <div class="mt-2 grid max-h-64 gap-2 overflow-y-auto rounded-xl border border-slate-200 p-3 sm:grid-cols-2">
+                {% for checkbox in form_matricula_lote.medicos %}
+                  <label class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-700 transition hover:bg-slate-50">
+                    {{ checkbox.tag }}
+                    <span>{{ checkbox.choice_label }}</span>
+                  </label>
+                {% endfor %}
+              </div>
+              {% for error in form_matricula_lote.medicos.errors %}
+                <p class="mt-1.5 text-xs text-rose-600">{{ error }}</p>
+              {% endfor %}
+            </div>
+
+            <div class="grid gap-4 sm:grid-cols-2">
+              {% include "partials/campo.html" with field=form_matricula_lote.min_percent %}
+              {% include "partials/campo.html" with field=form_matricula_lote.deadline %}
+            </div>
+            <button class="btn btn-primary btn-sm" type="submit">Confirmar matrícula(s)</button>
+          </form>
+        {% else %}
+          <div class="mt-5 rounded-xl bg-slate-50 px-4 py-5 text-sm text-slate-500">
+            Todos os médicos ativos já estão matriculados neste curso.
+            <a href="{% url 'painel_medico_lote' %}" class="font-semibold text-marca-600 hover:underline">Cadastrar novos alunos</a>.
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="cartao overflow-hidden">
+        <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+          <h2 class="text-sm font-semibold text-slate-800">Turma ({{ linhas|length }})</h2>
+          <a href="{% url 'painel_curso_exportar' curso.id %}" class="text-xs font-semibold text-marca-600 hover:underline">Exportar CSV</a>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-slate-100">
+            <thead class="bg-slate-50/80">
+              <tr>
+                <th class="cabecalho-tabela">Médico</th>
+                <th class="cabecalho-tabela">Progresso</th>
+                <th class="cabecalho-tabela">Situação</th>
+                <th class="cabecalho-tabela">Tempo</th>
+                <th class="cabecalho-tabela">Última atividade</th>
+                <th class="cabecalho-tabela"></th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              {% for linha in linhas %}
+                <tr class="transition hover:bg-slate-50/70">
+                  <td class="celula">
+                    <span class="font-semibold text-slate-800">{{ linha.matricula.medico.nome }}</span>
+                    <span class="block text-xs text-slate-500">{{ linha.matricula.medico.cpf }}</span>
+                  </td>
+                  <td class="celula w-48">
+                    <div class="flex items-center gap-2">
+                      <span class="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                        <span class="block h-full rounded-full {% if linha.aprovado %}bg-marca-500{% else %}bg-pacifico-500{% endif %}"
+                              style="width: {{ linha.cobertura }}%"></span>
+                      </span>
+                      <span class="w-10 text-right text-xs font-semibold text-slate-600">{{ linha.cobertura }}%</span>
+                    </div>
+                  </td>
+                  <td class="celula">
+                    <span class="etiqueta {{ linha.matricula.status|cor_status }}">{{ linha.matricula.get_status_display }}</span>
+                  </td>
+                  <td class="celula text-xs">{{ linha.tempo }}</td>
+                  <td class="celula text-xs text-slate-500">
+                    {% if linha.ultima %}{{ linha.ultima|date:"d/m H:i" }}{% else %}—{% endif %}
+                  </td>
+                  <td class="celula text-right">
+                    <div class="flex justify-end gap-1.5">
+                      {% if linha.aprovado %}
+                        <form method="post" action="{% url 'painel_matricula_acao' linha.matricula.id %}">
+                          {% csrf_token %}
+                          <input type="hidden" name="acao" value="retirar_aprovacao">
+                          <button class="btn btn-fantasma btn-sm text-amber-700" type="submit" title="Retirar aprovação mantendo o progresso">
+                            Retirar aprovação
+                          </button>
+                        </form>
+                      {% elif linha.matricula.status != "cancelled" %}
+                        <form method="post" action="{% url 'painel_matricula_acao' linha.matricula.id %}">
+                          {% csrf_token %}
+                          <input type="hidden" name="acao" value="aprovar">
+                          <button class="btn btn-secundario btn-sm" type="submit" title="Aprovar manualmente">Aprovar</button>
+                        </form>
+                      {% endif %}
+                      <form method="post" action="{% url 'painel_matricula_acao' linha.matricula.id %}"
+                            data-confirm="Resetar o progresso de {{ linha.matricula.medico.nome }} neste curso? A aprovação também será removida.">
+                        {% csrf_token %}
+                        <input type="hidden" name="acao" value="resetar">
+                        <button class="btn btn-fantasma btn-sm" type="submit" title="Zerar o progresso">Resetar</button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="6" class="px-5 py-12 text-center text-sm text-slate-400">Nenhum médico matriculado.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
-  </aside>
+  </div>
+
+  <!-- Configurações -->
+  <div data-tab-panel="configuracoes" class="hidden pt-6">
+    <div class="grid gap-6 lg:grid-cols-2">
+      <div class="cartao cartao-padrao">
+        <h2 class="text-sm font-semibold text-slate-800">Dados do curso</h2>
+        <dl class="mt-4 space-y-3 text-sm">
+          <div class="flex justify-between gap-4">
+            <dt class="text-slate-500">Título</dt>
+            <dd class="text-right font-semibold text-slate-800">{{ curso.title }}</dd>
+          </div>
+          <div class="flex justify-between gap-4">
+            <dt class="text-slate-500">Turma / edição</dt>
+            <dd class="text-right font-semibold text-slate-800">{{ curso.edition|default:"—" }}</dd>
+          </div>
+          <div class="flex justify-between gap-4">
+            <dt class="text-slate-500">Situação</dt>
+            <dd class="text-right"><span class="etiqueta {{ curso.status|cor_status }}">{{ curso.get_status_display }}</span></dd>
+          </div>
+          <div class="flex justify-between gap-4">
+            <dt class="text-slate-500">Prazo</dt>
+            <dd class="text-right font-semibold text-slate-800">
+              {% if curso.deadline %}{{ curso.deadline|date:"d/m/Y" }}{% else %}—{% endif %}
+            </dd>
+          </div>
+        </dl>
+        <a href="{% url 'painel_curso_editar' curso.id %}" class="btn btn-secundario mt-5">Editar dados do curso</a>
+      </div>
+
+      <div class="cartao cartao-padrao">
+        <h2 class="text-sm font-semibold text-rose-700">Zona de risco</h2>
+        <p class="mt-2 text-xs leading-relaxed text-slate-500">
+          A exclusão remove o curso e todas as suas gravações. Só é possível excluir cursos sem matrículas.
+        </p>
+        <form method="post" action="{% url 'painel_curso_remover' curso.id %}" class="mt-4"
+              data-confirm="Excluir o curso “{{ curso.title }}”? Esta ação não pode ser desfeita.">
+          {% csrf_token %}
+          <button class="btn btn-perigo btn-sm" type="submit">Excluir curso</button>
+        </form>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}

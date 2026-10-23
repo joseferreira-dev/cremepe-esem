@@ -117,13 +117,14 @@ estrutura é:
 
 | Página | Endereço | Acesso |
 |---|---|---|
-| Apresentação da ESEM | `/` | público |
-| Sobre a ESEM | `/sobre/` | público |
+| Apresentação e conteúdo institucional da ESEM | `/` | público |
 | Acesso aos cursos (login) | `/entrar/` | público (login por CPF) |
 | Meus cursos | `/cursos/` | médico matriculado |
+| Catálogo de cursos do admin | `/cursos/` | administrador (`is_staff`) |
 | Página do curso | `/cursos/<id>/` | médico matriculado |
 | Acesso administrativo | `/painel/entrar/` | público (login por usuário e senha) |
 | Painel administrativo | `/painel/` | administrador autenticado (`is_staff`) |
+| Cadastro de alunos em lote | `/painel/medicos/lote/` | administrador autenticado (`is_staff`) |
 | Django admin (avançado) | `/admin/` | superusuário |
 
 Os textos institucionais foram escritos a partir do conteúdo oficial da ESEM
@@ -138,7 +139,8 @@ Os textos institucionais foram escritos a partir do conteúdo oficial da ESEM
   intimidade e privacidade, responsabilidade profissional
 
 **As referências ao 17º Curso ficam restritas à página do curso e ao cadastro dele** — a
-apresentação, a página "Sobre a ESEM", o login e o menu falam da ESEM.
+página inicial, o login e o menu falam da ESEM. O endereço antigo `/sobre/` redireciona
+para `/`, que concentra todo o conteúdo institucional.
 
 Verificação automática:
 
@@ -271,7 +273,7 @@ Gera `backups/db-<timestamp>.dump` e `backups/media/`, com retenção de 30 dias
 ## Testes
 
 ```bash
-docker compose exec app python manage.py test apps      # 112 testes automatizados
+docker compose exec app python manage.py test apps      # 126 testes automatizados
 MEDICO_CPF=... MEDICO_SENHA=... python scripts/smoke_test.py  # teste de ponta a ponta
 ```
 

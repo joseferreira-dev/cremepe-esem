@@ -74,7 +74,6 @@ def main() -> int:
     admin_op = cliente_logado(admin=True, senha=exigir("ADMIN_SENHA"))
     paginas = {
         "/": (op, "pagina inicial (apresentacao da ESEM)"),
-        "/sobre/": (op, "pagina sobre a ESEM"),
         "/cursos/": (op, "area do medico"),
         "/cursos/1/": (op, "pagina do curso"),
         "/painel/": (admin_op, "painel do admin"),
@@ -99,7 +98,6 @@ def main() -> int:
     print("\n3) Referencia ao 17o curso apenas na pagina do curso")
     for caminho, sessao in [
         ("/", op),
-        ("/sobre/", op),
         ("/cursos/", op),
         ("/painel/", admin_op),
         ("/painel/cursos/", admin_op),

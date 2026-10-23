@@ -10,7 +10,7 @@ from django.views.decorators.http import require_GET
 from apps.accounts.decorators import login_required_limpo
 from apps.accounts.tokens import gerar_token_api
 
-from .models import Enrollment, Progress
+from .models import Course, Enrollment, Progress
 from .services import course_coverage, format_hours, unlocked_videos
 
 
@@ -21,14 +21,38 @@ def inicio(request):
 
 
 @never_cache
-def sobre(request):
-    """Pagina interna sobre a ESEM (conteudo institucional)."""
-    return render(request, "sobre.html")
-
-
-@never_cache
 @login_required_limpo
 def my_courses(request):
+    if request.user.is_staff:
+        cursos = []
+        for curso in Course.objects.prefetch_related("videos", "enrollments"):
+            matriculas = list(curso.enrollments.all())
+            total = len(matriculas)
+            media = (
+                sum(course_coverage(matricula) for matricula in matriculas) / total
+                if total
+                else 0
+            )
+            cursos.append(
+                {
+                    "curso": curso,
+                    "videos": list(curso.videos.all()),
+                    "duration": format_hours(curso.total_duration),
+                    "total": total,
+                    "aprovados": sum(
+                        1
+                        for matricula in matriculas
+                        if matricula.status == Enrollment.Status.APPROVED
+                    ),
+                    "media": round(media, 1),
+                }
+            )
+        return render(
+            request,
+            "courses/my_courses.html",
+            {"modo_admin": True, "cursos_admin": cursos},
+        )
+
     enrollments = (
         Enrollment.objects.filter(medico__user=request.user)
         .select_related("course")

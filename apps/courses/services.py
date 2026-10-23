@@ -204,7 +204,11 @@ def refresh_enrollment_status(enrollment: Enrollment, actor=None) -> Enrollment:
     coverage = course_coverage(enrollment)
     enrollment.deadline = enrollment.deadline or enrollment.course.deadline
 
-    if enrollment.status in {Enrollment.Status.CANCELLED, Enrollment.Status.REJECTED}:
+    if enrollment.status in {
+        Enrollment.Status.CANCELLED,
+        Enrollment.Status.REJECTED,
+        Enrollment.Status.APPROVAL_REVOKED,
+    }:
         return enrollment
 
     if coverage >= required:

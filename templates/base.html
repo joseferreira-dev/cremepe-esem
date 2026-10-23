@@ -18,6 +18,29 @@
   {% block corpo %}{% endblock %}
 </main>
 
+<div id="modal-confirmacao" data-modal
+     class="fixed inset-0 z-50 hidden items-center justify-center px-4 py-6"
+     role="dialog" aria-modal="true" aria-labelledby="modal-confirmacao-titulo">
+  <div class="absolute inset-0 bg-slate-950/60" data-modal-cancel></div>
+  <div class="relative w-full max-w-md rounded-2xl bg-white p-6 sombra-forte">
+    <div class="flex items-start gap-3">
+      <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-600">
+        {{ icons.alerta|safe }}
+      </span>
+      <div class="min-w-0">
+        <h2 id="modal-confirmacao-titulo" class="text-lg font-bold tracking-tight text-slate-900">
+          Confirmar ação
+        </h2>
+        <p data-modal-message class="mt-2 text-sm leading-relaxed text-slate-600"></p>
+      </div>
+    </div>
+    <div class="mt-6 flex justify-end gap-2">
+      <button type="button" data-modal-cancel class="btn btn-secundario">Cancelar</button>
+      <button type="button" data-modal-confirm class="btn btn-perigo">Confirmar</button>
+    </div>
+  </div>
+</div>
+
 <script src="{% static 'js/app.js' %}"></script>
 {% block scripts %}{% endblock %}
 </body>

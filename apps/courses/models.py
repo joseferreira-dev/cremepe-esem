@@ -113,6 +113,7 @@ class Enrollment(models.Model):
         ENROLLED = "enrolled", "Matriculado"
         IN_PROGRESS = "in_progress", "Em andamento"
         APPROVED = "approved", "Aprovado"
+        APPROVAL_REVOKED = "approval_revoked", "Aprovação retirada"
         REJECTED = "rejected", "Reprovado"
         CANCELLED = "cancelled", "Cancelado"
 

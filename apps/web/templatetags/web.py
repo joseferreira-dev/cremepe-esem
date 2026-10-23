@@ -62,6 +62,7 @@ def cor_status(status):
     """Classes do badge conforme a situação da matrícula/vídeo."""
     mapa = {
         "approved": "bg-marca-100 text-marca-700 ring-1 ring-marca-200",
+        "approval_revoked": "bg-amber-50 text-amber-700 ring-1 ring-amber-200",
         "in_progress": "bg-pacifico-50 text-pacifico-700 ring-1 ring-pacifico-200",
         "enrolled": "bg-slate-100 text-slate-700 ring-1 ring-slate-200",
         "rejected": "bg-rose-50 text-rose-700 ring-1 ring-rose-200",

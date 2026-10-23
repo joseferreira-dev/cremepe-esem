@@ -1,0 +1,59 @@
+{% extends "panel/base.html" %}
+
+{% block titulo %}Cadastro em lote{% endblock %}
+
+{% block painel %}
+<a href="{% url 'painel_medicos' %}" class="inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-slate-800">
+  {{ icons.voltar|safe }} Médicos
+</a>
+
+<h1 class="mt-4 text-3xl font-bold tracking-tight text-slate-900">Cadastro de alunos em lote</h1>
+<p class="mt-2 max-w-3xl text-sm text-slate-500">
+  Cole uma pessoa por linha. Os alunos serão criados com a senha padrão do CREMEPE
+  e deverão trocá-la no primeiro acesso.
+</p>
+
+{% if criados %}
+  <div class="cartao mt-8 overflow-hidden">
+    <div class="border-b border-slate-100 bg-marca-50 px-5 py-4">
+      <h2 class="text-sm font-semibold text-marca-800">
+        {{ criados|length }} aluno(s) cadastrado(s)
+      </h2>
+      <p class="mt-1 text-xs text-marca-700">
+        Anote ou entregue as senhas iniciais abaixo. Elas não serão exibidas novamente.
+      </p>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-slate-100">
+        <thead class="bg-slate-50/80">
+          <tr>
+            <th class="cabecalho-tabela">Aluno</th>
+            <th class="cabecalho-tabela">CPF</th>
+            <th class="cabecalho-tabela">Senha inicial</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          {% for item in criados %}
+            <tr>
+              <td class="celula font-semibold text-slate-800">{{ item.medico.nome }}</td>
+              <td class="celula text-slate-600">{{ item.medico.cpf }}</td>
+              <td class="celula font-mono text-sm font-semibold text-slate-800">{{ item.senha }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endif %}
+
+<form method="post" class="mt-8 max-w-3xl">
+  {% csrf_token %}
+  <div class="cartao cartao-padrao">
+    {% include "partials/campo.html" with field=form.dados %}
+  </div>
+  <div class="mt-6 flex gap-2">
+    <button class="btn btn-primary" type="submit">Cadastrar alunos</button>
+    <a href="{% url 'painel_medicos' %}" class="btn btn-secundario">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

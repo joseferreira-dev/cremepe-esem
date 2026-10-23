@@ -112,7 +112,7 @@
           <button class="btn btn-secundario w-full" type="submit">{{ icons.atualizar|safe }} Reprocessar gravação</button>
         </form>
         <form method="post" action="{% url 'painel_video_remover' video.id %}"
-              onsubmit="return confirm('Remover o vídeo “{{ video.title }}”?');">
+              data-confirm="Remover o vídeo “{{ video.title }}”? Esta ação não pode ser desfeita.">
           {% csrf_token %}
           <button class="btn btn-perigo w-full" type="submit">Remover vídeo</button>
         </form>

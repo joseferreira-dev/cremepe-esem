@@ -138,30 +138,85 @@ class TestPaginaInicial(TestCase):
         self.assertNotIn("Webnário", html)
 
 
-class TestPaginaSobre(TestCase):
-    """A pagina interna 'Sobre a ESEM' concentra o conteudo institucional."""
+class TestPaginaInstitucional(TestCase):
+    """A pagina inicial concentra a apresentacao e o conteudo institucional."""
 
-    def test_pagina_sobre_e_publica(self):
-        resposta = self.client.get("/sobre/")
+    def test_pagina_inicial_tem_o_conteudo_institucional_completo(self):
+        resposta = self.client.get("/")
         self.assertEqual(resposta.status_code, 200)
         html = resposta.content.decode()
-        self.assertIn("Escola Superior de Ética Médica", html)
-        self.assertIn("Núcleo técnico permanente", html)
-        self.assertIn("03/2005", html)
-        self.assertIn("Temas em debate", html)
+        for trecho in (
+            "Escola Superior de Ética Médica",
+            "Núcleo técnico permanente",
+            "03/2005",
+            "Temas em debate",
+            "Integração institucional",
+            "Faculdade Pernambucana de Saúde",
+            "Universidade Federal de Pernambuco",
+            "Eventos",
+        ):
+            self.assertIn(trecho, html)
         self.assertNotIn("17º", html)
+        self.assertNotIn("17&ordm;", html)
 
-    def test_links_de_sobre_apontam_para_a_pagina_interna(self):
+    def test_sobre_redireciona_para_a_pagina_inicial(self):
+        resposta = self.client.get("/sobre/")
+        self.assertRedirects(resposta, "/", status_code=301, target_status_code=200)
+
+    def test_nav_e_rodape_nao_tem_link_sobre(self):
         from django.template.loader import render_to_string
 
         for template in ("partials/nav.html", "partials/foot.html"):
             html = render_to_string(template, request=None)
-            self.assertIn("/sobre/", html, f"{template} deveria linkar para /sobre/")
-            self.assertNotIn(
-                "cremepe.org.br/escola-superior",
-                html,
-                f"{template} nao deveria linkar para a pagina externa",
-            )
+            self.assertNotIn("Sobre a ESEM", html, f"{template} nao deveria linkar Sobre")
+            self.assertNotIn("/sobre/", html, f"{template} nao deveria linkar /sobre/")
+
+
+class TestCatalogoDoAdmin(TestCase):
+    """O admin ve todos os cursos, mesmo os que nao tem matricula."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser("admin-catalogo", "a@b.c", "senha12345")
+        self.user = User.objects.create_user("medico-catalogo", password="senha12345")
+        self.medico = Medico.objects.create(
+            user=self.user,
+            cpf="88877766655",
+            nome="Medico Catalogo",
+            must_change_password=False,
+        )
+        self.curso_com_matricula = Course.objects.create(
+            title="Curso com matricula", edition="Turma A", status=Course.Status.ACTIVE
+        )
+        self.curso_sem_matricula = Course.objects.create(
+            title="Curso sem matricula", status=Course.Status.DRAFT
+        )
+        Enrollment.objects.create(medico=self.medico, course=self.curso_com_matricula)
+
+    def test_admin_ve_todos_os_cursos_com_thumbnails(self):
+        self.client.force_login(self.admin)
+        html = self.client.get("/cursos/").content.decode()
+
+        self.assertIn("Gerenciar cursos", html)
+        self.assertIn("Curso com matricula", html)
+        self.assertIn("Curso sem matricula", html)
+        self.assertIn("1 matriculado(s)", html)
+        self.assertIn("Abrir", html)
+        self.assertIn("Editar", html)
+        self.assertNotIn("Meus cursos", html)
+        self.assertIn(
+            f"/painel/cursos/{self.curso_sem_matricula.id}/",
+            html,
+            "o curso sem matricula tambem precisa abrir no painel",
+        )
+
+    def test_medico_continua_vendo_somente_seus_cursos(self):
+        self.client.force_login(self.user)
+        html = self.client.get("/cursos/").content.decode()
+
+        self.assertIn("Meus cursos", html)
+        self.assertIn("Curso com matricula", html)
+        self.assertNotIn("Curso sem matricula", html)
+        self.assertNotIn("Gerenciar cursos", html)
 
 
 class TestPaginaDeLogin(TestCase):

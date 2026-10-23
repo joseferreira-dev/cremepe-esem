@@ -4,6 +4,7 @@ from django.contrib import admin
 from django.db import connection
 from django.http import JsonResponse
 from django.urls import include, path
+from django.views.generic import RedirectView
 
 from apps.accounts import views as accounts_views
 from apps.courses import views as courses_views
@@ -27,7 +28,11 @@ urlpatterns = [
     path("sair/", accounts_views.logout_view, name="logout"),
     path("trocar-senha/", accounts_views.password_change_view, name="password_change"),
     path("", courses_views.inicio, name="inicio"),
-    path("sobre/", courses_views.sobre, name="sobre"),
+    path(
+        "sobre/",
+        RedirectView.as_view(pattern_name="inicio", permanent=True),
+        name="sobre",
+    ),
     path("cursos/", courses_views.my_courses, name="my_courses"),
     path(
         "cursos/<int:enrollment_id>/token-player/",

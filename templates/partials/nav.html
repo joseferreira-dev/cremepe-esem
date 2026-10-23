@@ -10,9 +10,10 @@
     </a>
 
     <nav class="hidden items-center gap-1 md:flex">
-      <a href="{% url 'sobre' %}" class="link-menu">Sobre a ESEM</a>
       {% if request.user.is_authenticated %}
-        <a href="{% url 'my_courses' %}" class="link-menu">Meus cursos</a>
+        <a href="{% url 'my_courses' %}" class="link-menu">
+          {% if request.user.is_staff %}Cursos{% else %}Meus cursos{% endif %}
+        </a>
         {% if request.user.is_staff %}
           <a href="{% url 'painel_index' %}" class="link-menu">Painel administrativo</a>
         {% endif %}
@@ -44,7 +45,7 @@
             </div>
             <div class="p-1.5">
               <a href="{% url 'my_courses' %}" class="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
-                {{ icons.curso|safe }} Meus cursos
+                {{ icons.curso|safe }} {% if request.user.is_staff %}Cursos{% else %}Meus cursos{% endif %}
               </a>
               {% if request.user.is_staff %}
                 <a href="{% url 'painel_index' %}" class="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
@@ -79,9 +80,10 @@
 
   <div data-menu class="hidden border-t border-slate-200 bg-white md:hidden">
     <div class="space-y-1 px-4 py-3">
-      <a href="{% url 'sobre' %}" class="link-menu block">Sobre a ESEM</a>
       {% if request.user.is_authenticated %}
-        <a href="{% url 'my_courses' %}" class="link-menu block">Meus cursos</a>
+        <a href="{% url 'my_courses' %}" class="link-menu block">
+          {% if request.user.is_staff %}Cursos{% else %}Meus cursos{% endif %}
+        </a>
         {% if request.user.is_staff %}
           <a href="{% url 'painel_index' %}" class="link-menu block">Painel administrativo</a>
         {% endif %}

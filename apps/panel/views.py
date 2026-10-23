@@ -6,11 +6,13 @@ import csv
 import secrets
 
 from django.contrib import messages
-from django.db.models import Max, Q, Sum
+from django.db import transaction
+from django.db.models import F, Max, Q, Sum
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from apps.accounts.models import Medico
@@ -24,7 +26,14 @@ from apps.courses.services import (
 )
 from apps.media.services import enqueue_transcode
 
-from .forms import CursoForm, MatriculaForm, MedicoForm, VideoForm
+from .forms import (
+    CursoForm,
+    MatriculaForm,
+    MatriculaLoteForm,
+    MedicoForm,
+    MedicoLoteForm,
+    VideoForm,
+)
 
 
 # --------------------------------------------------------------------------
@@ -182,6 +191,30 @@ def curso_detalhe(request, pk):
     curso = get_object_or_404(Course, pk=pk)
     videos = list(curso.videos.all())
 
+    form_matricula_lote = MatriculaLoteForm(
+        request.POST
+        if request.method == "POST" and request.POST.get("acao") == "matricular_lote"
+        else None,
+        curso=curso,
+    )
+    if request.method == "POST" and request.POST.get("acao") == "matricular_lote":
+        if form_matricula_lote.is_valid():
+            criadas = form_matricula_lote.save()
+            for matricula in criadas:
+                record_audit(
+                    "matricula_criada",
+                    actor=request.user,
+                    target=f"{matricula.medico.nome} — {curso.title}",
+                    detail={"lote": True},
+                    ip=request.META.get("REMOTE_ADDR"),
+                )
+            messages.success(
+                request,
+                f"{len(criadas)} matrícula(s) registrada(s) no curso.",
+            )
+            return redirect("painel_curso", pk=curso.pk)
+        messages.error(request, "Não foi possível registrar as matrículas. Confira os dados.")
+
     linhas = []
     for matricula in curso.enrollments.select_related("medico").order_by("medico__nome"):
         progresses = Progress.objects.filter(enrollment=matricula)
@@ -191,7 +224,7 @@ def curso_detalhe(request, pk):
                 "matricula": matricula,
                 "cobertura": round(cobertura, 1),
                 "exigido": float(matricula.min_percent or 0),
-                "aprovado": cobertura >= float(matricula.min_percent or 0),
+                "aprovado": matricula.status == Enrollment.Status.APPROVED,
                 "ultima": progresses.aggregate(last=Max("last_seen_at"))["last"],
                 "tempo": format_hours(progresses.aggregate(total=Sum("watch_seconds"))["total"] or 0),
                 "sessoes": WatchSession.objects.filter(enrollment=matricula).count(),
@@ -205,7 +238,8 @@ def curso_detalhe(request, pk):
             "curso": curso,
             "videos": videos,
             "linhas": linhas,
-            "form_matricula": MatriculaForm(initial={"course": curso, "min_percent": curso.min_percent}),
+            "form_matricula_lote": form_matricula_lote,
+            "medicos_disponiveis": form_matricula_lote.fields["medicos"].queryset.count(),
             "duracao": format_hours(curso.total_duration),
         },
     )
@@ -231,14 +265,32 @@ def curso_remover(request, pk):
 # --------------------------------------------------------------------------
 def video_form(request, pk=None):
     video = get_object_or_404(Video, pk=pk) if pk else Video()
+    curso_anterior_id = video.course_id if pk else None
+    ordem_anterior = video.order if pk else None
     form = VideoForm(request.POST or None, instance=video)
     if request.method == "POST" and form.is_valid():
-        video = form.save()
+        with transaction.atomic():
+            novo_video = form.save(commit=False)
+
+            if curso_anterior_id != novo_video.course_id:
+                # Mudou de curso ou é novo: abre espaço no curso de destino.
+                Video.objects.filter(
+                    course=novo_video.course_id, order__gte=novo_video.order
+                ).exclude(pk=novo_video.pk).update(order=F("order") + 1)
+            elif ordem_anterior != novo_video.order:
+                # Mudou a ordem dentro do mesmo curso: empurra os seguintes.
+                Video.objects.filter(
+                    course=novo_video.course_id, order__gte=novo_video.order
+                ).exclude(pk=novo_video.pk).update(order=F("order") + 1)
+
+            novo_video.save()
+
+        video = novo_video
         record_audit(
             "video_salvo" if pk else "video_criado",
             actor=request.user,
             target=video.title,
-            detail={"id": video.pk},
+            detail={"id": video.pk, "ordem": video.order},
             ip=request.META.get("REMOTE_ADDR"),
         )
         messages.success(request, f"Vídeo “{video.title}” salvo. Envie o arquivo na aba de upload.")
@@ -362,6 +414,29 @@ def medico_form(request, pk=None):
     )
 
 
+def medico_lote(request):
+    form = MedicoLoteForm(request.POST or None)
+    criados = []
+    if request.method == "POST" and form.is_valid():
+        criados = form.save()
+        for item in criados:
+            medico = item["medico"]
+            record_audit(
+                "medico_criado",
+                actor=request.user,
+                target=medico.nome,
+                detail={"cpf": medico.cpf, "senha_padrao": True, "lote": True},
+                ip=request.META.get("REMOTE_ADDR"),
+            )
+        messages.success(
+            request,
+            f"{len(criados)} médico(s) cadastrado(s) em lote. Anote as senhas iniciais.",
+        )
+        form = MedicoLoteForm()
+
+    return render(request, "panel/medico_lote.html", {"form": form, "criados": criados})
+
+
 @require_POST
 def medico_acao(request, pk):
     medico = get_object_or_404(Medico, pk=pk)
@@ -454,6 +529,17 @@ def matricula_form(request):
     return render(request, "panel/matricula_form.html", {"form": form})
 
 
+def _destino_matricula(request, curso_id):
+    destino = request.POST.get("voltar")
+    if destino and url_has_allowed_host_and_scheme(
+        destino,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return destino
+    return reverse("painel_curso", args=[curso_id])
+
+
 @require_POST
 def matricula_acao(request, pk):
     matricula = get_object_or_404(Enrollment, pk=pk)
@@ -473,6 +559,25 @@ def matricula_acao(request, pk):
             ip=request.META.get("REMOTE_ADDR"),
         )
         messages.success(request, f"{matricula.medico.nome} foi aprovado.")
+    elif acao == "retirar_aprovacao":
+        if matricula.status != Enrollment.Status.APPROVED:
+            messages.error(request, "Esta matrícula não está aprovada.")
+            return redirect(_destino_matricula(request, curso_id))
+        matricula.status = Enrollment.Status.APPROVAL_REVOKED
+        matricula.approved_at = None
+        matricula.approved_by = None
+        matricula.save(update_fields=["status", "approved_at", "approved_by"])
+        record_audit(
+            "aprovacao_retirada",
+            actor=request.user,
+            target=matricula.medico.nome,
+            detail={"curso": matricula.course.title},
+            ip=request.META.get("REMOTE_ADDR"),
+        )
+        messages.success(
+            request,
+            f"Aprovação de {matricula.medico.nome} retirada. O progresso foi preservado.",
+        )
     elif acao == "reprovar":
         matricula.status = Enrollment.Status.REJECTED
         matricula.save(update_fields=["status"])
@@ -485,7 +590,7 @@ def matricula_acao(request, pk):
         matricula.save(update_fields=["status"])
         messages.success(request, "Matrícula cancelada.")
 
-    return redirect(request.POST.get("voltar") or reverse("painel_curso", args=[curso_id]))
+    return redirect(_destino_matricula(request, curso_id))
 
 
 def matricula_exportar(request, pk):

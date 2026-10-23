@@ -70,6 +70,15 @@
   );
 }
 
+@utility bg-painel-gradiente {
+  background-image: linear-gradient(
+    160deg,
+    #f8fafc 0%,
+    var(--color-marca-50) 48%,
+    var(--color-pacifico-50) 100%
+  );
+}
+
 @utility sombra-suave {
   box-shadow:
     0 1px 2px 0 rgb(4 63 47 / 0.04),

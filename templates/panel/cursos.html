@@ -12,7 +12,14 @@
   <a href="{% url 'painel_curso_novo' %}" class="btn btn-primary">{{ icons.mais|safe }} Novo curso</a>
 </div>
 
-<form method="get" class="mt-6 flex max-w-md gap-2">
+<div class="mt-6 flex items-center gap-6 border-b border-slate-200">
+  <span class="border-b-2 border-marca-500 pb-3 text-sm font-semibold text-marca-700">Gerenciar</span>
+  <a href="{% url 'my_courses' %}" class="pb-3 text-sm font-medium text-slate-500 transition hover:text-slate-800">
+    Pré-visualizar
+  </a>
+</div>
+
+<form method="get" class="mt-5 flex max-w-md gap-2">
   <div class="relative flex-1">
     <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">{{ icons.busca|safe }}</span>
     <input type="search" name="q" value="{{ busca }}" class="campo pl-10" placeholder="Buscar por título ou turma">

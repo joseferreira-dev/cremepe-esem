@@ -12,7 +12,10 @@
       Cadastre os médicos reprovados, defina a senha provisória e acompanhe as matrículas.
     </p>
   </div>
-  <a href="{% url 'painel_medico_novo' %}" class="btn btn-primary">{{ icons.mais|safe }} Novo médico</a>
+  <div class="flex flex-wrap gap-2">
+    <a href="{% url 'painel_medico_lote' %}" class="btn btn-secundario">Cadastrar em lote</a>
+    <a href="{% url 'painel_medico_novo' %}" class="btn btn-primary">{{ icons.mais|safe }} Novo médico</a>
+  </div>
 </div>
 
 <form method="get" class="mt-6 flex max-w-md gap-2">
