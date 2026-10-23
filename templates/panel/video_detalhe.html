@@ -4,12 +4,7 @@
 {% block titulo %}{{ video.title }}{% endblock %}
 
 {% block painel %}
-<a href="{% url 'painel_curso' video.course_id %}"
-   class="inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-slate-800">
-  {{ icons.voltar|safe }} {{ video.course.title }}
-</a>
-
-<div class="mt-4 flex flex-wrap items-start justify-between gap-4">
+<div class="flex flex-wrap items-start justify-between gap-4">
   <div>
     <h1 class="text-2xl font-bold tracking-tight text-slate-900">{{ video.title }}</h1>
     <p class="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500">

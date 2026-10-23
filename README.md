@@ -203,7 +203,7 @@ Depois, **Painel → Enviar gravação**: escolha o vídeo, selecione o arquivo 
 
 ### 3. Cadastrar o médico reprovado
 
-**Painel → Médicos → Novo médico**: nome, CPF, CRM e (opcionalmente) uma senha própria.
+**Painel → Médicos → Novo médico**: nome completo, CPF, e-mail e (opcionalmente) uma senha própria.
 
 A **senha inicial padrão** do CREMEPE é gerada automaticamente:
 
@@ -273,7 +273,7 @@ Gera `backups/db-<timestamp>.dump` e `backups/media/`, com retenção de 30 dias
 ## Testes
 
 ```bash
-docker compose exec app python manage.py test apps      # 126 testes automatizados
+docker compose exec app python manage.py test apps      # 136 testes automatizados
 MEDICO_CPF=... MEDICO_SENHA=... python scripts/smoke_test.py  # teste de ponta a ponta
 ```
 

@@ -10,10 +10,7 @@
       <img src="{{ curso.cover.url }}" alt="" class="h-16 w-24 rounded-xl object-cover ring-1 ring-slate-200">
     {% endif %}
     <div>
-      <a href="{% url 'painel_cursos' %}" class="inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-slate-800">
-        {{ icons.voltar|safe }} Cursos
-      </a>
-      <h1 class="mt-1 text-2xl font-bold tracking-tight text-slate-900">{{ curso.title }}</h1>
+      <h1 class="text-2xl font-bold tracking-tight text-slate-900">{{ curso.title }}</h1>
       <p class="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500">
         <span class="etiqueta {{ curso.status|cor_status }}">{{ curso.get_status_display }}</span>
         <span>{{ curso.edition|default:"—" }}</span>
@@ -88,8 +85,6 @@
               <p class="mt-1 text-2xl font-bold text-slate-900">{{ duracao }}</p>
             </div>
           </div>
-          <a href="{% url 'painel_curso' curso.id %}#matriculados" data-tab-link="matriculados"
-             class="btn btn-secundario mt-5">Ver matriculados</a>
         </div>
       </div>
 
@@ -149,7 +144,6 @@
               </span>
             </span>
             <span class="etiqueta shrink-0 {{ video.status|cor_status }}">{{ video.get_status_display }}</span>
-            <a href="{% url 'painel_video' video.id %}" class="btn btn-secundario btn-sm shrink-0">Abrir</a>
           </div>
         {% empty %}
           <div class="px-5 py-12 text-center text-sm text-slate-400">
@@ -227,7 +221,7 @@
             </thead>
             <tbody class="divide-y divide-slate-100">
               {% for linha in linhas %}
-                <tr class="transition hover:bg-slate-50/70">
+                <tr class="transition hover:bg-slate-50/70" data-matricula-row>
                   <td class="celula">
                     <span class="font-semibold text-slate-800">{{ linha.matricula.medico.nome }}</span>
                     <span class="block text-xs text-slate-500">{{ linha.matricula.medico.cpf }}</span>
@@ -242,7 +236,7 @@
                     </div>
                   </td>
                   <td class="celula">
-                    <span class="etiqueta {{ linha.matricula.status|cor_status }}">{{ linha.matricula.get_status_display }}</span>
+                    <span class="etiqueta {{ linha.matricula.status|cor_status }}" data-status-badge>{{ linha.matricula.get_status_display }}</span>
                   </td>
                   <td class="celula text-xs">{{ linha.tempo }}</td>
                   <td class="celula text-xs text-slate-500">
@@ -250,21 +244,22 @@
                   </td>
                   <td class="celula text-right">
                     <div class="flex justify-end gap-1.5">
-                      {% if linha.aprovado %}
-                        <form method="post" action="{% url 'painel_matricula_acao' linha.matricula.id %}">
-                          {% csrf_token %}
-                          <input type="hidden" name="acao" value="retirar_aprovacao">
-                          <button class="btn btn-fantasma btn-sm text-amber-700" type="submit" title="Retirar aprovação mantendo o progresso">
-                            Retirar aprovação
-                          </button>
-                        </form>
-                      {% elif linha.matricula.status != "cancelled" %}
-                        <form method="post" action="{% url 'painel_matricula_acao' linha.matricula.id %}">
-                          {% csrf_token %}
-                          <input type="hidden" name="acao" value="aprovar">
-                          <button class="btn btn-secundario btn-sm" type="submit" title="Aprovar manualmente">Aprovar</button>
-                        </form>
-                      {% endif %}
+                      <form method="post" action="{% url 'painel_matricula_acao' linha.matricula.id %}"
+                            data-ajax="1" data-acao="aprovar"
+                            data-confirm="Aprovar manualmente {{ linha.matricula.medico.nome }} neste curso?"
+                            class="{% if linha.matricula.status == 'approved' or linha.matricula.status == 'cancelled' %}hidden{% endif %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="acao" value="aprovar">
+                        <button class="btn btn-secundario btn-sm" type="submit" title="Aprovar manualmente">Aprovar</button>
+                      </form>
+                      <form method="post" action="{% url 'painel_matricula_acao' linha.matricula.id %}"
+                            data-ajax="1" data-acao="reprovar"
+                            data-confirm="Reprovar manualmente {{ linha.matricula.medico.nome }} neste curso?"
+                            class="{% if linha.matricula.status == 'rejected' or linha.matricula.status == 'cancelled' %}hidden{% endif %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="acao" value="reprovar">
+                        <button class="btn btn-fantasma btn-sm text-rose-600" type="submit" title="Reprovar manualmente">Reprovar</button>
+                      </form>
                       <form method="post" action="{% url 'painel_matricula_acao' linha.matricula.id %}"
                             data-confirm="Resetar o progresso de {{ linha.matricula.medico.nome }} neste curso? A aprovação também será removida.">
                         {% csrf_token %}

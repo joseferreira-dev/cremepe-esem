@@ -104,16 +104,16 @@ class MedicoForm(forms.ModelForm):
 
     class Meta:
         model = Medico
-        fields = ("nome", "cpf", "crm", "telefone", "email", "ativo")
+        fields = ("nome", "cpf", "email", "ativo")
         widgets = {
             "nome": forms.TextInput(attrs={"class": "campo", "placeholder": "Nome completo"}),
             "cpf": forms.TextInput(attrs={"class": "campo", "placeholder": "000.000.000-00"}),
-            "crm": forms.TextInput(attrs={"class": "campo", "placeholder": "PE-00000"}),
-            "telefone": forms.TextInput(attrs={"class": "campo", "placeholder": "(81) 99999-0000"}),
-            "email": forms.EmailInput(attrs={"class": "campo"}),
+            "email": forms.EmailInput(
+                attrs={"class": "campo", "placeholder": "nome@exemplo.com"}
+            ),
             "ativo": forms.CheckboxInput(attrs={"class": "h-4 w-4 rounded border-slate-300 text-marca-600 focus:ring-marca-500"}),
         }
-        labels = {"nome": "Nome completo", "cpf": "CPF", "crm": "CRM", "telefone": "Telefone"}
+        labels = {"nome": "Nome completo", "cpf": "CPF", "email": "E-mail"}
 
     def clean_cpf(self):
         cpf = normalize_cpf(self.cleaned_data.get("cpf", ""))
@@ -250,7 +250,7 @@ class MedicoLoteForm(forms.Form):
 
     Formato de cada linha::
 
-        Nome completo; CPF; CRM; e-mail; telefone
+        Nome completo; CPF; e-mail
     """
 
     dados = forms.CharField(
@@ -260,14 +260,14 @@ class MedicoLoteForm(forms.Form):
                 "class": "campo font-mono",
                 "rows": 10,
                 "placeholder": (
-                    "Maria da Silva; 111.222.333-44; PE-1234; maria@exemplo.com; (81) 99999-0000\n"
-                    "João Pereira; 555.666.777-88; PE-5678; joao@exemplo.com; (81) 98888-0000"
+                    "Maria da Silva; 111.222.333-44; maria@exemplo.com\n"
+                    "João Pereira; 555.666.777-88; joao@exemplo.com"
                 ),
             }
         ),
         help_text=(
             "Uma pessoa por linha, separada por ponto e vírgula: "
-            "Nome; CPF; CRM; e-mail; telefone. CRM, e-mail e telefone são opcionais."
+            "Nome completo; CPF; e-mail. O e-mail é opcional."
         ),
     )
 
@@ -283,12 +283,12 @@ class MedicoLoteForm(forms.Form):
             if not linha or linha.startswith("#"):
                 continue
             partes = [parte.strip() for parte in linha.replace("\t", ";").split(";")]
-            if len(partes) < 2:
+            if len(partes) < 2 or len(partes) > 3:
                 raise forms.ValidationError(
-                    f"Linha {numero}: use o formato Nome; CPF; CRM; e-mail; telefone."
+                    f"Linha {numero}: use o formato Nome; CPF; e-mail."
                 )
-            partes += [""] * (5 - len(partes))
-            nome, cpf, crm, email, telefone = partes[:5]
+            partes += [""] * (3 - len(partes))
+            nome, cpf, email = partes
             cpf = normalize_cpf(cpf)
 
             if not nome:
@@ -314,15 +314,7 @@ class MedicoLoteForm(forms.Form):
                     ) from exc
 
             cpfs_no_lote.add(cpf)
-            linhas.append(
-                {
-                    "nome": nome,
-                    "cpf": cpf,
-                    "crm": crm,
-                    "email": email,
-                    "telefone": telefone,
-                }
-            )
+            linhas.append({"nome": nome, "cpf": cpf, "email": email})
 
         if not linhas:
             raise forms.ValidationError("Nenhuma linha válida foi encontrada.")

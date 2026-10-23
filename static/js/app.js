@@ -57,9 +57,60 @@
     }
   }
 
+  function atualizarLinhaMatricula(formulario, dados) {
+    var linha = formulario.closest('[data-matricula-row]');
+    if (!linha) {
+      return;
+    }
+    var badge = linha.querySelector('[data-status-badge]');
+    if (badge) {
+      badge.textContent = dados.status_display || '';
+      badge.className = 'etiqueta ' + (dados.status_class || '');
+    }
+    var aprovar = linha.querySelector('[data-acao="aprovar"]');
+    if (aprovar) {
+      aprovar.classList.toggle(
+        'hidden',
+        dados.status === 'approved' || dados.status === 'cancelled'
+      );
+    }
+    var reprovar = linha.querySelector('[data-acao="reprovar"]');
+    if (reprovar) {
+      reprovar.classList.toggle(
+        'hidden',
+        dados.status === 'rejected' || dados.status === 'cancelled'
+      );
+    }
+  }
+
+  function enviarFormularioAjax(formulario) {
+    var dados = new FormData(formulario);
+    fetch(formulario.action, {
+      method: 'POST',
+      body: dados,
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+      .then(function (resposta) {
+        return resposta.json().then(function (corpo) {
+          if (!resposta.ok || !corpo.ok) {
+            throw new Error(corpo.mensagem || 'Não foi possível concluir a ação.');
+          }
+          atualizarLinhaMatricula(formulario, corpo);
+        });
+      })
+      .catch(function () {
+        window.location.reload();
+      });
+  }
+
   document.addEventListener('submit', function (event) {
     var formulario = event.target;
     if (!formulario.matches('form[data-confirm]')) {
+      if (formulario.matches('form[data-ajax="1"]')) {
+        event.preventDefault();
+        enviarFormularioAjax(formulario);
+      }
       return;
     }
     if (formulario.dataset.confirmado === '1') {
@@ -76,9 +127,16 @@
         return;
       }
       if (event.target.closest('[data-modal-confirm]')) {
-        if (formularioPendente) {
-          formularioPendente.dataset.confirmado = '1';
-          formularioPendente.submit();
+        var formulario = formularioPendente;
+        fecharModal();
+        if (!formulario) {
+          return;
+        }
+        if (formulario.dataset.ajax === '1') {
+          enviarFormularioAjax(formulario);
+        } else {
+          formulario.dataset.confirmado = '1';
+          formulario.submit();
         }
       }
     });

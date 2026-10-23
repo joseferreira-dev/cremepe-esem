@@ -8,7 +8,7 @@ import secrets
 from django.contrib import messages
 from django.db import transaction
 from django.db.models import F, Max, Q, Sum
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -25,6 +25,7 @@ from apps.courses.services import (
     reset_progress,
 )
 from apps.media.services import enqueue_transcode
+from apps.web.templatetags.web import cor_status
 
 from .forms import (
     CursoForm,
@@ -145,17 +146,11 @@ def cursos(request):
     linhas = []
     for curso in consulta:
         matriculas = curso.enrollments.select_related("medico")
-        total = matriculas.count()
-        aprovados = matriculas.filter(status=Enrollment.Status.APPROVED).count()
-        media = (
-            sum(course_coverage(m) for m in matriculas) / total if total else 0
-        )
         linhas.append(
             {
                 "curso": curso,
-                "total": total,
-                "aprovados": aprovados,
-                "media": round(media, 1),
+                "total": matriculas.count(),
+                "aprovados": matriculas.filter(status=Enrollment.Status.APPROVED).count(),
                 "videos": curso.video_count,
                 "duracao": format_hours(curso.total_duration),
             }
@@ -545,6 +540,7 @@ def matricula_acao(request, pk):
     matricula = get_object_or_404(Enrollment, pk=pk)
     acao = request.POST.get("acao")
     curso_id = matricula.course_id
+    mensagem = ""
 
     if acao == "aprovar":
         matricula.status = Enrollment.Status.APPROVED
@@ -558,38 +554,41 @@ def matricula_acao(request, pk):
             detail={"curso": matricula.course.title},
             ip=request.META.get("REMOTE_ADDR"),
         )
-        messages.success(request, f"{matricula.medico.nome} foi aprovado.")
-    elif acao == "retirar_aprovacao":
-        if matricula.status != Enrollment.Status.APPROVED:
-            messages.error(request, "Esta matrícula não está aprovada.")
-            return redirect(_destino_matricula(request, curso_id))
-        matricula.status = Enrollment.Status.APPROVAL_REVOKED
+        mensagem = f"{matricula.medico.nome} foi aprovado."
+    elif acao == "reprovar":
+        matricula.status = Enrollment.Status.REJECTED
         matricula.approved_at = None
         matricula.approved_by = None
         matricula.save(update_fields=["status", "approved_at", "approved_by"])
         record_audit(
-            "aprovacao_retirada",
+            "reprovacao_manual",
             actor=request.user,
             target=matricula.medico.nome,
             detail={"curso": matricula.course.title},
             ip=request.META.get("REMOTE_ADDR"),
         )
-        messages.success(
-            request,
-            f"Aprovação de {matricula.medico.nome} retirada. O progresso foi preservado.",
-        )
-    elif acao == "reprovar":
-        matricula.status = Enrollment.Status.REJECTED
-        matricula.save(update_fields=["status"])
-        messages.success(request, f"{matricula.medico.nome} foi marcado como reprovado.")
+        mensagem = f"{matricula.medico.nome} foi marcado como reprovado."
     elif acao == "resetar":
         reset_progress(matricula, actor=request.user)
-        messages.success(request, f"Progresso de {matricula.medico.nome} resetado.")
+        mensagem = f"Progresso de {matricula.medico.nome} resetado."
     elif acao == "cancelar":
         matricula.status = Enrollment.Status.CANCELLED
         matricula.save(update_fields=["status"])
-        messages.success(request, "Matrícula cancelada.")
+        mensagem = "Matrícula cancelada."
 
+    if request.headers.get("x-requested-with") == "XMLHttpRequest":
+        return JsonResponse(
+            {
+                "ok": True,
+                "status": matricula.status,
+                "status_display": matricula.get_status_display(),
+                "status_class": cor_status(matricula.status),
+                "mensagem": mensagem,
+            }
+        )
+
+    if mensagem:
+        messages.success(request, mensagem)
     return redirect(_destino_matricula(request, curso_id))
 
 

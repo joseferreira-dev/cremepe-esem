@@ -9,6 +9,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from apps.accounts.models import Medico
+from apps.accounts.tokens import gerar_token_api
 from apps.courses.models import Course, Enrollment, Progress, Video
 from apps.media.services import (
     build_signed_variant_playlist,
@@ -88,6 +89,83 @@ class TestUpload(TestCase):
             medico=self.medico, course=self.curso
         )
 
+    def test_pagina_de_upload_define_config_antes_do_script(self):
+        self.client.force_login(self.admin)
+        html = self.client.get("/api/uploads/pagina/").content.decode()
+        self.assertIn("window.CREMEPE_UPLOAD", html)
+        self.assertIn("/api/uploads/init/", html)
+        self.assertIn("apiToken", html)
+        self.assertLess(
+            html.index("window.CREMEPE_UPLOAD"),
+            html.index("js/upload"),
+            "a configuração precisa existir antes do upload.js",
+        )
+
+    def test_upload_exige_cabecalho_ajax(self):
+        self.client.force_login(self.admin)
+        resposta = self.client.post(
+            "/api/uploads/init/",
+            data=json.dumps(
+                {"video_id": self.video.id, "filename": "aula.mp4", "size": 100}
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(resposta.status_code, 403)
+
+    def test_upload_sem_sessao_responde_json(self):
+        resposta = self.client.post(
+            "/api/uploads/init/",
+            data=json.dumps(
+                {"video_id": self.video.id, "filename": "aula.mp4", "size": 0}
+            ),
+            content_type="application/json",
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
+        self.assertEqual(resposta.status_code, 401)
+        self.assertIn("Sessão expirada", resposta.json()["error"])
+
+    def test_upload_autentica_por_token_sem_cookie(self):
+        token = gerar_token_api(self.admin, validade=60)
+        resposta = self.client.post(
+            "/api/uploads/init/",
+            data=json.dumps(
+                {"video_id": self.video.id, "filename": "aula.mp4", "size": 0}
+            ),
+            content_type="application/json",
+            headers={
+                "X-Requested-With": "XMLHttpRequest",
+                "X-API-Token": token,
+            },
+        )
+        # Passou pela autenticação e chegou à validação do tamanho.
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("Tamanho", resposta.json()["error"])
+
+    def test_upload_autentica_por_token_na_url(self):
+        token = gerar_token_api(self.admin, validade=60)
+        resposta = self.client.post(
+            f"/api/uploads/init/?api_token={token}",
+            data=json.dumps(
+                {"video_id": self.video.id, "filename": "aula.mp4", "size": 0}
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("Tamanho", resposta.json()["error"])
+
+    def test_token_de_admin_vence_sessao_de_medico(self):
+        self.client.force_login(self.medico_user)
+        token = gerar_token_api(self.admin, validade=60)
+        resposta = self.client.post(
+            f"/api/uploads/init/?api_token={token}",
+            data=json.dumps(
+                {"video_id": self.video.id, "filename": "aula.mp4", "size": 0}
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("Tamanho", resposta.json()["error"])
+
     def test_upload_completo_em_blocos(self):
         self.client.force_login(self.admin)
         conteudo = b"x" * 1000
@@ -98,6 +176,7 @@ class TestUpload(TestCase):
                 {"video_id": self.video.id, "filename": "aula.mp4", "size": len(conteudo)}
             ),
             content_type="application/json",
+            headers={"X-Requested-With": "XMLHttpRequest"},
         )
         self.assertEqual(resposta.status_code, 200)
         dados = resposta.json()
@@ -108,11 +187,17 @@ class TestUpload(TestCase):
             f"/api/uploads/{upload_id}/chunk/",
             data=conteudo,
             content_type="application/octet-stream",
-            headers={"X-Chunk-Index": "0"},
+            headers={
+                "X-Chunk-Index": "0",
+                "X-Requested-With": "XMLHttpRequest",
+            },
         )
         self.assertEqual(resposta.status_code, 200)
 
-        resposta = self.client.post(f"/api/uploads/{upload_id}/complete/")
+        resposta = self.client.post(
+            f"/api/uploads/{upload_id}/complete/",
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
         self.assertEqual(resposta.status_code, 200)
 
         self.video.refresh_from_db()
@@ -131,13 +216,17 @@ class TestUpload(TestCase):
                 {"video_id": self.video.id, "filename": "aula.mp4", "size": 100}
             ),
             content_type="application/json",
+            headers={"X-Requested-With": "XMLHttpRequest"},
         )
         upload_id = resposta.json()["upload_id"]
         resposta = self.client.post(
             f"/api/uploads/{upload_id}/chunk/",
             data=b"curto",
             content_type="application/octet-stream",
-            headers={"X-Chunk-Index": "0"},
+            headers={
+                "X-Chunk-Index": "0",
+                "X-Requested-With": "XMLHttpRequest",
+            },
         )
         self.assertEqual(resposta.status_code, 400)
 
@@ -149,6 +238,7 @@ class TestUpload(TestCase):
                 {"video_id": self.video.id, "filename": "aula.mp4", "size": 100}
             ),
             content_type="application/json",
+            headers={"X-Requested-With": "XMLHttpRequest"},
         )
         self.assertIn(resposta.status_code, (302, 403))
 
@@ -160,9 +250,13 @@ class TestUpload(TestCase):
                 {"video_id": self.video.id, "filename": "aula.mp4", "size": 100}
             ),
             content_type="application/json",
+            headers={"X-Requested-With": "XMLHttpRequest"},
         )
         upload_id = resposta.json()["upload_id"]
-        resposta = self.client.post(f"/api/uploads/{upload_id}/complete/")
+        resposta = self.client.post(
+            f"/api/uploads/{upload_id}/complete/",
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
         self.assertEqual(resposta.status_code, 400)
 
     def test_sessao_e_retomada_apos_queda(self):
@@ -176,6 +270,7 @@ class TestUpload(TestCase):
             "/api/uploads/init/",
             data=json.dumps(payload),
             content_type="application/json",
+            headers={"X-Requested-With": "XMLHttpRequest"},
         ).json()
 
         # Simula queda no meio: grava o primeiro bloco e reabre a sessão.
@@ -183,13 +278,17 @@ class TestUpload(TestCase):
             f"/api/uploads/{primeira['upload_id']}/chunk/",
             data=b"x" * 1000,
             content_type="application/octet-stream",
-            headers={"X-Chunk-Index": "0"},
+            headers={
+                "X-Chunk-Index": "0",
+                "X-Requested-With": "XMLHttpRequest",
+            },
         )
 
         segunda = self.client.post(
             "/api/uploads/init/",
             data=json.dumps(payload),
             content_type="application/json",
+            headers={"X-Requested-With": "XMLHttpRequest"},
         ).json()
 
         self.assertEqual(segunda["upload_id"], primeira["upload_id"])

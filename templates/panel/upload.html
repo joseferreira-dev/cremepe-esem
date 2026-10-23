@@ -89,13 +89,14 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{% static 'js/upload.js' %}"></script>
 <script>
   window.CREMEPE_UPLOAD = {
     initUrl: "{{ upload_urls.init }}",
     chunkTemplate: "{{ upload_urls.chunk }}",
     completeTemplate: "{{ upload_urls.complete }}",
-    placeholder: "{{ upload_urls.placeholder }}"
+    placeholder: "{{ upload_urls.placeholder }}",
+    apiToken: "{{ upload_urls.api_token }}"
   };
 </script>
+<script src="{% static 'js/upload.js' %}"></script>
 {% endblock %}

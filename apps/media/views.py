@@ -16,10 +16,11 @@ from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.utils import timezone
+from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
-from apps.accounts.tokens import token_do_request, validar_token_api
+from apps.accounts.tokens import gerar_token_api, token_do_request, validar_token_api
 from apps.courses.models import Enrollment, Progress, Video, WatchSession
 from apps.courses.services import (
     apply_heartbeat,
@@ -45,6 +46,52 @@ from .services import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def upload_staff_required(view):
+    """Como staff_member_required, mas responde JSON em vez de redirecionar."""
+
+    @wraps(view)
+    def wrapper(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return JsonResponse(
+                {
+                    "error": (
+                        "Sessão expirada. Recarregue a página de upload e "
+                        "entre novamente."
+                    )
+                },
+                status=401,
+            )
+        if not request.user.is_staff:
+            return JsonResponse(
+                {"error": "Acesso restrito à administração do portal."},
+                status=403,
+            )
+        return view(request, *args, **kwargs)
+
+    return wrapper
+
+
+def upload_ajax_required(view):
+    """Protege os endpoints de upload contra POSTs de formulário externos.
+
+    O upload usa um cabeçalho próprio enviado pelo ``fetch``; formulários
+    cross-site não conseguem defini-lo e um ``fetch`` cross-origin exigiria
+    preflight CORS, que não é permitido. Isso permite dispensar o CSRF por
+    cookie nesses endpoints sem abrir a ação para outros sites.
+    """
+
+    @wraps(view)
+    def wrapper(request, *args, **kwargs):
+        if (
+            request.headers.get("X-Requested-With") != "XMLHttpRequest"
+            and not request.GET.get("api_token")
+        ):
+            return JsonResponse({"error": "Requisição inválida."}, status=403)
+        return view(request, *args, **kwargs)
+
+    return wrapper
 
 
 def api_login_required(view):
@@ -132,6 +179,7 @@ def api_login_required(view):
 # Upload em blocos (admin)
 # --------------------------------------------------------------------------
 @require_GET
+@never_cache
 @staff_member_required
 def upload_page(request):
     videos = (
@@ -149,13 +197,22 @@ def upload_page(request):
                 "chunk": reverse("upload_chunk", kwargs={"upload_id": placeholder}),
                 "complete": reverse("upload_complete", kwargs={"upload_id": placeholder}),
                 "placeholder": placeholder,
+                # Alguns ambientes não enviam o cookie de sessão nos fetch do
+                # navegador; o token assinado mantém o upload autenticado.
+                "api_token": gerar_token_api(
+                    request.user,
+                    request.session.session_key,
+                    validade=max(settings.API_TOKEN_TTL_SECONDS, 12 * 3600),
+                ),
             },
         },
     )
 
 
 @require_POST
-@staff_member_required
+@csrf_exempt
+@upload_staff_required
+@upload_ajax_required
 def upload_init(request):
     try:
         data = json.loads(request.body or b"{}")
@@ -228,7 +285,9 @@ def upload_init(request):
 
 
 @require_POST
-@staff_member_required
+@csrf_exempt
+@upload_staff_required
+@upload_ajax_required
 def upload_chunk(request, upload_id):
     session = get_object_or_404(UploadSession, pk=upload_id)
     try:
@@ -279,7 +338,9 @@ def upload_chunk(request, upload_id):
 
 
 @require_POST
-@staff_member_required
+@csrf_exempt
+@upload_staff_required
+@upload_ajax_required
 def upload_complete(request, upload_id):
     session = get_object_or_404(UploadSession, pk=upload_id)
     video = session.video

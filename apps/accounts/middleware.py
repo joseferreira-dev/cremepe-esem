@@ -1,5 +1,6 @@
 """Middlewares de sessao e autenticacao."""
 
+import logging
 import re
 
 from django.conf import settings
@@ -9,6 +10,8 @@ from django.contrib.sessions.models import Session
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils.crypto import constant_time_compare
+
+logger = logging.getLogger(__name__)
 
 
 def _sessao_autenticada(chave: str) -> bool:
@@ -86,20 +89,29 @@ class SessaoUnicaMiddleware:
             if trocar or escolhida in autenticadas:
                 request.session.modified = True
 
-        # Token de API: usado quando o cookie nao chega (proxy/extensao) ou
-        # quando a sessao do cookie existe mas esta invalida (senha trocada,
-        # chave antiga etc.). A sessao e trocada aqui; o AuthenticationMiddleware
-        # (que roda depois) resolve o usuario a partir dela.
+        # Token de API: tem prioridade sobre o cookie. Isso e essencial quando
+        # o navegador mantem, por exemplo, uma sessao de medico no cookie e o
+        # painel envia um token de administrador no upload. A sessao e trocada
+        # aqui; o AuthenticationMiddleware (que roda depois) resolve o usuario.
+        from .tokens import autenticar_por_token, token_do_request, validar_token_api
+
+        dados = validar_token_api(token_do_request(request))
+        if dados:
+            autenticar_por_token(request, *dados)
         autenticada = _sessao_autenticada(request.session.session_key)
-        if not autenticada:
-            from .tokens import autenticar_por_token, token_do_request, validar_token_api
-
-            dados = validar_token_api(token_do_request(request))
-            if dados:
-                autenticar_por_token(request, *dados)
-                autenticada = _sessao_autenticada(request.session.session_key)
 
         if not autenticada:
+            if request.path.startswith("/api/uploads/"):
+                logger.warning(
+                    "upload sem autenticacao: path=%s query_token=%s "
+                    "header_token=%s auth_header=%s cookies=%s referer=%s",
+                    request.path,
+                    bool(request.GET.get("api_token")),
+                    bool(request.headers.get("X-API-Token")),
+                    bool(request.headers.get("Authorization")),
+                    sorted(request.COOKIES),
+                    request.headers.get("Referer", ""),
+                )
             # O SessionMiddleware do Django apaga o cookie quando a sessao
             # esta vazia. Numa aba antiga isso pode remover o cookie valido
             # que o navegador usa em outra aba e derrubar o login. A limpeza

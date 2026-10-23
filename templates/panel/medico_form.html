@@ -3,11 +3,7 @@
 {% block titulo %}{% if medico %}Editar médico{% else %}Novo médico{% endif %}{% endblock %}
 
 {% block painel %}
-<a href="{% url 'painel_medicos' %}" class="inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-slate-800">
-  {{ icons.voltar|safe }} Médicos
-</a>
-
-<h1 class="mt-4 text-3xl font-bold tracking-tight text-slate-900">
+<h1 class="text-3xl font-bold tracking-tight text-slate-900">
   {% if medico %}Editar médico{% else %}Novo médico{% endif %}
 </h1>
 <p class="mt-2 text-sm text-slate-500">
@@ -30,8 +26,6 @@
   <div class="cartao cartao-padrao space-y-6 lg:col-span-2">
     {% include "partials/campo.html" with field=form.nome %}
     {% include "partials/campo.html" with field=form.cpf %}
-    {% include "partials/campo.html" with field=form.crm %}
-    {% include "partials/campo.html" with field=form.telefone %}
     {% include "partials/campo.html" with field=form.email %}
   </div>
 

@@ -2,7 +2,6 @@
 (function () {
   'use strict';
 
-  var CONFIG = window.CREMEPE_UPLOAD || {};
   var meta = document.querySelector('meta[name="csrf-token"]');
   var CSRF = meta ? meta.getAttribute('content') : '';
 
@@ -17,7 +16,7 @@
 
   function setMessage(text, kind) {
     message.textContent = text;
-    message.className = 'small mt-2 mb-0 ' + (kind === 'error' ? 'text-danger' : 'text-muted');
+    message.className = 'mt-2 text-xs ' + (kind === 'error' ? 'text-rose-600' : 'text-slate-500');
   }
 
   function setProgress(percent) {
@@ -27,9 +26,21 @@
   }
 
   function headers(extra) {
+    var config = window.CREMEPE_UPLOAD || {};
     var result = { 'X-Requested-With': 'XMLHttpRequest' };
+    if (config.apiToken) {
+      result['Authorization'] = 'Bearer ' + config.apiToken;
+      result['X-API-Token'] = config.apiToken;
+    }
     if (extra) { Object.keys(extra).forEach(function (k) { result[k] = extra[k]; }); }
     return result;
+  }
+
+  function comToken(url) {
+    var config = window.CREMEPE_UPLOAD || {};
+    if (!config.apiToken) { return url; }
+    return url + (url.indexOf('?') === -1 ? '?' : '&') +
+      'api_token=' + encodeURIComponent(config.apiToken);
   }
 
   async function sha256(buffer) {
@@ -41,9 +52,14 @@
   }
 
   async function upload() {
+    var config = window.CREMEPE_UPLOAD || {};
     var file = fileInput.files && fileInput.files[0];
     var videoId = videoSelect.value;
 
+    if (!config.initUrl || !config.chunkTemplate || !config.completeTemplate) {
+      setMessage('Configuração de envio indisponível. Recarregue a página.', 'error');
+      return;
+    }
     if (!file) { setMessage('Escolha um arquivo para enviar.', 'error'); return; }
     if (!videoId) { setMessage('Crie e selecione um vídeo antes de enviar.', 'error'); return; }
 
@@ -52,13 +68,16 @@
     setMessage('Preparando o envio...');
 
     try {
-      var initResponse = await fetch(CONFIG.initUrl, {
+      var initResponse = await fetch(comToken(config.initUrl), {
         method: 'POST',
         headers: headers({ 'Content-Type': 'application/json', 'X-CSRFToken': CSRF }),
         credentials: 'same-origin',
         body: JSON.stringify({ video_id: parseInt(videoId, 10), filename: file.name, size: file.size })
       });
-      if (!initResponse.ok) { throw new Error('Não foi possível iniciar o envio.'); }
+      if (!initResponse.ok) {
+        var initError = await initResponse.json().catch(function () { return {}; });
+        throw new Error(initError.error || 'Não foi possível iniciar o envio.');
+      }
       var session = await initResponse.json();
 
       var chunkSize = session.chunk_size;
@@ -82,7 +101,7 @@
         };
         if (checksum) { extra['X-Chunk-SHA256'] = checksum; }
 
-        var response = await fetch(CONFIG.chunkTemplate.replace(CONFIG.placeholder, session.upload_id), {
+        var response = await fetch(comToken(config.chunkTemplate.replace(config.placeholder, session.upload_id)), {
           method: 'POST',
           headers: headers(extra),
           credentials: 'same-origin',
@@ -99,7 +118,7 @@
       }
 
       setMessage('Montando o arquivo final...');
-      var complete = await fetch(CONFIG.completeTemplate.replace(CONFIG.placeholder, session.upload_id), {
+      var complete = await fetch(comToken(config.completeTemplate.replace(config.placeholder, session.upload_id)), {
         method: 'POST',
         headers: headers({ 'X-CSRFToken': CSRF }),
         credentials: 'same-origin'

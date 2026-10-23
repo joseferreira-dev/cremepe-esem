@@ -1,12 +1,12 @@
 """Testes do painel administrativo."""
 
+import json
+
 from django.contrib.auth.models import User
 from django.test import TestCase
-from django.utils import timezone
 
 from apps.accounts.models import Medico
 from apps.courses.models import AuditLog, Course, Enrollment, Progress, Video
-from apps.courses.services import refresh_enrollment_status
 from apps.panel.forms import MedicoForm
 
 
@@ -128,12 +128,6 @@ class TestAcessoAoPainel(TestCase):
         resposta = self.client.get("/painel/")
         self.assertContains(resposta, "bg-painel-gradiente")
 
-    def test_pagina_de_cursos_tem_abas_gerenciar_e_previsualizar(self):
-        self.client.force_login(self.admin)
-        resposta = self.client.get("/painel/cursos/")
-        self.assertContains(resposta, "Gerenciar")
-        self.assertContains(resposta, "Pré-visualizar")
-        self.assertContains(resposta, "/cursos/")
 
 
 class TestFluxoCompleto(TestCase):
@@ -256,6 +250,14 @@ class TestFormularioDeMedico(TestCase):
         self.assertEqual(campo.widget.attrs.get("class"), "campo")
         self.assertEqual(campo.widget.attrs.get("placeholder"), "nome@exemplo.com")
 
+    def test_crm_e_telefone_nao_sao_campos_do_cadastro(self):
+        campos = MedicoForm().fields
+        self.assertNotIn("crm", campos)
+        self.assertNotIn("telefone", campos)
+        self.assertIn("nome", campos)
+        self.assertIn("cpf", campos)
+        self.assertIn("email", campos)
+
 
 class TestOrdemDeVideos(TestCase):
     def setUp(self):
@@ -288,25 +290,21 @@ class TestOrdemDeVideos(TestCase):
         self.assertEqual(Video.objects.get(title="Aula 3").order, 4)
 
 
-class TestRetirarAprovacao(TestCase):
+class TestAcoesDeMatricula(TestCase):
     def setUp(self):
-        self.admin = User.objects.create_superuser("admin-revoga", "a@b.c", "senha12345")
-        user = User.objects.create_user("medico-revoga", password="senha12345")
+        self.admin = User.objects.create_superuser("admin-acoes", "a@b.c", "senha12345")
+        user = User.objects.create_user("medico-acoes", password="senha12345")
         self.medico = Medico.objects.create(
-            user=user, cpf="33344455566", nome="Medico Revoga", must_change_password=False
+            user=user, cpf="33344455566", nome="Medico Acoes", must_change_password=False
         )
         self.curso = Course.objects.create(
-            title="Curso revoga", status=Course.Status.ACTIVE, min_percent=50
+            title="Curso ações", status=Course.Status.ACTIVE, min_percent=50
         )
         self.video = Video.objects.create(
             course=self.curso, order=1, title="Aula", duration=100
         )
         self.matricula = Enrollment.objects.create(
-            medico=self.medico,
-            course=self.curso,
-            status=Enrollment.Status.APPROVED,
-            approved_at=timezone.now(),
-            approved_by=self.admin,
+            medico=self.medico, course=self.curso
         )
         Progress.objects.create(
             enrollment=self.matricula,
@@ -317,37 +315,45 @@ class TestRetirarAprovacao(TestCase):
         )
         self.client.force_login(self.admin)
 
-    def test_retira_aprovacao_sem_apagar_progresso(self):
+    def test_aprovar_via_ajax_nao_redireciona(self):
         resposta = self.client.post(
             f"/painel/matriculas/{self.matricula.pk}/acao/",
-            {"acao": "retirar_aprovacao"},
+            {"acao": "aprovar"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
         )
-        self.assertEqual(resposta.status_code, 302)
-
-        self.matricula.refresh_from_db()
-        self.assertEqual(self.matricula.status, Enrollment.Status.APPROVAL_REVOKED)
-        self.assertIsNone(self.matricula.approved_at)
-        self.assertIsNone(self.matricula.approved_by)
-        self.assertEqual(
-            Progress.objects.filter(enrollment=self.matricula).count(), 1
-        )
-        self.assertEqual(
-            Progress.objects.get(enrollment=self.matricula).covered, 100
-        )
-
-    def test_aprovacao_retirada_nao_e_desfeita_automaticamente(self):
-        refresh_enrollment_status(self.matricula)
+        self.assertEqual(resposta.status_code, 200)
+        dados = json.loads(resposta.content)
+        self.assertTrue(dados["ok"])
+        self.assertEqual(dados["status"], Enrollment.Status.APPROVED)
+        self.assertEqual(dados["status_display"], "Aprovado")
         self.matricula.refresh_from_db()
         self.assertEqual(self.matricula.status, Enrollment.Status.APPROVED)
 
-        self.client.post(
+    def test_reprovar_via_ajax_nao_redireciona(self):
+        resposta = self.client.post(
             f"/painel/matriculas/{self.matricula.pk}/acao/",
-            {"acao": "retirar_aprovacao"},
+            {"acao": "reprovar"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
         )
+        self.assertEqual(resposta.status_code, 200)
+        dados = json.loads(resposta.content)
+        self.assertTrue(dados["ok"])
+        self.assertEqual(dados["status"], Enrollment.Status.REJECTED)
+        self.assertEqual(dados["status_display"], "Reprovado")
         self.matricula.refresh_from_db()
-        refresh_enrollment_status(self.matricula)
-        self.matricula.refresh_from_db()
-        self.assertEqual(self.matricula.status, Enrollment.Status.APPROVAL_REVOKED)
+        self.assertEqual(self.matricula.status, Enrollment.Status.REJECTED)
+
+    def test_botoes_de_aprovacao_tem_dialog_e_ajax(self):
+        html = self.client.get(f"/painel/cursos/{self.curso.pk}/").content.decode()
+        self.assertIn('data-ajax="1"', html)
+        self.assertIn('data-acao="aprovar"', html)
+        self.assertIn('data-acao="reprovar"', html)
+        self.assertIn("data-confirm=", html)
+
+    def test_situacao_aprovacao_retirada_foi_removida(self):
+        valores = [valor for valor, _ in Enrollment.Status.choices]
+        self.assertNotIn("approval_revoked", valores)
+        self.assertNotIn("Aprovação retirada", dict(Enrollment.Status.choices).values())
 
 
 class TestAbasEDialogsDoCurso(TestCase):
@@ -383,6 +389,18 @@ class TestAbasEDialogsDoCurso(TestCase):
             self.assertNotIn('onsubmit="return confirm', html)
             self.assertNotIn("confirm(", html)
 
+    def test_listagem_de_cursos_nao_tem_abas_progresso_nem_abrir(self):
+        html = self.client.get("/painel/cursos/").content.decode()
+        self.assertNotIn("Pré-visualizar", html)
+        self.assertNotIn("Progresso médio", html)
+        self.assertNotIn("Abrir", html)
+
+    def test_detalhe_do_curso_nao_tem_voltar_ver_matriculados_nem_abrir(self):
+        html = self.client.get(f"/painel/cursos/{self.curso.pk}/").content.decode()
+        self.assertNotIn("Voltar", html)
+        self.assertNotIn("Ver matriculados", html)
+        self.assertNotIn("Abrir", html)
+
 
 class TestCadastroDeMedicosEmLote(TestCase):
     def setUp(self):
@@ -394,8 +412,8 @@ class TestCadastroDeMedicosEmLote(TestCase):
             "/painel/medicos/lote/",
             {
                 "dados": (
-                    "Maria da Silva; 111.222.333-44; PE-1234; maria@exemplo.com; (81) 99999-0000\n"
-                    "João Pereira; 555.666.777-88; PE-5678; joao@exemplo.com; (81) 98888-0000"
+                    "Maria da Silva; 111.222.333-44; maria@exemplo.com\n"
+                    "João Pereira; 555.666.777-88; joao@exemplo.com"
                 )
             },
         )
