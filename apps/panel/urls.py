@@ -1,9 +1,13 @@
 from django.urls import path
 
+from apps.accounts import views as accounts_views
+
 from . import views
 from .decorators import somente_admin
 
 urlpatterns = [
+    path("entrar/", accounts_views.admin_login_view, name="painel_login"),
+    path("sair/", accounts_views.admin_logout_view, name="painel_logout"),
     path("", somente_admin(views.index), name="painel_index"),
     # Cursos
     path("cursos/", somente_admin(views.cursos), name="painel_cursos"),

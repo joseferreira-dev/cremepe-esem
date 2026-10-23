@@ -18,9 +18,79 @@ class TestAcessoAoPainel(TestCase):
             must_change_password=False,
         )
 
-    def test_anônimo_redirecionado(self):
+    def test_anônimo_redirecionado_para_login_administrativo(self):
         resposta = self.client.get("/painel/")
         self.assertEqual(resposta.status_code, 302)
+        self.assertIn("/painel/entrar/", resposta["Location"])
+
+    def test_pagina_de_login_administrativo(self):
+        resposta = self.client.get("/painel/entrar/")
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "Acesso restrito")
+
+    def test_login_administrativo_por_usuario_e_senha(self):
+        resposta = self.client.post(
+            "/painel/entrar/",
+            {"username": "admin", "password": "senha12345"},
+        )
+        self.assertRedirects(resposta, "/painel/")
+        self.assertEqual(self.client.get("/painel/").status_code, 200)
+
+    def test_login_administrativo_respeita_next(self):
+        resposta = self.client.post(
+            "/painel/entrar/?next=/painel/medicos/",
+            {"username": "admin", "password": "senha12345"},
+        )
+        self.assertRedirects(resposta, "/painel/medicos/")
+
+    def test_gestor_staff_entra_pelo_login_administrativo(self):
+        User.objects.create_user(
+            "gestor-login", password="senha12345", is_staff=True
+        )
+        resposta = self.client.post(
+            "/painel/entrar/",
+            {"username": "gestor-login", "password": "senha12345"},
+        )
+        self.assertRedirects(resposta, "/painel/")
+        self.assertEqual(self.client.get("/painel/").status_code, 200)
+
+    def test_medico_nao_entra_pelo_login_administrativo(self):
+        resposta = self.client.post(
+            "/painel/entrar/",
+            {"username": "medico", "password": "senha12345"},
+        )
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "não tem acesso ao painel administrativo")
+        self.assertNotIn("_auth_user_id", self.client.session)
+
+    def test_logout_do_painel_volta_para_login_administrativo(self):
+        self.client.force_login(self.admin)
+        resposta = self.client.post("/painel/sair/")
+        self.assertRedirects(resposta, "/painel/entrar/")
+        self.assertEqual(self.client.get("/painel/").status_code, 302)
+
+    def test_logout_do_painel_por_get_nao_encerra_sessao(self):
+        self.client.force_login(self.admin)
+        resposta = self.client.get("/painel/sair/")
+        self.assertEqual(resposta.status_code, 405)
+        self.assertEqual(self.client.get("/painel/").status_code, 200)
+
+    def test_logout_global_de_admin_volta_para_login_do_painel(self):
+        self.client.force_login(self.admin)
+        resposta = self.client.post("/sair/")
+        self.assertRedirects(resposta, "/painel/entrar/")
+
+    def test_troca_de_senha_de_admin_volta_para_o_painel(self):
+        self.client.force_login(self.admin)
+        resposta = self.client.post(
+            "/trocar-senha/",
+            {
+                "old_password": "senha12345",
+                "new_password1": "NovaSenha@123",
+                "new_password2": "NovaSenha@123",
+            },
+        )
+        self.assertRedirects(resposta, "/painel/")
 
     def test_medico_recebe_403(self):
         self.client.force_login(self.medico_user)
@@ -31,6 +101,21 @@ class TestAcessoAoPainel(TestCase):
         self.client.force_login(self.admin)
         resposta = self.client.get("/painel/")
         self.assertEqual(resposta.status_code, 200)
+
+    def test_admin_comum_nao_ve_link_do_django_admin(self):
+        gestor = User.objects.create_user(
+            "gestor", password="senha12345", is_staff=True
+        )
+        self.client.force_login(gestor)
+        resposta = self.client.get("/painel/")
+        self.assertEqual(resposta.status_code, 200)
+        self.assertNotContains(resposta, "Django admin (avançado)")
+        self.assertContains(resposta, "Sair do painel")
+
+    def test_superuser_ve_link_do_django_admin(self):
+        self.client.force_login(self.admin)
+        resposta = self.client.get("/painel/")
+        self.assertContains(resposta, "Django admin (avançado)")
 
 
 class TestFluxoCompleto(TestCase):

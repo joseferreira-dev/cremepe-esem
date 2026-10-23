@@ -1,6 +1,34 @@
 from django import forms
+from django.contrib.auth.forms import AuthenticationForm
 
 from .models import normalize_cpf
+
+
+class AdminLoginForm(AuthenticationForm):
+    """Login do painel administrativo, separado do login por CPF do médico."""
+
+    username = forms.CharField(
+        label="Usuário",
+        widget=forms.TextInput(
+            attrs={
+                "class": "campo",
+                "placeholder": "Usuário administrativo",
+                "autofocus": True,
+                "autocomplete": "username",
+            }
+        ),
+    )
+    password = forms.CharField(
+        label="Senha",
+        strip=False,
+        widget=forms.PasswordInput(
+            attrs={"class": "campo", "autocomplete": "current-password"}
+        ),
+    )
+    error_messages = {
+        "invalid_login": "Usuário ou senha inválidos.",
+        "inactive": "Esta conta está inativa.",
+    }
 
 
 class LoginByCpfForm(forms.Form):

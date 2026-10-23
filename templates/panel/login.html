@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Acesso administrativo — CREMEPE / ESEM{% endblock %}
+
+{% block topo %}{% endblock %}
+{% block corpo %}
+<div class="flex min-h-screen items-center justify-center bg-slate-50 px-5 py-12 sm:px-8">
+  <div class="w-full max-w-md">
+    <div class="mb-6 flex flex-col items-center text-center">
+      <img src="{% static 'img/logomarca-esem.png' %}" alt="Escola Superior de Ética Médica do CREMEPE"
+           class="h-16 w-auto">
+      <p class="mt-5 text-xs font-semibold uppercase tracking-wider text-marca-600">
+        Painel administrativo
+      </p>
+      <h1 class="mt-1 text-2xl font-bold tracking-tight text-slate-900">
+        Acesso restrito
+      </h1>
+      <p class="mt-2 text-sm text-slate-500">
+        Entre com sua conta de administrador para gerenciar cursos, médicos e matrículas.
+      </p>
+    </div>
+
+    <div class="cartao cartao-padrao">
+      {% if request.user.is_authenticated and not request.user.is_staff %}
+        <div class="mb-5 rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700 ring-1 ring-slate-200">
+          Você está conectado como médico. Ao entrar com uma conta administrativa,
+          a sessão atual será substituída.
+        </div>
+      {% endif %}
+
+      {% if messages %}
+        {% for message in messages %}
+          <div class="mb-5 rounded-xl px-4 py-3 text-sm ring-1
+                      {% if message.tags == 'success' %}bg-marca-50 text-marca-800 ring-marca-200
+                      {% elif message.tags == 'error' %}bg-rose-50 text-rose-700 ring-rose-200
+                      {% else %}bg-slate-100 text-slate-700 ring-slate-200{% endif %}">
+            {{ message }}
+          </div>
+        {% endfor %}
+      {% endif %}
+
+      {% if form.non_field_errors %}
+        <div class="mb-5 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700 ring-1 ring-rose-200">
+          {% for error in form.non_field_errors %}
+            <p>{{ error }}</p>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <form method="post" class="space-y-5" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ next_url }}">
+
+        <div>
+          <label class="rotulo" for="{{ form.username.id_for_label }}">Usuário</label>
+          <div class="mt-2">{{ form.username }}</div>
+          {% for error in form.username.errors %}
+            <p class="mt-1.5 text-xs text-rose-600">{{ error }}</p>
+          {% endfor %}
+        </div>
+
+        <div>
+          <label class="rotulo" for="{{ form.password.id_for_label }}">Senha</label>
+          <div class="mt-2">{{ form.password }}</div>
+          {% for error in form.password.errors %}
+            <p class="mt-1.5 text-xs text-rose-600">{{ error }}</p>
+          {% endfor %}
+        </div>
+
+        <button class="btn btn-primary w-full" type="submit">Entrar no painel</button>
+      </form>
+
+      <div class="mt-6 border-t border-slate-100 pt-5 text-center text-xs">
+        <a href="{% url 'login' %}" class="font-medium text-slate-500 underline-offset-4 hover:text-slate-800 hover:underline">
+          Acesso do médico
+        </a>
+      </div>
+    </div>
+
+    <p class="mt-6 text-center text-xs leading-relaxed text-slate-500">
+      Acesso exclusivo da equipe administrativa do CREMEPE/ESEM.
+    </p>
+  </div>
+</div>
+{% endblock %}

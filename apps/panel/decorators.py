@@ -4,6 +4,7 @@ from functools import wraps
 
 from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import PermissionDenied
+from django.urls import reverse
 
 
 def somente_admin(view):
@@ -16,7 +17,9 @@ def somente_admin(view):
     @wraps(view)
     def wrapper(request, *args, **kwargs):
         if not request.user.is_authenticated:
-            return redirect_to_login(request.get_full_path())
+            return redirect_to_login(
+                request.get_full_path(), login_url=reverse("painel_login")
+            )
         if not request.user.is_staff:
             raise PermissionDenied("Acesso restrito à administração do portal.")
         return view(request, *args, **kwargs)

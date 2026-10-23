@@ -71,6 +71,10 @@ docker compose up -d --build
 docker compose exec app python manage.py criar_admin admin --email admin@cremepe.org.br
 ```
 
+O administrador acessa o painel em **`/painel/entrar/`**, com usuário e senha. O
+**Django admin** (`/admin/`) continua disponível apenas como recurso avançado; o link
+para ele só aparece no painel para superusuários.
+
 > **`DJANGO_ALLOWED_HOSTS` é obrigatório**: deve conter o domínio/IP pelo qual o portal será
 > acessado (ex.: `cursos.cremepe.org.br,192.168.0.10`). Hostnames não permitidos são recusados
 > com **HTTP 400** — inclusive nas chamadas internas entre containers (`nginx`, `app`).
@@ -118,7 +122,9 @@ estrutura é:
 | Acesso aos cursos (login) | `/entrar/` | público (login por CPF) |
 | Meus cursos | `/cursos/` | médico matriculado |
 | Página do curso | `/cursos/<id>/` | médico matriculado |
-| Painel administrativo | `/painel/` | administrador |
+| Acesso administrativo | `/painel/entrar/` | público (login por usuário e senha) |
+| Painel administrativo | `/painel/` | administrador autenticado (`is_staff`) |
+| Django admin (avançado) | `/admin/` | superusuário |
 
 Os textos institucionais foram escritos a partir do conteúdo oficial da ESEM
 ([cremepe.org.br/escola-superior-de-etica-medica](https://www.cremepe.org.br/escola-superior-de-etica-medica)):
@@ -171,7 +177,8 @@ Se o navegador estiver com cookies antigos do site, uma limpeza definitiva é:
 
 ## Operação diária (tudo pelo painel, sem Django admin)
 
-O **painel administrativo** fica em **`/painel/`** (ícone no topo, à direita).
+O **painel administrativo** fica em **`/painel/`** e tem login próprio em
+**`/painel/entrar/`** (usuário e senha administrativos).
 
 ### 1. Criar o curso
 
@@ -264,7 +271,7 @@ Gera `backups/db-<timestamp>.dump` e `backups/media/`, com retenção de 30 dias
 ## Testes
 
 ```bash
-docker compose exec app python manage.py test apps      # 101 testes automatizados
+docker compose exec app python manage.py test apps      # 112 testes automatizados
 MEDICO_CPF=... MEDICO_SENHA=... python scripts/smoke_test.py  # teste de ponta a ponta
 ```
 
