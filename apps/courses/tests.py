@@ -142,6 +142,72 @@ class TestHeartbeat(TestCase):
         self.assertGreaterEqual(progress.covered, 29)
         self.assertEqual(len(progress.intervals), 1)
 
+    def test_video_curto_conclui_no_heartbeat_do_fim(self):
+        """Aula de 15s com heartbeat de 10s: o ended credita a cauda final.
+
+        O evento ended reporta playing=False; sem creditar o avanço provado
+        pela posição, a cobertura ficaria presa em 83% e a aula nunca seria
+        concluída — reproduzido com as aulas de 15s do curso de teste.
+        """
+        curto = Video.objects.create(
+            course=self.curso,
+            order=2,
+            title="Aula curta",
+            duration=15,
+            status=Video.Status.READY,
+        )
+        agora = timezone.now()
+        apply_heartbeat(self.enrollment, curto, position=0, playing=True, now=agora)
+        apply_heartbeat(
+            self.enrollment,
+            curto,
+            position=10,
+            playing=True,
+            now=agora + timedelta(seconds=10),
+        )
+        # Fim do vídeo: o player reporta a posição final com playing=False.
+        resultado = apply_heartbeat(
+            self.enrollment,
+            curto,
+            position=15,
+            playing=False,
+            now=agora + timedelta(seconds=15),
+        )
+        self.assertAlmostEqual(resultado["authorized_position"], 15, delta=0.1)
+        self.assertFalse(resultado["suspicious"])
+        progress = resultado["progress"]
+        self.assertIsNotNone(progress.completed_at)
+        self.assertGreaterEqual(progress.covered, 15 * 0.95)
+
+    def test_espera_parado_no_fim_nao_vira_credito(self):
+        """Pausar antes do fim e voltar dias depois não credita o restante."""
+        curto = Video.objects.create(
+            course=self.curso,
+            order=2,
+            title="Aula curta",
+            duration=15,
+            status=Video.Status.READY,
+        )
+        agora = timezone.now()
+        apply_heartbeat(self.enrollment, curto, position=0, playing=True, now=agora)
+        apply_heartbeat(
+            self.enrollment,
+            curto,
+            position=10,
+            playing=True,
+            now=agora + timedelta(seconds=10),
+        )
+        # 10 minutos parado; depois reporta a posição final sem ter assistido.
+        resultado = apply_heartbeat(
+            self.enrollment,
+            curto,
+            position=15,
+            playing=False,
+            now=agora + timedelta(minutes=10, seconds=15),
+        )
+        self.assertLess(resultado["authorized_position"], 15)
+        self.assertIsNone(resultado["progress"].completed_at)
+
 
 class TestDesbloqueio(TestCase):
     def setUp(self):

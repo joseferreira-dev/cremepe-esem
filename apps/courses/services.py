@@ -185,7 +185,14 @@ def apply_heartbeat(
 
         # Tempo só conta quando o player reporta que está reproduzindo.
         # Como o player envia heartbeat a cada ~10s, a janela de erro é pequena.
-        if playing:
+        # O heartbeat do fim do vídeo (evento ended) chega com playing=False,
+        # mas a posição avançou exatamente o intervalo de relógio — e esse
+        # avanço prova a reprodução tanto quanto o próprio playing=True. Sem
+        # isso, vídeos mais curtos que ~2 batidas nunca chegariam a 95% e o
+        # aluno ficaria preso no meio do curso. Quem tenta burlar não ganha
+        # nada com isso: o crédito continua amarrado ao relógio (o mesmo que
+        # já conseguiria enviando playing=True) e saltos continuam recusados.
+        if playing or (position - last_position) >= elapsed:
             allowance += elapsed * settings.PROGRESS_MAX_RATE
         allowance = min(allowance, MAX_ALLOWANCE)
 
