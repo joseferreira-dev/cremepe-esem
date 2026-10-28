@@ -24,6 +24,11 @@
     <div class="text-left sm:text-right">
       <span class="etiqueta {{ enrollment.status|cor_status }}">{{ enrollment.get_status_display }}</span>
       <p class="mt-2 text-sm font-semibold text-slate-700">{{ coverage|porcento }} assistido</p>
+      {% if enrollment.status == "approved" %}
+        <a href="{% url 'certificado_baixar' enrollment.id %}" class="btn btn-secundario btn-sm mt-3">
+          {{ icons.documento|safe }} Baixar certificado
+        </a>
+      {% endif %}
     </div>
   </div>
 

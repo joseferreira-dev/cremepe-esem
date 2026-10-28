@@ -74,6 +74,10 @@
             </td>
             <td class="celula">
               <div class="flex justify-end gap-1.5">
+                {% if linha.matricula.status == "approved" %}
+                  <a href="{% url 'painel_certificado' linha.matricula.id %}" class="btn btn-secundario btn-sm"
+                     title="Baixar o certificado do aluno">Certificado</a>
+                {% endif %}
                 <a href="{% url 'painel_curso' linha.matricula.course_id %}" class="btn btn-secundario btn-sm">Turma</a>
                 <form method="post" action="{% url 'painel_matricula_acao' linha.matricula.id %}"
                       data-confirm="Remover a matrícula de {{ linha.matricula.medico.nome }} em “{{ linha.matricula.course.title }}”? O progresso será apagado.">

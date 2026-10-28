@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<title>Certificado — {{ aluno }}</title>
+<style>
+  /* Medidas retiradas do modelo oficial (A4 paisagem: 842 x 595 pt).
+     Fundo full-bleed; caixa de texto em x=152pt/y=194pt (5,36cm/6,84cm);
+     linha do fundo em y=295pt (10,40cm); assinaturas sobre y=430pt (15,16cm). */
+  @page { size: A4 landscape; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 29.7cm; height: 21cm; }
+  body {
+    font-family: "Liberation Serif", "DejaVu Serif", "Times New Roman", serif;
+    color: #3d3129;
+  }
+  .pagina { position: relative; width: 29.7cm; height: 21cm; overflow: hidden; }
+  .fundo { position: absolute; top: 0; left: 0; width: 29.7cm; height: 21cm; }
+
+  .abertura {
+    position: absolute; top: 7.40cm; left: 5.36cm; width: 19.42cm;
+    text-align: center; font-size: 12pt; line-height: 1.35;
+  }
+  .aluno {
+    position: absolute; top: 9.18cm; left: 5.36cm; width: 19.42cm;
+    text-align: center; font-size: 20pt; font-weight: bold; line-height: 1.2;
+  }
+  .frase {
+    position: absolute; top: 10.62cm; left: 5.36cm; width: 19.42cm;
+    text-align: center; font-size: 12pt; line-height: 1.55;
+  }
+  .frase b { font-weight: bold; }
+
+  .assinatura {
+    position: absolute; top: 15.16cm; width: 7.51cm;
+    border-top: 0.75pt solid #5b4a41;
+    padding-top: 0.16cm;
+    text-align: center;
+  }
+  .assinatura.esquerda { left: 7.05cm; }
+  .assinatura.direita { left: 15.45cm; }
+  /* Assinatura apoiada sobre a linha (centro do bloco = centro da linha). */
+  .assinatura .img {
+    position: absolute; bottom: 100%; left: 0; right: 0;
+    margin-bottom: 0.06cm; text-align: center;
+  }
+  .assinatura .img img { max-height: 2.45cm; max-width: 68%; }
+  .assinatura .nome { font-size: 10pt; line-height: 1.3; }
+  .assinatura .cargo { font-size: 9pt; color: #6b5b50; line-height: 1.3; }
+
+  .rodape {
+    position: absolute; bottom: 0.45cm; left: 0; right: 0;
+    text-align: center; font-size: 7.5pt; color: #7a6a5f;
+    letter-spacing: 0.2pt;
+  }
+</style>
+</head>
+<body>
+  <div class="pagina">
+    <img class="fundo" src="{{ fundo }}" alt="">
+
+    <p class="abertura">Declaramos para os devidos fins que</p>
+    <p class="aluno">{{ aluno }}</p>
+    <p class="frase">
+      concluiu o curso <b>{{ curso }}</b>{% if edicao %} — {{ edicao }}{% endif %},
+      com carga horária de {{ carga }}, promovido pela Escola Superior de Ética
+      Médica (ESEM) do Conselho Regional de Medicina de Pernambuco (CREMEPE),
+      em {{ data }}.
+    </p>
+
+    <div class="assinatura esquerda">
+      <div class="img"><img src="{{ assinatura_cremepe }}" alt=""></div>
+      <p class="nome">Mário Jorge Lemos de Castro Lôbo</p>
+      <p class="cargo">Presidente do CREMEPE</p>
+    </div>
+
+    <div class="assinatura direita">
+      <div class="img"><img src="{{ assinatura_essem }}" alt=""></div>
+      <p class="nome">Virgílio Silveira Carneiro Leão Filho</p>
+      <p class="cargo">Presidente da ESEM</p>
+    </div>
+
+    <p class="rodape">
+      Certificado emitido pelo Portal de Cursos da ESEM/CREMEPE ·
+      Código de autenticação: {{ codigo }}
+    </p>
+  </div>
+</body>
+</html>

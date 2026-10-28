@@ -7,6 +7,7 @@ from django.urls import include, path
 from django.views.generic import RedirectView
 
 from apps.accounts import views as accounts_views
+from apps.certificates import views as certificates_views
 from apps.courses import views as courses_views
 
 
@@ -40,6 +41,11 @@ urlpatterns = [
         name="player_token",
     ),
     path("cursos/<int:enrollment_id>/", courses_views.course_view, name="course"),
+    path(
+        "cursos/<int:enrollment_id>/certificado/",
+        certificates_views.certificado_aluno,
+        name="certificado_baixar",
+    ),
     path("painel/", include("apps.panel.urls")),
     path("api/", include("apps.media.urls")),
 ]

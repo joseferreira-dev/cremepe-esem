@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     "apps.media",
     "apps.panel",
     "apps.web",
+    "apps.certificates",
 ]
 
 MIDDLEWARE = [

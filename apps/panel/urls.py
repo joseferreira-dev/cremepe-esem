@@ -1,6 +1,7 @@
 from django.urls import path
 
 from apps.accounts import views as accounts_views
+from apps.certificates import views as certificates_views
 
 from . import views
 from .decorators import somente_admin
@@ -71,6 +72,11 @@ urlpatterns = [
         "matriculas/<int:pk>/acao/",
         somente_admin(views.matricula_acao),
         name="painel_matricula_acao",
+    ),
+    path(
+        "matriculas/<int:pk>/certificado/",
+        somente_admin(certificates_views.certificado_painel),
+        name="painel_certificado",
     ),
     # Auditoria
     path("auditoria/", somente_admin(views.auditoria), name="painel_auditoria"),

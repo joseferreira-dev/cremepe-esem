@@ -269,6 +269,10 @@
                   </td>
                   <td class="celula text-right">
                     <div class="flex justify-end gap-1.5">
+                      {% if linha.matricula.status == "approved" %}
+                        <a href="{% url 'painel_certificado' linha.matricula.id %}" class="btn btn-secundario btn-sm"
+                           title="Baixar o certificado do aluno">{{ icons.documento|safe }} Certificado</a>
+                      {% endif %}
                       <form method="post" action="{% url 'painel_matricula_acao' linha.matricula.id %}"
                             data-ajax="1" data-acao="aprovar"
                             data-confirm="Aprovar manualmente {{ linha.matricula.medico.nome }} neste curso?"
