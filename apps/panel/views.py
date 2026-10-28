@@ -8,7 +8,7 @@ import secrets
 from django.contrib import messages
 from django.contrib.auth.models import User
 from django.db import transaction
-from django.db.models import F, Max, Q, Sum
+from django.db.models import Max, Q, Sum
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -22,7 +22,9 @@ from apps.courses.models import AuditLog, Course, Enrollment, Progress, Video, W
 from apps.courses.services import (
     course_coverage,
     format_hours,
+    posicionar_video,
     record_audit,
+    renumerar_videos,
     reset_progress,
 )
 from apps.media.services import enqueue_transcode
@@ -275,26 +277,19 @@ def curso_remover(request, pk):
 def video_form(request, pk=None):
     video = get_object_or_404(Video, pk=pk) if pk else Video()
     curso_anterior_id = video.course_id if pk else None
-    ordem_anterior = video.order if pk else None
     form = VideoForm(request.POST or None, instance=video)
     if request.method == "POST" and form.is_valid():
         with transaction.atomic():
-            novo_video = form.save(commit=False)
+            posicao = int(form.cleaned_data["order"])
+            video_salvo = form.save()
+            # Inclusão ou edição: garante a posição pedida e deixa a
+            # sequência do curso compactada (1..N).
+            posicionar_video(video_salvo, posicao)
+            if curso_anterior_id and curso_anterior_id != video_salvo.course_id:
+                # Mudou de curso: a sequência de origem ficou com um buraco.
+                renumerar_videos(curso_anterior_id)
 
-            if curso_anterior_id != novo_video.course_id:
-                # Mudou de curso ou é novo: abre espaço no curso de destino.
-                Video.objects.filter(
-                    course=novo_video.course_id, order__gte=novo_video.order
-                ).exclude(pk=novo_video.pk).update(order=F("order") + 1)
-            elif ordem_anterior != novo_video.order:
-                # Mudou a ordem dentro do mesmo curso: empurra os seguintes.
-                Video.objects.filter(
-                    course=novo_video.course_id, order__gte=novo_video.order
-                ).exclude(pk=novo_video.pk).update(order=F("order") + 1)
-
-            novo_video.save()
-
-        video = novo_video
+        video = video_salvo
         record_audit(
             "video_salvo" if pk else "video_criado",
             actor=request.user,
@@ -343,7 +338,10 @@ def video_remover(request, pk):
     video = get_object_or_404(Video, pk=pk)
     curso_id = video.course_id
     titulo = video.title
-    video.delete()
+    with transaction.atomic():
+        video.delete()
+        # A exclusão deixa um buraco: renumera o restante do curso para 1..N.
+        renumerar_videos(curso_id)
     record_audit(
         "video_removido", actor=request.user, target=titulo, ip=request.META.get("REMOTE_ADDR")
     )

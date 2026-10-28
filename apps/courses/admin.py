@@ -1,7 +1,7 @@
 from django.contrib import admin
 
 from .models import AuditLog, Course, Enrollment, Progress, Video, WatchSession
-from .services import course_coverage, reset_progress
+from .services import course_coverage, posicionar_video, renumerar_videos, reset_progress
 
 
 class VideoInline(admin.TabularInline):
@@ -55,6 +55,21 @@ class CourseAdmin(admin.ModelAdmin):
 
         return format_hours(obj.total_duration)
 
+    def save_formset(self, request, form, formset, change):
+        super().save_formset(request, form, formset, change)
+        if formset.model is not Video:
+            return
+        # Vídeos editados no inline: cada um ocupa a posição informada.
+        for subform in formset.forms:
+            if (
+                subform.instance.pk
+                and "order" in subform.changed_data
+                and "order" in subform.cleaned_data
+            ):
+                posicionar_video(subform.instance, int(subform.cleaned_data["order"]))
+        # Exclusões pelo inline deixam buraco: compacta o curso inteiro.
+        renumerar_videos(form.instance.pk)
+
     @admin.display(description="Matriculados")
     def matriculados(self, obj: Course) -> int:
         return obj.enrollments.count()
@@ -87,6 +102,23 @@ class VideoAdmin(admin.ModelAdmin):
         from .services import format_hours
 
         return format_hours(obj.duration) if obj.duration else "—"
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        # Inclusão, edição e lista editável: ocupa a posição informada e
+        # renumera o curso para 1..N.
+        posicionar_video(obj, obj.order)
+
+    def delete_model(self, request, obj):
+        curso_id = obj.course_id
+        super().delete_model(request, obj)
+        renumerar_videos(curso_id)
+
+    def delete_queryset(self, request, queryset):
+        curso_ids = list(queryset.values_list("course_id", flat=True).distinct())
+        super().delete_queryset(request, queryset)
+        for curso_id in curso_ids:
+            renumerar_videos(curso_id)
 
     actions = ("reprocessar",)
 

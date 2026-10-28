@@ -13,7 +13,9 @@ from apps.courses.services import (
     course_coverage,
     is_video_unlocked,
     merge_intervals,
+    posicionar_video,
     refresh_enrollment_status,
+    renumerar_videos,
     reset_progress,
 )
 
@@ -244,3 +246,164 @@ class TestAprovacao(TestCase):
         self.assertEqual(Progress.objects.filter(enrollment=self.enrollment).count(), 0)
         self.enrollment.refresh_from_db()
         self.assertEqual(self.enrollment.status, Enrollment.Status.ENROLLED)
+
+
+class TestRenumeracaoDeVideos(TestCase):
+    """A numeração se ajusta sozinha: inclusão, edição e exclusão."""
+
+    def setUp(self):
+        self.curso = Course.objects.create(
+            title="Curso renumeração", status=Course.Status.ACTIVE
+        )
+        self.videos = [
+            Video.objects.create(course=self.curso, order=ordem, title=f"Aula {ordem}")
+            for ordem in (1, 2, 3)
+        ]
+
+    def sequencia(self):
+        return [(v.title, v.order) for v in self.curso.videos.order_by("order", "id")]
+
+    def test_renumerar_compata_buracos_preservando_a_sequencia(self):
+        Video.objects.filter(title="Aula 2").update(order=8)
+        renumerar_videos(self.curso)
+        self.assertEqual(
+            self.sequencia(), [("Aula 1", 1), ("Aula 3", 2), ("Aula 2", 3)]
+        )
+
+    def test_renumerar_resolve_empates_e_aceita_pk(self):
+        Video.objects.filter(title="Aula 3").update(order=2)
+        renumerar_videos(self.curso.pk)
+        self.assertEqual(
+            self.sequencia(), [("Aula 1", 1), ("Aula 2", 2), ("Aula 3", 3)]
+        )
+
+    def test_posicionar_para_baixo_ocupa_a_posicao_pedida(self):
+        posicionar_video(Video.objects.get(title="Aula 1"), 3)
+        self.assertEqual(
+            self.sequencia(), [("Aula 2", 1), ("Aula 3", 2), ("Aula 1", 3)]
+        )
+
+    def test_posicionar_fora_da_faixa_entra_no_topo_ou_no_fim(self):
+        posicionar_video(Video.objects.get(title="Aula 3"), 0)
+        self.assertEqual(
+            self.sequencia(), [("Aula 3", 1), ("Aula 1", 2), ("Aula 2", 3)]
+        )
+        posicionar_video(Video.objects.get(title="Aula 3"), 99)
+        self.assertEqual(
+            self.sequencia(), [("Aula 1", 1), ("Aula 2", 2), ("Aula 3", 3)]
+        )
+
+
+class TestRenumeracaoNoAdmin(TestCase):
+    """O Django admin também mantém a sequência 1..N.
+
+    Cobre a lista editável (save_model), a exclusão em massa
+    (delete_queryset) e o inline do curso (save_formset).
+    """
+
+    def setUp(self):
+        self.admin_user = User.objects.create_superuser(
+            "admin-renum", "renum@b.c", "senha12345"
+        )
+        self.curso = Course.objects.create(
+            title="Curso admin ordem", status=Course.Status.ACTIVE
+        )
+        self.videos = [
+            Video.objects.create(course=self.curso, order=ordem, title=f"Aula {ordem}")
+            for ordem in (1, 2, 3)
+        ]
+        self.client.force_login(self.admin_user)
+
+    def sequencia(self, curso=None):
+        curso = curso or self.curso
+        return [(v.title, v.order) for v in curso.videos.order_by("order", "id")]
+
+    def test_lista_editavel_posiciona_e_renumera(self):
+        # Aula 1 (topo) passa para a última posição, pela lista do admin.
+        dados = {
+            "form-TOTAL_FORMS": "3",
+            "form-INITIAL_FORMS": "3",
+            "form-MIN_NUM_FORMS": "0",
+            "form-MAX_NUM_FORMS": "1000",
+        }
+        for indice, video in enumerate(self.videos):
+            dados[f"form-{indice}-id"] = str(video.pk)
+            dados[f"form-{indice}-order"] = (
+                "3" if video.title == "Aula 1" else str(video.order)
+            )
+        resposta = self.client.post("/admin/courses/video/", {**dados, "_save": "1"})
+        self.assertEqual(resposta.status_code, 302)
+        self.assertEqual(
+            self.sequencia(), [("Aula 2", 1), ("Aula 3", 2), ("Aula 1", 3)]
+        )
+
+    def test_exclusao_em_massa_renumera(self):
+        resposta = self.client.post(
+            "/admin/courses/video/",
+            {
+                "action": "delete_selected",
+                "_selected_action": [str(self.videos[1].pk)],
+                "post": "1",
+            },
+        )
+        self.assertEqual(resposta.status_code, 302)
+        self.assertEqual(self.sequencia(), [("Aula 1", 1), ("Aula 3", 2)])
+
+    def test_inline_do_curso_edita_e_exclui_com_renumeracao(self):
+        aula1, aula2, aula3 = self.videos
+        dados = {
+            "title": self.curso.title,
+            "edition": "",
+            "description": "",
+            "status": Course.Status.ACTIVE,
+            "min_percent": "50.00",
+            "unlock_threshold": "95.00",
+            "sequential": "on",
+            "deadline": "",
+            "_save": "1",
+            # Prefixos dos inlines vêm do related_name: videos / enrollments.
+            "videos-TOTAL_FORMS": "3",
+            "videos-INITIAL_FORMS": "3",
+            "videos-MIN_NUM_FORMS": "0",
+            "videos-MAX_NUM_FORMS": "1000",
+            # 2º inline do curso (matrículas): sem alterações.
+            "enrollments-TOTAL_FORMS": "0",
+            "enrollments-INITIAL_FORMS": "0",
+            "enrollments-MIN_NUM_FORMS": "0",
+            "enrollments-MAX_NUM_FORMS": "1000",
+        }
+        # Aula 1 vai para a última posição; Aula 2 é excluída de uma vez.
+        linhas = {
+            aula1.pk: {"order": "3", "title": aula1.title, "is_required": "on"},
+            aula2.pk: {
+                "DELETE": "on",
+                "order": str(aula2.order),
+                "title": aula2.title,
+                "is_required": "on",
+            },
+            aula3.pk: {
+                "order": str(aula3.order),
+                "title": aula3.title,
+                "is_required": "on",
+            },
+        }
+        for indice, video in enumerate(self.videos):
+            dados[f"videos-{indice}-id"] = str(video.pk)
+            dados[f"videos-{indice}-course"] = str(self.curso.pk)
+            for campo, valor in linhas[video.pk].items():
+                dados[f"videos-{indice}-{campo}"] = valor
+        resposta = self.client.post(
+            f"/admin/courses/course/{self.curso.pk}/change/", dados
+        )
+        if resposta.status_code != 302:
+            erros = [repr(dict(resposta.context["adminform"].form.errors))]
+            erros += [
+                f"{fs.formset.prefix}: {list(fs.formset.non_form_errors())} "
+                f"{[dict(f.errors) for f in fs.formset.forms]}"
+                for fs in resposta.context.get("inline_admin_formsets", [])
+            ]
+            self.fail(
+                f"esperava 302 (salvo), veio {resposta.status_code}: {'; '.join(erros)}"
+            )
+        # Aula 2 saiu, Aula 1 foi pedida por último: sequência 1..N.
+        self.assertEqual(self.sequencia(), [("Aula 3", 1), ("Aula 1", 2)])

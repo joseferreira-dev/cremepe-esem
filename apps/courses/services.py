@@ -55,6 +55,44 @@ def course_videos(course) -> list[Video]:
     return [v for v in course.videos.all() if v.disponivel]
 
 
+def renumerar_videos(course) -> None:
+    """Compacta a ordem dos vídeos do curso para 1..N.
+
+    Preserva a sequência exibida (order, id) e elimina buracos ou empates
+    deixados por exclusões e edições. Aceita o Curso ou seu pk.
+    """
+    with transaction.atomic():
+        videos = list(Video.objects.filter(course=course).order_by("order", "id"))
+        for numero, video in enumerate(videos, start=1):
+            if video.order != numero:
+                # update() direto: não dispara save() nem sinais (sem recursão).
+                Video.objects.filter(pk=video.pk).update(order=numero)
+                video.order = numero
+
+
+def posicionar_video(video: Video, posicao: int) -> None:
+    """Coloca `video` na `posicao` (1-based) da sequência do curso e renumera
+    todos os vídeos do curso para 1..N.
+
+    Inclusão: o novo vídeo entra exatamente na posição pedida, empurrando os
+    seguintes. Edição: mover para cima ou para baixo posiciona no número
+    informado — sem deixar buraco nem empate.
+    """
+    with transaction.atomic():
+        outros = list(
+            Video.objects.filter(course=video.course_id)
+            .exclude(pk=video.pk)
+            .order_by("order", "id")
+        )
+        # Fora da faixa válida: entra no topo (1) ou no fim (len + 1).
+        indice = min(max(int(posicao), 1), len(outros) + 1) - 1
+        sequencia = outros[:indice] + [video] + outros[indice:]
+        for numero, alvo in enumerate(sequencia, start=1):
+            if alvo.order != numero:
+                Video.objects.filter(pk=alvo.pk).update(order=numero)
+                alvo.order = numero
+
+
 def course_coverage(enrollment: Enrollment) -> float:
     """Percentual (0-100) do curso efetivamente visto pelo médico."""
     videos = course_videos(enrollment.course)

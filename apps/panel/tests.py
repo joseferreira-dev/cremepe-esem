@@ -432,6 +432,10 @@ class TestOrdemDeVideos(TestCase):
         ]
         self.client.force_login(self.admin)
 
+    def sequencia(self, curso=None):
+        curso = curso or self.curso
+        return [(v.title, v.order) for v in curso.videos.order_by("order", "id")]
+
     def test_novo_video_empurra_os_videos_seguintes(self):
         resposta = self.client.post(
             "/painel/videos/novo/",
@@ -449,6 +453,73 @@ class TestOrdemDeVideos(TestCase):
         self.assertEqual(Video.objects.get(title="Aula 1").order, 1)
         self.assertEqual(Video.objects.get(title="Aula 2").order, 3)
         self.assertEqual(Video.objects.get(title="Aula 3").order, 4)
+
+    def test_exclusao_renumera_os_videos_restantes(self):
+        aula2 = Video.objects.get(title="Aula 2")
+        resposta = self.client.post(f"/painel/videos/{aula2.pk}/excluir/")
+        self.assertEqual(resposta.status_code, 302)
+        # Sem buraco: o que era 3 vira 2.
+        self.assertEqual(
+            self.sequencia(), [("Aula 1", 1), ("Aula 3", 2)]
+        )
+
+    def test_edicao_mover_para_baixo_ocupa_a_posicao_exata(self):
+        aula1 = Video.objects.get(title="Aula 1")
+        resposta = self.client.post(
+            f"/painel/videos/{aula1.pk}/editar/",
+            {"course": self.curso.pk, "order": 3, "title": "Aula 1", "is_required": "on"},
+        )
+        self.assertEqual(resposta.status_code, 302)
+        # Pediu a posição 3 de 3 vídeos: fica em 3 (e não em 2).
+        self.assertEqual(
+            self.sequencia(), [("Aula 2", 1), ("Aula 3", 2), ("Aula 1", 3)]
+        )
+
+    def test_edicao_sem_mudar_ordem_compata_buraco_legado(self):
+        # Buraco deixado por uma exclusão antiga (feita fora do painel).
+        Video.objects.filter(title="Aula 2").update(order=9)
+        aula1 = Video.objects.get(title="Aula 1")
+        resposta = self.client.post(
+            f"/painel/videos/{aula1.pk}/editar/",
+            {"course": self.curso.pk, "order": 1, "title": "Aula 1 editada", "is_required": "on"},
+        )
+        self.assertEqual(resposta.status_code, 302)
+        # Sequência exibida preservada, ordens compactadas para 1..N.
+        self.assertEqual(
+            self.sequencia(), [("Aula 1 editada", 1), ("Aula 3", 2), ("Aula 2", 3)]
+        )
+
+    def test_inclusao_com_buraco_compata_o_curso(self):
+        Video.objects.filter(title="Aula 2").update(order=9)
+        resposta = self.client.post(
+            "/painel/videos/novo/",
+            {"course": self.curso.pk, "order": 2, "title": "Nova Aula", "is_required": "on"},
+        )
+        self.assertEqual(resposta.status_code, 302)
+        self.assertEqual(
+            self.sequencia(),
+            [
+                ("Aula 1", 1),
+                ("Nova Aula", 2),
+                ("Aula 3", 3),
+                ("Aula 2", 4),
+            ],
+        )
+
+    def test_mudar_de_curso_renumera_a_origem_e_o_destino(self):
+        destino = Course.objects.create(title="Curso destino", status=Course.Status.ACTIVE)
+        Video.objects.create(course=destino, order=1, title="Do destino")
+        aula3 = Video.objects.get(title="Aula 3")
+        resposta = self.client.post(
+            f"/painel/videos/{aula3.pk}/editar/",
+            {"course": destino.pk, "order": 2, "title": "Aula 3", "is_required": "on"},
+        )
+        self.assertEqual(resposta.status_code, 302)
+        # Origem ficou com buraco no lugar do Aula 3: compacta.
+        self.assertEqual(self.sequencia(), [("Aula 1", 1), ("Aula 2", 2)])
+        self.assertEqual(
+            self.sequencia(destino), [("Do destino", 1), ("Aula 3", 2)]
+        )
 
 
 class TestAcoesDeMatricula(TestCase):
