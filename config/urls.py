@@ -46,6 +46,11 @@ urlpatterns = [
         certificates_views.certificado_aluno,
         name="certificado_baixar",
     ),
+    path(
+        "meus-certificados/",
+        certificates_views.meus_certificados,
+        name="meus_certificados",
+    ),
     path("painel/", include("apps.panel.urls")),
     path("api/", include("apps.media.urls")),
 ]

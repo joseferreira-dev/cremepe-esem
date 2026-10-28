@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}Meus certificados — CREMEPE / ESEM{% endblock %}
+
+{% block corpo %}
+<div class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <p class="rotulo">Portal de cursos da ESEM</p>
+      <h1 class="mt-1 text-3xl font-bold tracking-tight text-slate-900">Meus certificados</h1>
+      <p class="mt-2 text-sm text-slate-500">
+        Certificados dos cursos concluídos e aprovados. Cada PDF traz um código
+        de autenticação para conferência pública da emissão.
+      </p>
+    </div>
+    {% if emitidos %}
+      <div class="rounded-2xl bg-marca-gradiente px-5 py-3 text-white sombra-suave">
+        <p class="text-xs font-medium text-white/80">Certificados obtidos</p>
+        <p class="text-2xl font-bold leading-tight">{{ emitidos|length }}</p>
+      </div>
+    {% endif %}
+  </div>
+
+  {% if not emitidos and not prontos %}
+    <div class="cartao mt-8">
+      <div class="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
+        <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+          {{ icons.documento|safe }}
+        </span>
+        <p class="text-base font-semibold text-slate-800">Nenhum certificado ainda</p>
+        <p class="max-w-md text-sm text-slate-500">
+          Seu certificado é liberado quando a matrícula é aprovada — conclua as
+          aulas do curso até o fim para que a aprovação aconteça.
+        </p>
+        <a href="{% url 'my_courses' %}" class="btn btn-secundario mt-2">
+          {{ icons.curso|safe }} Ir para os meus cursos
+        </a>
+      </div>
+    </div>
+  {% endif %}
+
+  {% if prontos %}
+    <h2 class="mt-10 text-lg font-semibold text-slate-800">Prontos para baixar</h2>
+    <p class="mt-1 text-sm text-slate-500">
+      Matrículas aprovadas: o PDF é emitido no primeiro download, com o código
+      de autenticação da ESEM.
+    </p>
+    <div class="mt-4 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+      {% for enrollment in prontos %}
+        <article class="cartao p-5">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              {% if enrollment.course.edition %}
+                <span class="etiqueta bg-slate-100 text-slate-600 ring-1 ring-slate-200">
+                  {{ enrollment.course.edition }}
+                </span>
+              {% endif %}
+              <h3 class="mt-2 text-base font-bold leading-snug text-slate-900">
+                {{ enrollment.course.title }}
+              </h3>
+            </div>
+            <span class="etiqueta shrink-0 bg-marca-100 text-marca-700 ring-1 ring-marca-200">
+              Aprovado
+            </span>
+          </div>
+          <p class="mt-3 text-xs text-slate-500">
+            Aprovado em {{ enrollment.approved_at|date:"d/m/Y" }}.
+          </p>
+          <a href="{% url 'certificado_baixar' enrollment.id %}"
+             class="btn btn-secundario mt-5 w-full">
+            {{ icons.documento|safe }} Baixar certificado
+          </a>
+        </article>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {% if emitidos %}
+    <h2 class="mt-10 text-lg font-semibold text-slate-800">Certificados obtidos</h2>
+    <div class="mt-4 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+      {% for item in emitidos %}
+        <article class="cartao p-5">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              {% if item.enrollment.course.edition %}
+                <span class="etiqueta bg-slate-100 text-slate-600 ring-1 ring-slate-200">
+                  {{ item.enrollment.course.edition }}
+                </span>
+              {% endif %}
+              <h3 class="mt-2 text-base font-bold leading-snug text-slate-900">
+                {{ item.enrollment.course.title }}
+              </h3>
+            </div>
+            <span class="etiqueta shrink-0 bg-marca-100 text-marca-700 ring-1 ring-marca-200">
+              Emitido
+            </span>
+          </div>
+
+          <dl class="mt-4 space-y-1.5 text-xs text-slate-500">
+            <div class="flex items-center justify-between gap-3">
+              <dt>Código de autenticação</dt>
+              <dd class="font-mono font-semibold text-slate-700">{{ item.code }}</dd>
+            </div>
+            <div class="flex items-center justify-between gap-3">
+              <dt>Emitido em</dt>
+              <dd class="font-semibold text-slate-700">{{ item.issued_at|date:"d/m/Y" }}</dd>
+            </div>
+            {% if item.payload.carga %}
+              <div class="flex items-center justify-between gap-3">
+                <dt>Carga horária</dt>
+                <dd class="font-semibold text-slate-700">{{ item.payload.carga }}</dd>
+              </div>
+            {% endif %}
+            {% if item.payload.percentual %}
+              <div class="flex items-center justify-between gap-3">
+                <dt>Assiduidade</dt>
+                <dd class="font-semibold text-slate-700">{{ item.payload.percentual }}%</dd>
+              </div>
+            {% endif %}
+          </dl>
+
+          <a href="{% url 'certificado_baixar' item.enrollment_id %}"
+             class="btn btn-primary mt-5 w-full">
+            {{ icons.documento|safe }} Baixar PDF
+          </a>
+        </article>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}

@@ -203,3 +203,66 @@ class TestSemRegressaoDoCurso(BaseCertificado):
         self.matricula.save(update_fields=["status"])
         with self.assertRaises(CertificadoIndisponivel):
             emitir_certificado(self.matricula)
+
+
+class TestPaginaDeCertificados(BaseCertificado):
+    """A página "Meus certificados" do menu do aluno."""
+
+    def url(self):
+        return reverse("meus_certificados")
+
+    def test_anonimo_vai_para_o_login(self):
+        resposta = self.client.get(self.url())
+        self.assertEqual(resposta.status_code, 302)
+        self.assertIn("/entrar/", resposta.url)
+
+    def test_lista_o_certificado_emitido_com_codigo_e_link(self):
+        self.aprovar()
+        certificate = emitir_certificado(self.matricula)
+        self.client.force_login(self.aluno_user)
+
+        resposta = self.client.get(self.url())
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, certificate.code)
+        self.assertContains(resposta, self.curso.title)
+        self.assertContains(
+            resposta, reverse("certificado_baixar", args=[self.matricula.pk])
+        )
+        self.assertContains(resposta, "Certificados obtidos")
+
+    def test_aprovada_sem_emissao_aparece_como_pronta(self):
+        self.aprovar()
+        self.client.force_login(self.aluno_user)
+
+        resposta = self.client.get(self.url())
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "Prontos para baixar")
+        self.assertContains(
+            resposta, reverse("certificado_baixar", args=[self.matricula.pk])
+        )
+        # A página só sinaliza: a emissão acontece no momento da baixa.
+        self.assertEqual(Certificate.objects.count(), 0)
+
+    def test_nao_mostra_certificado_de_outro_aluno(self):
+        self.aprovar()
+        certificate = emitir_certificado(self.matricula)
+        outro_user, _ = criar_aluno("outro-lista", "55566677788", "Outro Médico")
+        self.client.force_login(outro_user)
+
+        resposta = self.client.get(self.url())
+        self.assertEqual(resposta.status_code, 200)
+        self.assertNotContains(resposta, certificate.code)
+        self.assertNotContains(resposta, self.curso.title)
+        self.assertContains(resposta, "Nenhum certificado ainda")
+
+    def test_matricula_em_andamento_nao_aparece(self):
+        self.client.force_login(self.aluno_user)
+        resposta = self.client.get(self.url())
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "Nenhum certificado ainda")
+        self.assertNotContains(resposta, self.curso.title)
+
+    def test_menu_do_aluno_mostra_o_link(self):
+        self.client.force_login(self.aluno_user)
+        resposta = self.client.get(reverse("my_courses"))
+        self.assertContains(resposta, reverse("meus_certificados"))

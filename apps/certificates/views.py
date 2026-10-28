@@ -6,13 +6,47 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.text import slugify
+from django.views.decorators.cache import never_cache
+from django.views.decorators.http import require_GET
 
 from apps.courses.models import Enrollment
 
+from .models import Certificate
 from .services import CertificadoIndisponivel, caminho_pdf, emitir_certificado
+
+
+@never_cache
+@login_required
+@require_GET
+def meus_certificados(request):
+    """Página do aluno: certificados obtidos e matrículas já aptas à emissão.
+
+    A lista mostra só o que é do próprio usuário (staff vê apenas o seu, já
+    que o painel cobre o acesso aos demais). A primeira baixa emite o PDF —
+    aqui nada é emitido, apenas sinalizado como pronto.
+    """
+    emitidos = (
+        Certificate.objects.filter(enrollment__medico__user=request.user)
+        .select_related("enrollment", "enrollment__course")
+        .order_by("-issued_at")
+    )
+    prontos = (
+        Enrollment.objects.filter(
+            medico__user=request.user,
+            status=Enrollment.Status.APPROVED,
+            certificate__isnull=True,
+        )
+        .select_related("course")
+        .order_by("-approved_at")
+    )
+    return render(
+        request,
+        "certificates/meus_certificados.html",
+        {"emitidos": emitidos, "prontos": prontos},
+    )
 
 
 def _servir(request, enrollment: Enrollment, voltar_para: str) -> HttpResponse:

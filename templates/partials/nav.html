@@ -14,6 +14,7 @@
         <a href="{% url 'my_courses' %}" class="link-menu">
           {% if request.user.is_staff %}Cursos{% else %}Meus cursos{% endif %}
         </a>
+        <a href="{% url 'meus_certificados' %}" class="link-menu">Meus certificados</a>
         {% if request.user.is_staff %}
           <a href="{% url 'painel_index' %}" class="link-menu">Painel administrativo</a>
         {% endif %}
@@ -46,6 +47,9 @@
             <div class="p-1.5">
               <a href="{% url 'my_courses' %}" class="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
                 {{ icons.curso|safe }} {% if request.user.is_staff %}Cursos{% else %}Meus cursos{% endif %}
+              </a>
+              <a href="{% url 'meus_certificados' %}" class="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
+                {{ icons.documento|safe }} Meus certificados
               </a>
               {% if request.user.is_staff %}
                 <a href="{% url 'painel_index' %}" class="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
@@ -84,6 +88,7 @@
         <a href="{% url 'my_courses' %}" class="link-menu block">
           {% if request.user.is_staff %}Cursos{% else %}Meus cursos{% endif %}
         </a>
+        <a href="{% url 'meus_certificados' %}" class="link-menu block">Meus certificados</a>
         {% if request.user.is_staff %}
           <a href="{% url 'painel_index' %}" class="link-menu block">Painel administrativo</a>
         {% endif %}
