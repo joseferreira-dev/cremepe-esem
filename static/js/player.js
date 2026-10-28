@@ -39,6 +39,9 @@
   var warningTimer = null;
   var recovering = false;
   var sessionExpired = false;
+  var avisoConclusao = false;
+  var heartbeatEmAndamento = false;
+  var heartbeatPendente = false;
   var MAX_PLAYBACK_RATE = 1.25;
 
   // Ao retomar, nunca pular para alem do trecho liberado. Sem isso, um
@@ -154,6 +157,7 @@
   function loadVideo(videoId) {
     if (!videoId) { return; }
     currentVideoId = videoId;
+    avisoConclusao = false;
 
     obterToken()
       .then(function () {
@@ -257,8 +261,39 @@
     });
   }
 
+  // Atualiza a lista lateral sem recarregar: marca a aula atual como
+  // concluída e libera visualmente a próxima. A validação continua no
+  // servidor (loadVideo consulta o estado real antes de tocar).
+  function marcarConcluida() {
+    var itens = listEl.querySelectorAll('.video-item');
+    for (var i = 0; i < itens.length; i++) {
+      var item = itens[i];
+      if (item.getAttribute('data-video-id') !== String(currentVideoId)) { continue; }
+      item.setAttribute('data-completed', '1');
+      var proximo = itens[i + 1];
+      if (proximo && proximo.getAttribute('data-unlocked') !== '1') {
+        proximo.setAttribute('data-unlocked', '1');
+        proximo.classList.remove('opacity-55');
+        proximo.classList.add('cursor-pointer', 'hover:bg-slate-50');
+        var cadeado = proximo.querySelector('[data-cadeado]');
+        if (cadeado && cadeado.parentNode) { cadeado.parentNode.removeChild(cadeado); }
+      }
+      break;
+    }
+  }
+
   function sendHeartbeat() {
     if (!currentVideoId) { return Promise.resolve(null); }
+    // Serializa as batidas: pause, ended e o timer do intervalo disparam
+    // quase juntos no fim do video, e processar duas ao mesmo tempo faz o
+    // servidor reprocessar posicoes fora de ordem (rebobinando o progresso
+    // e gerando falso aviso de avanco).
+    if (heartbeatEmAndamento) { heartbeatPendente = true; return Promise.resolve(null); }
+    heartbeatEmAndamento = true;
+    var finalizar = function () {
+      heartbeatEmAndamento = false;
+      if (heartbeatPendente) { heartbeatPendente = false; sendHeartbeat(); }
+    };
     var playing = !player.paused && !player.ended && player.readyState > 0;
     var body = JSON.stringify({
       enrollment: enrollmentId,
@@ -267,7 +302,7 @@
       playing: playing
     });
 
-    return fetch(comToken(CONFIG.heartbeatUrl), {
+    var requisicao = fetch(comToken(CONFIG.heartbeatUrl), {
       method: 'POST',
       headers: headers({ 'Content-Type': 'application/json', 'X-CSRFToken': CSRF }),
       body: body,
@@ -288,17 +323,34 @@
         maxAllowed = data.max_allowed;
         updateBar();
 
+        if (data.completed && !avisoConclusao) {
+          avisoConclusao = true;
+          marcarConcluida();
+          if (data.enrollment_status === 'approved') {
+            showWarning('Matrícula aprovada! Recarregue a página para baixar seu certificado.');
+          } else if (data.next_unlocked) {
+            showWarning('Aula concluída! A próxima aula foi liberada.');
+          }
+        }
+
         var autorizada = data.authorized_position || 0;
         var delta = Math.abs((player.currentTime || 0) - autorizada);
-        if (delta > 1.5) {
+        // Aula concluida nao tem mais o que proteger: o servidor autoriza
+        // qualquer posicao e o aviso aqui so enxergaria o atraso normal do
+        // heartbeat final (falso positivo ao terminar o video).
+        if (delta > 1.5 && !data.completed) {
           // Inclui o caso authorized_position = 0 (retomar do inicio), que
           // antes era ignorado e deixava o player preso em um segmento 403.
           player.currentTime = autorizada;
           showWarning('O avanço além do conteúdo já assistido não é permitido.');
         }
         return data;
-      })
-      .catch(function () { return null; });
+      });
+
+    return requisicao.then(
+      function (data) { finalizar(); return data; },
+      function () { finalizar(); return null; }
+    );
   }
 
   function startHeartbeat() {
@@ -360,12 +412,17 @@
     loadVideo(videoId);
   });
 
-  // Carrega o primeiro vídeo liberado (ou o último assistido).
+  // Carrega a primeira aula liberada ainda não concluída (ou a última
+  // assistida). Sem isso, recarregar depois de concluir reabria a aula já
+  // terminada em vez da próxima.
   function iniciar() {
-    var initial = listEl.querySelector('.video-item[data-unlocked="1"]');
-    if (initial) {
-      loadVideo(initial.getAttribute('data-video-id'));
-    }
+    var itens = listEl.querySelectorAll('.video-item[data-unlocked="1"]');
+    var alvo = null;
+    Array.prototype.forEach.call(itens, function (item) {
+      if (!alvo && item.getAttribute('data-completed') !== '1') { alvo = item; }
+    });
+    if (!alvo && itens.length > 0) { alvo = itens[0]; }
+    if (alvo) { loadVideo(alvo.getAttribute('data-video-id')); }
   }
 
   if (document.readyState === 'loading') {

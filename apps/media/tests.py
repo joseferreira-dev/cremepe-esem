@@ -707,3 +707,96 @@ class TestEntregaDoSegmento(TestCase):
         )
         resposta = self.client.get(f"/api/media/{video2.id}/master.m3u8?token={token}")
         self.assertEqual(resposta.status_code, 403)
+
+
+class TestJornadaDeConclusaoNoPlayer(TestCase):
+    """A sequência real do player no fim de uma aula de 15 s.
+
+    Reproduz o estado imediatamente anterior ao heartbeat do fim (10 s
+    creditados no primeiro intervalo, margem ociosa de 2,5 s e 5 s desde a
+    última batida) e confirma que a resposta devolve a conclusão, libera a
+    próxima aula e aprova a matrícula — é o que o player usa para atualizar
+    a lista lateral sem recarregar a página.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user("medico-jornada", password="senha12345")
+        self.medico = Medico.objects.create(
+            user=self.user,
+            cpf="44433322211",
+            nome="Medico Jornada",
+            must_change_password=False,
+        )
+        self.curso = Course.objects.create(
+            title="Curso curto",
+            status=Course.Status.ACTIVE,
+            sequential=True,
+            unlock_threshold=95,
+            min_percent=50,
+        )
+        self.video1 = Video.objects.create(
+            course=self.curso, order=1, title="Aula 1", duration=15,
+            status=Video.Status.READY,
+        )
+        self.video2 = Video.objects.create(
+            course=self.curso, order=2, title="Aula 2", duration=15,
+            status=Video.Status.READY,
+        )
+        self.enrollment = Enrollment.objects.create(
+            medico=self.medico, course=self.curso, min_percent=50
+        )
+        self.client.force_login(self.user)
+
+    def _progresso_antes_do_fim(self):
+        # Estado real logo antes do heartbeat do fim de uma aula de 15 s.
+        Progress.objects.create(
+            enrollment=self.enrollment,
+            video=self.video1,
+            intervals=[[0.0, 10.0]],
+            covered=10.0,
+            furthest=10.0,
+            last_position=10.0,
+            allowance=2.5,
+            last_seen_at=timezone.now() - timezone.timedelta(seconds=5),
+        )
+
+    def _heartbeat(self, video, position, playing):
+        resposta = self.client.post(
+            "/api/player/heartbeat/",
+            data=json.dumps(
+                {
+                    "enrollment": self.enrollment.id,
+                    "video": video.id,
+                    "position": position,
+                    "playing": playing,
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(resposta.status_code, 200)
+        return resposta.json()
+
+    def test_fim_da_aula_libera_a_proxima_e_aprova_sem_reload(self):
+        self._progresso_antes_do_fim()
+        dados = self._heartbeat(self.video1, position=15, playing=False)
+
+        self.assertTrue(dados["completed"])
+        self.assertTrue(dados["next_unlocked"])
+        self.assertEqual(dados["enrollment_status"], Enrollment.Status.APPROVED)
+        self.assertGreaterEqual(dados["covered"], 15 * 0.95)
+
+        # A próxima aula responde unlocked no endpoint de estado do player.
+        estado = self.client.get(
+            f"/api/player/state/?enrollment={self.enrollment.id}"
+            f"&video={self.video2.id}"
+        ).json()
+        self.assertTrue(estado["unlocked"])
+
+    def test_antes_de_concluir_a_proxima_continua_bloqueada(self):
+        self._progresso_antes_do_fim()
+        # Batida comum do intervalo (posição inalterada): nada conclui ainda.
+        dados = self._heartbeat(self.video1, position=10, playing=True)
+
+        self.assertFalse(dados["completed"])
+        self.assertFalse(dados["next_unlocked"])
+        self.assertNotEqual(dados["enrollment_status"], Enrollment.Status.APPROVED)

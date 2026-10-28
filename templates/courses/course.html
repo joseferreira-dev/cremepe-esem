@@ -86,6 +86,7 @@
                        {% if item.unlocked %}cursor-pointer hover:bg-slate-50{% else %}opacity-55{% endif %}"
                 data-video-id="{{ item.video.id }}"
                 data-unlocked="{% if item.unlocked %}1{% else %}0{% endif %}"
+                data-completed="{% if item.percent >= 99 %}1{% else %}0{% endif %}"
                 data-position="{{ item.last_position|floatformat:2 }}">
               <span class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold
                            {% if item.percent >= 99 %}bg-marca-100 text-marca-700
@@ -102,7 +103,7 @@
                 <span class="mt-1 flex items-center gap-2 text-xs text-slate-500">
                   {{ item.video.duration|duracao }}
                   {% if not item.unlocked %}
-                    <span class="inline-flex items-center gap-1 text-slate-400">{{ icons.cadeado|safe }} bloqueado</span>
+                    <span data-cadeado class="inline-flex items-center gap-1 text-slate-400">{{ icons.cadeado|safe }} bloqueado</span>
                   {% elif item.percent > 0 %}
                     <span class="font-semibold text-marca-600">{{ item.percent|floatformat:0 }}%</span>
                   {% endif %}

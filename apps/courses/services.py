@@ -185,14 +185,15 @@ def apply_heartbeat(
 
         # Tempo só conta quando o player reporta que está reproduzindo.
         # Como o player envia heartbeat a cada ~10s, a janela de erro é pequena.
-        # O heartbeat do fim do vídeo (evento ended) chega com playing=False,
-        # mas a posição avançou exatamente o intervalo de relógio — e esse
-        # avanço prova a reprodução tanto quanto o próprio playing=True. Sem
-        # isso, vídeos mais curtos que ~2 batidas nunca chegariam a 95% e o
-        # aluno ficaria preso no meio do curso. Quem tenta burlar não ganha
-        # nada com isso: o crédito continua amarrado ao relógio (o mesmo que
-        # já conseguiria enviando playing=True) e saltos continuam recusados.
-        if playing or (position - last_position) >= elapsed:
+        # O heartbeat do fim do vídeo (evento ended) — e a retomada após um
+        # buffering — chega com playing=False, mas a posição avançou dentro da
+        # janela de relógio (meia batida de tolerância, pois o relógio do
+        # vídeo pode ficar atrás do real). Esse avanço prova a reprodução;
+        # sem creditá-lo, vídeos curtos nunca chegavam a 95% e o aluno ficava
+        # preso no meio do curso. Quem tenta burlar não ganha nada: o crédito
+        # continua preso ao relógio (o mesmo que já conseguiria enviando
+        # playing=True) e saltos grandes seguem recusados.
+        if playing or (position - last_position) >= elapsed * 0.5:
             allowance += elapsed * settings.PROGRESS_MAX_RATE
         allowance = min(allowance, MAX_ALLOWANCE)
 
@@ -233,6 +234,20 @@ def apply_heartbeat(
             and (progress.covered or 0) >= duration * 0.95
         ):
             progress.completed_at = now
+
+        # Aula concluida = conteudo integralmente assistido. Nesse caso toda
+        # posicao e autorizada: sem isso, um heartbeat atrasado (fim do video
+        # com playing=False, ou corrida entre pause/ended/intervalo) devolvia
+        # uma posicao atras da do player e o cliente rebobinava e avisava
+        # "avanco alem do conteudo" mesmo sem nenhum salto. O trecho novo
+        # entra coberto (fecha a cauda final que a margem nao alcançou).
+        if progress.completed_at is not None and position > new_position:
+            progress.intervals = merge_intervals(
+                list(progress.intervals or []) + [[new_position, position]]
+            )
+            progress.covered = covered_seconds(progress.intervals)
+            progress.furthest = max(progress.furthest or 0.0, position)
+            new_position = position
 
         progress.save()
 

@@ -25,6 +25,7 @@ from apps.courses.models import Enrollment, Progress, Video, WatchSession
 from apps.courses.services import (
     apply_heartbeat,
     course_coverage,
+    course_videos,
     is_video_unlocked,
     record_audit,
     refresh_enrollment_status,
@@ -525,6 +526,19 @@ def heartbeat(request):
     _touch_session(request, enrollment, video)
     refresh_enrollment_status(enrollment)
 
+    # Aula seguinte agora liberada? O player usa isto para atualizar a lista
+    # lateral na hora, sem exigir reload quando um vídeo termina.
+    proxima_liberada = False
+    if progress.completed_at is not None:
+        videos = course_videos(enrollment.course)
+        for indice, candidato in enumerate(videos):
+            if candidato.pk == video.pk:
+                if indice + 1 < len(videos):
+                    proxima_liberada = is_video_unlocked(
+                        enrollment, videos[indice + 1]
+                    )
+                break
+
     payload = {
         "authorized_position": round(result["authorized_position"], 3),
         "furthest": round(progress.furthest or 0, 3),
@@ -539,6 +553,8 @@ def heartbeat(request):
         "course_percent": round(course_coverage(enrollment), 1),
         "suspicious": result["suspicious"],
         "enrollment_status": enrollment.status,
+        "completed": progress.completed_at is not None,
+        "next_unlocked": proxima_liberada,
     }
     return JsonResponse(payload)
 

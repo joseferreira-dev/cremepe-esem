@@ -208,6 +208,114 @@ class TestHeartbeat(TestCase):
         self.assertLess(resultado["authorized_position"], 15)
         self.assertIsNone(resultado["progress"].completed_at)
 
+    def test_fim_tardio_ainda_conclui(self):
+        """O evento ended pode chegar atrasado (buffering/loop do navegador)."""
+        curto = Video.objects.create(
+            course=self.curso,
+            order=2,
+            title="Aula curta",
+            duration=15,
+            status=Video.Status.READY,
+        )
+        agora = timezone.now()
+        apply_heartbeat(self.enrollment, curto, position=0, playing=True, now=agora)
+        apply_heartbeat(
+            self.enrollment,
+            curto,
+            position=10,
+            playing=True,
+            now=agora + timedelta(seconds=10),
+        )
+        # Fim real em 15 s, mas a batida só chega 2 s depois.
+        resultado = apply_heartbeat(
+            self.enrollment,
+            curto,
+            position=15,
+            playing=False,
+            now=agora + timedelta(seconds=17),
+        )
+        progress = resultado["progress"]
+        self.assertIsNotNone(progress.completed_at)
+        self.assertGreaterEqual(progress.covered, 15 * 0.95)
+
+    def test_aula_concluida_nao_gera_falso_aviso_de_avanco(self):
+        """Heartbeat atrasado após concluir não pode rebobinar nem avisar.
+
+        Quando o vídeo termina, o player dispara pause/ended/intervalo quase
+        juntos. Sem a autorização plena da aula concluída, a batida atrasada
+        (playing=False, sem crédito pela margem) devolvia uma posição atrás da
+        do player e o JS rebobinava com "avanço além do conteúdo" mesmo sem
+        nenhum salto. Reproduzido com as aulas de 15 s do curso de teste.
+        """
+        curto = Video.objects.create(
+            course=self.curso,
+            order=2,
+            title="Aula curta",
+            duration=15,
+            status=Video.Status.READY,
+        )
+        agora = timezone.now()
+        apply_heartbeat(self.enrollment, curto, position=0, playing=True, now=agora)
+        apply_heartbeat(
+            self.enrollment,
+            curto,
+            position=10,
+            playing=True,
+            now=agora + timedelta(seconds=10),
+        )
+        # Conclui normalmente (fim do vídeo creditado pela posição provada).
+        apply_heartbeat(
+            self.enrollment,
+            curto,
+            position=15,
+            playing=False,
+            now=agora + timedelta(seconds=15),
+        )
+        # Batida atrasada logo depois, com o player parado no fim: a posição
+        # autorizada continua 15 (não volta para trás) e nada é suspeito.
+        resultado = apply_heartbeat(
+            self.enrollment,
+            curto,
+            position=15,
+            playing=False,
+            now=agora + timedelta(seconds=25),
+        )
+        self.assertAlmostEqual(resultado["authorized_position"], 15, delta=0.1)
+        self.assertFalse(resultado["suspicious"])
+        self.assertIsNotNone(resultado["progress"].completed_at)
+
+    def test_aula_concluida_permite_reassistir_sem_suspicao(self):
+        """Reassistir uma aula concluída é livre e não conta como avanço indevido."""
+        curto = Video.objects.create(
+            course=self.curso,
+            order=2,
+            title="Aula curta",
+            duration=15,
+            status=Video.Status.READY,
+        )
+        agora = timezone.now()
+        apply_heartbeat(self.enrollment, curto, position=0, playing=True, now=agora)
+        apply_heartbeat(
+            self.enrollment,
+            curto,
+            position=15,
+            playing=True,
+            now=agora + timedelta(seconds=15),
+        )
+        self.assertIsNotNone(
+            Progress.objects.get(enrollment=self.enrollment, video=curto).completed_at
+        )
+        # Aluno rebobina para o início e reassiste: posição autorizada na hora.
+        resultado = apply_heartbeat(
+            self.enrollment,
+            curto,
+            position=3,
+            playing=True,
+            now=agora + timedelta(seconds=40),
+        )
+        self.assertAlmostEqual(resultado["authorized_position"], 3, delta=0.1)
+        self.assertFalse(resultado["suspicious"])
+
 
 class TestDesbloqueio(TestCase):
     def setUp(self):
