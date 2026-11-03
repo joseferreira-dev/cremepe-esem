@@ -27,6 +27,19 @@
   </div>
 </div>
 
+{% if not curso.certificate_background %}
+  <div class="mt-4 flex items-start gap-3 rounded-2xl bg-amber-50 px-5 py-4 ring-1 ring-amber-200">
+    <span class="mt-0.5 shrink-0 text-amber-600">{{ icons.alerta|safe }}</span>
+    <div class="text-sm text-amber-800">
+      <p class="font-semibold">Curso sem modelo de certificado</p>
+      <p class="mt-0.5">
+        Os certificados só são emitidos com o modelo (.docx) cadastrado.
+        <a href="{% url 'painel_curso_editar' curso.id %}" class="font-semibold underline underline-offset-2">Cadastrar modelo</a>
+      </p>
+    </div>
+  </div>
+{% endif %}
+
 <div class="mt-6" data-tabs>
   <div class="flex flex-wrap gap-1 border-b border-slate-200" role="tablist" aria-label="Detalhes do curso">
     <button type="button" role="tab" aria-selected="true" data-tab-target="visao"

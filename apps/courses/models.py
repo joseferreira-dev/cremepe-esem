@@ -52,6 +52,30 @@ class Course(models.Model):
         default=Decimal("95.00"),
     )
     deadline = models.DateField("Prazo para conclusão", null=True, blank=True)
+    certificate_model = models.FileField(
+        "Modelo de certificado (DOCX)",
+        upload_to="modelos_certificado/",
+        blank=True,
+        help_text=(
+            "Modelo Word do certificado deste curso. Deve conter o campo "
+            "NOME COMPLETO (substituído pelo nome do médico na emissão) e "
+            "uma imagem de fundo. Obrigatório para emitir certificados."
+        ),
+    )
+    certificate_background = models.FileField(
+        "Fundo extraído do modelo",
+        upload_to="modelos_certificado/",
+        blank=True,
+        help_text="Arte extraída automaticamente do DOCX enviado.",
+    )
+    certificate_text = models.TextField(
+        "Texto extraído do modelo",
+        blank=True,
+        help_text=(
+            "Parágrafos do DOCX com o campo NOME COMPLETO preservado; "
+            "preenchido na extração do modelo."
+        ),
+    )
     created_at = models.DateTimeField("Criado em", auto_now_add=True)
     updated_at = models.DateTimeField("Atualizado em", auto_now=True)
 

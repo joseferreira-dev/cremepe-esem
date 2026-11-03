@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<title>Certificado — {{ aluno }}</title>
+<style>
+  /* Modelo enviado pelo curso (extraído do .docx): arte de fundo com as
+     assinaturas e o texto do documento, com o campo de nome substituído
+     pelo aluno na emissão. */
+  @page { size: A4 landscape; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    font-family: Tahoma, "DejaVu Sans", Verdana, sans-serif;
+    color: #ffffff;
+  }
+  .pagina { position: relative; width: 29.7cm; height: 21cm; overflow: hidden;
+            page-break-after: always; background: #0f766e; }
+  .pagina:last-child { page-break-after: auto; }
+  .fundo { position: absolute; top: 0; left: 0; width: 29.7cm; height: 21cm; }
+
+  /* Bloco de texto na área livre do design (abaixo do título CERTIFICADO
+     e acima das assinaturas). */
+  .modelo-texto {
+    position: absolute;
+    top: 6.2cm;
+    left: 4.2cm;
+    width: 21.3cm;
+    text-align: center;
+  }
+  .modelo-texto p {
+    font-size: 13.5pt;
+    line-height: 1.6;
+    margin-bottom: 0.6cm;
+    text-shadow: 0 0.5pt 1pt rgba(0, 0, 0, 0.18);
+  }
+  .modelo-texto p.nome {
+    font-size: 25pt;
+    font-weight: bold;
+    line-height: 1.25;
+    margin-bottom: 0.75cm;
+    letter-spacing: 0.3pt;
+  }
+</style>
+</head>
+<body>
+  <div class="pagina">
+    <img class="fundo" src="{{ fundo }}" alt="">
+    <div class="modelo-texto">
+      {% for p in paragrafos %}
+        <p{% if p.nome %} class="nome"{% endif %}>{{ p.texto }}</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% include "certificates/certificado_verso.html" %}
+</body>
+</html>

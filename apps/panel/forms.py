@@ -7,11 +7,17 @@ from decimal import Decimal
 from django import forms
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import UploadedFile
 from django.core.validators import validate_email
 from django.db import transaction
 
 from apps.accounts.models import Medico, normalize_cpf
 from apps.accounts.services import criar_conta_medico
+from apps.certificates.docx import ModeloInvalido, extrair_modelo
+from apps.certificates.services import (
+    aplicar_modelo_certificado,
+    limpar_modelo_certificado,
+)
 from apps.courses.models import Course, Enrollment, Video
 
 
@@ -102,7 +108,7 @@ class AdministradorForm(forms.ModelForm):
 
 
 class CursoForm(forms.ModelForm):
-    # Campo declarado (e não só listado no Meta) para aceitar o vazio no
+    # Campos declarados (e não só listados no Meta) para aceitar o vazio no
     # formulário e converter em 0 = "sem exigência por aula".
     video_min_percent = forms.DecimalField(
         required=False,
@@ -116,6 +122,26 @@ class CursoForm(forms.ModelForm):
         ),
         widget=forms.NumberInput(
             attrs={"class": "campo", "step": "0.01", "min": "0", "max": "100"}
+        ),
+    )
+    certificate_model = forms.FileField(
+        required=False,
+        label="Modelo de certificado (DOCX)",
+        help_text=(
+            "Modelo Word deste curso: deve conter o campo NOME COMPLETO "
+            "(substituído pelo nome do médico na emissão) e uma imagem de "
+            "fundo. A arte e o texto são extraídos automaticamente. "
+            "Obrigatório para emitir certificados: sem modelo, a emissão "
+            "fica bloqueada."
+        ),
+        widget=forms.ClearableFileInput(
+            attrs={
+                "class": "campo",
+                "accept": (
+                    ".docx,application/vnd.openxmlformats-officedocument"
+                    ".wordprocessingml.document"
+                ),
+            }
         ),
     )
 
@@ -132,6 +158,7 @@ class CursoForm(forms.ModelForm):
             "sequential",
             "unlock_threshold",
             "deadline",
+            "certificate_model",
         )
         widgets = {
             "title": forms.TextInput(
@@ -169,6 +196,35 @@ class CursoForm(forms.ModelForm):
     def clean_video_min_percent(self):
         valor = self.cleaned_data.get("video_min_percent")
         return valor if valor is not None else Decimal("0.00")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Conteúdo do DOCX novo, validado em clean e gravado no save.
+        self._modelo_conteudo = None
+
+    def clean_certificate_model(self):
+        valor = self.cleaned_data.get("certificate_model")
+        # False = limpeza pedida; FieldFile = modelo inalterado.
+        if not isinstance(valor, UploadedFile):
+            return valor
+        conteudo = valor.read()
+        valor.seek(0)  # o save grava o arquivo depois da validação.
+        try:
+            extrair_modelo(conteudo)
+        except ModeloInvalido as erro:
+            raise forms.ValidationError(str(erro))
+        self._modelo_conteudo = conteudo
+        return valor
+
+    def save(self, commit=True):
+        # Limpeza antes do save: remove os arquivos e zera os campos.
+        if commit and self.cleaned_data.get("certificate_model") is False:
+            limpar_modelo_certificado(self.instance)
+        curso = super().save(commit=commit)
+        if commit and self._modelo_conteudo is not None:
+            aplicar_modelo_certificado(curso, self._modelo_conteudo)
+            curso.save(update_fields=["certificate_background", "certificate_text"])
+        return curso
 
 
 class VideoForm(forms.ModelForm):

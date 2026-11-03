@@ -55,6 +55,21 @@ class CourseAdmin(admin.ModelAdmin):
                 ),
             },
         ),
+        (
+            "Certificado",
+            {
+                "fields": (
+                    "certificate_model",
+                    "certificate_background",
+                    "certificate_text",
+                ),
+                "description": (
+                    "Envie o .docx com o campo NOME COMPLETO e a arte de fundo; "
+                    "a extração acontece na emissão (o painel faz na hora do envio). "
+                    "Obrigatório: sem modelo, o curso não emite certificados."
+                ),
+            },
+        ),
     )
 
     @admin.display(description="Duração total")

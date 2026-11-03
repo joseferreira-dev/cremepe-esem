@@ -1,0 +1,145 @@
+<style>
+  /* Verso de validação (A4 paisagem, mesma orientação do anverso para
+     impressão frente-e-verso). Tabela em vez de flex: renderização estável
+     no WeasyPrint. */
+  .pagina.verso { background: #ffffff; color: #3d3129; }
+  .verso-quadro {
+    position: absolute;
+    top: 1.0cm;
+    left: 1.0cm;
+    right: 1.0cm;
+    bottom: 1.0cm;
+    border: 1.5pt solid #0f766e;
+    padding: 1.3cm 1.7cm 1.1cm;
+    font-family: Tahoma, "DejaVu Sans", Verdana, sans-serif;
+  }
+  .verso-titulo {
+    font-size: 19pt;
+    font-weight: bold;
+    color: #0f766e;
+    letter-spacing: 0.4pt;
+  }
+  .verso-subtitulo {
+    margin-top: 0.12cm;
+    font-size: 10pt;
+    color: #64748b;
+    letter-spacing: 0.2pt;
+  }
+  .verso-topo {
+    display: table;
+    width: 100%;
+    table-layout: fixed;
+    margin-top: 1.0cm;
+  }
+  .verso-dados, .verso-qr { display: table-cell; vertical-align: top; }
+  .verso-dados { width: 64%; padding-right: 1.2cm; }
+  .verso-qr { width: 36%; text-align: center; }
+  .verso-dados dl { margin-top: 0.2cm; }
+  .verso-linha { display: table; width: 100%; margin-bottom: 0.30cm; }
+  .verso-linha dt, .verso-linha dd { display: table-cell; vertical-align: baseline; }
+  .verso-linha dt {
+    width: 5.6cm;
+    font-size: 9pt;
+    text-transform: uppercase;
+    letter-spacing: 0.3pt;
+    color: #64748b;
+  }
+  .verso-linha dd { font-size: 11.5pt; font-weight: bold; color: #1e293b; }
+  .verso-linha dd.codigo {
+    font-family: "DejaVu Sans Mono", monospace;
+    font-size: 12.5pt;
+    color: #0f766e;
+    letter-spacing: 0.6pt;
+  }
+  .verso-qr img { width: 4.6cm; height: 4.6cm; }
+  .verso-qr-legenda {
+    margin-top: 0.25cm;
+    font-size: 9.5pt;
+    font-weight: bold;
+    color: #0f766e;
+  }
+  .verso-qr-url {
+    margin-top: 0.15cm;
+    font-size: 7.5pt;
+    color: #64748b;
+    word-break: break-all;
+    line-height: 1.4;
+  }
+  .verso-nota {
+    position: absolute;
+    left: 1.7cm;
+    right: 1.7cm;
+    bottom: 1.9cm;
+    font-size: 9pt;
+    line-height: 1.55;
+    color: #475569;
+    border-top: 0.75pt solid #cbd5e1;
+    padding-top: 0.3cm;
+  }
+  .verso-rodape {
+    position: absolute;
+    left: 1.7cm;
+    right: 1.7cm;
+    bottom: 0.75cm;
+    font-size: 8pt;
+    color: #94a3b8;
+    text-align: center;
+    letter-spacing: 0.2pt;
+  }
+</style>
+
+<div class="pagina verso">
+  <div class="verso-quadro">
+    <p class="verso-titulo">Validação do certificado</p>
+    <p class="verso-subtitulo">Portal de Cursos da ESEM/CREMEPE — autenticidade conferível por qualquer pessoa</p>
+
+    <div class="verso-topo">
+      <div class="verso-dados">
+        <dl>
+          <div class="verso-linha">
+            <dt>Aluno</dt>
+            <dd>{{ aluno }}</dd>
+          </div>
+          <div class="verso-linha">
+            <dt>Curso</dt>
+            <dd>{{ curso }}{% if edicao %} — {{ edicao }}{% endif %}</dd>
+          </div>
+          <div class="verso-linha">
+            <dt>Carga horária</dt>
+            <dd>{{ carga }}</dd>
+          </div>
+          <div class="verso-linha">
+            <dt>Emitido em</dt>
+            <dd>{{ data }}</dd>
+          </div>
+          <div class="verso-linha">
+            <dt>Código de autenticação</dt>
+            <dd class="codigo">{{ codigo }}</dd>
+          </div>
+        </dl>
+      </div>
+
+      <div class="verso-qr">
+        {% if qr %}
+          <img src="{{ qr }}" alt="QR Code de validação">
+          <p class="verso-qr-legenda">Escaneie para validar</p>
+          {% if validacao %}
+            <p class="verso-qr-url">{{ validacao }}</p>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+
+    <p class="verso-nota">
+      A autenticidade deste certificado pode ser conferida por qualquer pessoa
+      na página de validação do Portal de Cursos da ESEM/CREMEPE, informando o
+      código de autenticação acima ou escaneando o QR Code. Este verso
+      complementa o anverso e possui o mesmo valor.
+    </p>
+
+    <p class="verso-rodape">
+      Certificado emitido pelo Portal de Cursos da ESEM/CREMEPE ·
+      Código de autenticação: {{ codigo }}
+    </p>
+  </div>
+</div>

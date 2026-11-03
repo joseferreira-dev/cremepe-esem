@@ -18,6 +18,16 @@
     {% include "partials/campo.html" with field=form.edition %}
     {% include "partials/campo.html" with field=form.description %}
     {% include "partials/campo.html" with field=form.cover %}
+    {% include "partials/campo.html" with field=form.certificate_model %}
+    {% if curso.certificate_background %}
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+        <p class="text-xs font-medium text-slate-500">
+          Arte extraída do modelo atual (aparece como fundo do certificado)
+        </p>
+        <img src="{{ curso.certificate_background.url }}"
+             alt="Arte do modelo de certificado" class="mt-2 max-h-44 w-auto rounded-lg border border-slate-200">
+      </div>
+    {% endif %}
   </div>
 
   <div class="space-y-6">
