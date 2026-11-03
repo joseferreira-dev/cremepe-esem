@@ -51,6 +51,11 @@ urlpatterns = [
         certificates_views.meus_certificados,
         name="meus_certificados",
     ),
+    path(
+        "validar/",
+        certificates_views.validar_certificado,
+        name="validar_certificado",
+    ),
     path("painel/", include("apps.panel.urls")),
     path("api/", include("apps.media.urls")),
 ]

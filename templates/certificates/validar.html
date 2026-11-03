@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block head %}<meta name="robots" content="noindex">{% endblock %}
+
+{% block title %}Validar certificado — CREMEPE / ESEM{% endblock %}
+
+{% block corpo %}
+<div class="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
+
+  <p class="rotulo">Consultas públicas</p>
+  <h1 class="mt-1 text-3xl font-bold tracking-tight text-slate-900">
+    Validação de certificados
+  </h1>
+  <p class="mt-2 text-sm text-slate-500">
+    Digite o código de autenticação impresso no rodapé do certificado
+    (formato <span class="font-mono font-semibold text-slate-700">ESEM-2026-XXXXXXXX</span>)
+    para conferir se ele foi emitido pelo Portal de Cursos da ESEM/CREMEPE.
+    A consulta é pública e não exige login.
+  </p>
+
+  <form method="get" action="{% url 'validar_certificado' %}" class="cartao mt-6 p-6">
+    <label class="rotulo" for="codigo">Código de autenticação</label>
+    <div class="mt-2 flex flex-col gap-3 sm:flex-row">
+      <input type="text" name="codigo" id="codigo" value="{{ codigo }}"
+             placeholder="ESEM-2026-XXXXXXXX" autocomplete="off" spellcheck="false"
+             class="campo font-mono uppercase sm:flex-1">
+      <button type="submit" class="btn btn-primary">
+        {{ icons.chave|safe }} Validar
+      </button>
+    </div>
+    {% if bloqueado %}
+      <p class="mt-4 flex items-start gap-2 rounded-xl bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+        <span class="mt-0.5 shrink-0">{{ icons.alerta|safe }}</span>
+        Muitas tentativas com código incorreto nesta sessão. Aguarde alguns
+        minutos ou recarregue a página para tentar de novo.
+      </p>
+    {% elif codigo and not certificate %}
+      <p class="mt-4 flex items-start gap-2 rounded-xl bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+        <span class="mt-0.5 shrink-0">{{ icons.alerta|safe }}</span>
+        Código não encontrado. Confira se digitou corretamente, incluindo o
+        prefixo <span class="font-mono">ESEM-</span> e os 8 caracteres finais.
+      </p>
+    {% endif %}
+  </form>
+
+  {% if certificate %}
+    <div class="cartao mt-6 overflow-hidden">
+      <div class="flex items-center gap-3 bg-marca-100 px-6 py-4">
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-marca-500 text-white">
+          {{ icons.check|safe }}
+        </span>
+        <div>
+          <p class="text-sm font-bold text-marca-800">Certificado válido</p>
+          <p class="text-xs text-marca-600">Emitido pelo Portal de Cursos da ESEM/CREMEPE</p>
+        </div>
+      </div>
+
+      <dl class="divide-y divide-slate-100 px-6">
+        <div class="flex flex-wrap items-baseline justify-between gap-2 py-3.5">
+          <dt class="text-xs font-medium uppercase tracking-wide text-slate-400">Aluno</dt>
+          <dd class="text-sm font-semibold text-slate-800">{{ certificate.enrollment.medico.nome }}</dd>
+        </div>
+        <div class="flex flex-wrap items-baseline justify-between gap-2 py-3.5">
+          <dt class="text-xs font-medium uppercase tracking-wide text-slate-400">Curso</dt>
+          <dd class="text-right text-sm font-semibold text-slate-800">
+            {{ certificate.enrollment.course.title }}{% if certificate.enrollment.course.edition %} — {{ certificate.enrollment.course.edition }}{% endif %}
+          </dd>
+        </div>
+        {% if certificate.payload.carga %}
+          <div class="flex flex-wrap items-baseline justify-between gap-2 py-3.5">
+            <dt class="text-xs font-medium uppercase tracking-wide text-slate-400">Carga horária</dt>
+            <dd class="text-sm font-semibold text-slate-800">{{ certificate.payload.carga }}</dd>
+          </div>
+        {% endif %}
+        <div class="flex flex-wrap items-baseline justify-between gap-2 py-3.5">
+          <dt class="text-xs font-medium uppercase tracking-wide text-slate-400">Emitido em</dt>
+          <dd class="text-sm font-semibold text-slate-800">{{ certificate.issued_at|date:"d/m/Y" }}</dd>
+        </div>
+        <div class="flex flex-wrap items-baseline justify-between gap-2 py-3.5">
+          <dt class="text-xs font-medium uppercase tracking-wide text-slate-400">Código</dt>
+          <dd class="font-mono text-sm font-semibold text-slate-800">{{ certificate.code }}</dd>
+        </div>
+      </dl>
+
+      <div class="border-t border-slate-100 bg-slate-50 px-6 py-4">
+        <p class="text-xs font-medium text-slate-500">Link de validação (pode ser compartilhado)</p>
+        <p class="mt-1 break-all rounded-lg bg-white px-3 py-2 font-mono text-xs text-slate-600 ring-1 ring-slate-200">
+          {{ link }}
+        </p>
+      </div>
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}

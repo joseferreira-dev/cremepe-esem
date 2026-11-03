@@ -13,9 +13,14 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET
 
 from apps.courses.models import Enrollment
+from apps.courses.services import record_audit
 
 from .models import Certificate
 from .services import CertificadoIndisponivel, caminho_pdf, emitir_certificado
+
+# Limite de consultas com código errado por sessão: o código tem 8 bytes
+# hexadecimais e o limite torna a enumeração brute-force impraticável.
+TENTATIVAS_MAX_POR_SESSAO = 10
 
 
 @never_cache
@@ -46,6 +51,60 @@ def meus_certificados(request):
         request,
         "certificates/meus_certificados.html",
         {"emitidos": emitidos, "prontos": prontos},
+    )
+
+
+@never_cache
+@require_GET
+def validar_certificado(request):
+    """Validação pública de certificados — qualquer pessoa, sem login.
+
+    Consulta pelo código de autenticação (``?codigo=ESEM-2026-XXXXXXXX``).
+    Só expõe o que já está impresso no PDF (nome, curso, edição, emissão e
+    carga horária): nunca CPF ou outros dados cadastrais. Cada acerto é
+    registrado na auditoria.
+    """
+    codigo = (request.GET.get("codigo") or "").strip().upper()
+    certificate = None
+    bloqueado = False
+
+    if codigo:
+        tentativas = request.session.get("validacao_tentativas", 0)
+        if tentativas >= TENTATIVAS_MAX_POR_SESSAO:
+            bloqueado = True
+        else:
+            certificate = (
+                Certificate.objects.select_related(
+                    "enrollment__course", "enrollment__medico"
+                )
+                .filter(code__iexact=codigo)
+                .first()
+            )
+            if certificate is None:
+                request.session["validacao_tentativas"] = tentativas + 1
+            else:
+                request.session["validacao_tentativas"] = 0
+                record_audit(
+                    "certificado_validado",
+                    target=certificate.code,
+                    detail={
+                        "aluno": certificate.enrollment.medico.nome,
+                        "curso": certificate.enrollment.course.title,
+                    },
+                    ip=request.META.get("REMOTE_ADDR"),
+                )
+
+    return render(
+        request,
+        "certificates/validar.html",
+        {
+            "codigo": codigo,
+            "certificate": certificate,
+            "bloqueado": bloqueado,
+            "link": request.build_absolute_uri(f"/validar/?codigo={codigo}")
+            if certificate
+            else "",
+        },
     )
 
 

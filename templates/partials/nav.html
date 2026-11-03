@@ -19,6 +19,7 @@
           <a href="{% url 'painel_index' %}" class="link-menu">Painel administrativo</a>
         {% endif %}
       {% endif %}
+      <a href="{% url 'validar_certificado' %}" class="link-menu">Validar certificado</a>
     </nav>
 
     <div class="ml-auto flex items-center gap-2">
@@ -96,6 +97,7 @@
       {% else %}
         <a href="{% url 'login' %}" class="link-menu block">Acessar os cursos</a>
       {% endif %}
+      <a href="{% url 'validar_certificado' %}" class="link-menu block">Validar certificado</a>
     </div>
   </div>
 </header>
