@@ -30,6 +30,18 @@ class Course(models.Model):
         decimal_places=2,
         default=Decimal("50.00"),
     )
+    video_min_percent = models.DecimalField(
+        "Percentual mínimo por aula (%)",
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        help_text=(
+            "Cada aula precisa atingir este percentual para o médico ser "
+            "aprovado — evita que a cobertura total seja feita só com uma "
+            "aula. 0 = sem exigência por aula. A aula com valor próprio "
+            "(cadastro da aula) prevalece sobre este."
+        ),
+    )
     sequential = models.BooleanField(
         "Liberar os vídeos sequencialmente", default=True
     )
@@ -107,6 +119,17 @@ class Video(models.Model):
     )
     error_message = models.TextField("Mensagem de erro", blank=True)
     is_required = models.BooleanField("Vídeo obrigatório", default=True)
+    min_percent = models.DecimalField(
+        "Percentual mínimo desta aula (%)",
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text=(
+            "Vazio = usar o percentual mínimo por aula do curso. "
+            "0 = sem exigência nesta aula."
+        ),
+    )
     substituicao = models.CharField(
         "Tipo de substituição",
         max_length=20,

@@ -869,3 +869,107 @@ class TestCamposDeBusca(TestCase):
         html = self.client.get("/api/uploads/pagina/").content.decode()
         self.assertIn("data-busca", html)
         self.assertIn("substituicao-bloco", html)
+
+
+class TestMinimoPorAulaNoPainel(TestCase):
+    """Configuração do percentual mínimo por aula (curso e aula)."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser("admin-min", "a@b.c", "senha12345")
+        self.client.force_login(self.admin)
+
+    def _post_curso(self, extra=None):
+        dados = {
+            "title": "Curso mínimo por aula",
+            "edition": "1ª turma",
+            "description": "",
+            "status": "active",
+            "min_percent": "50",
+            "sequential": "on",
+            "unlock_threshold": "95",
+        }
+        dados.update(extra or {})
+        self.client.post("/painel/cursos/novo/", dados)
+        return Course.objects.get(title="Curso mínimo por aula")
+
+    def test_form_de_curso_salva_o_minimo_por_aula(self):
+        curso = self._post_curso({"video_min_percent": "95"})
+        self.assertEqual(curso.video_min_percent, 95)
+
+    def test_form_de_curso_aceita_vazio_como_zerado(self):
+        # Comportamento anterior preservado: sem o campo, sem exigência.
+        curso = self._post_curso()
+        self.assertEqual(curso.video_min_percent, 0)
+
+    def test_form_de_aula_salva_override_e_vazio_usa_curso(self):
+        curso = self._post_curso({"video_min_percent": "95"})
+
+        # Aula com valor próprio.
+        self.client.post(
+            "/painel/videos/novo/",
+            {
+                "course": curso.pk,
+                "order": 1,
+                "title": "Aula com override",
+                "min_percent": "80",
+                "is_required": "on",
+            },
+        )
+        # Aula sem valor: fica em branco e herda o do curso.
+        self.client.post(
+            "/painel/videos/novo/",
+            {
+                "course": curso.pk,
+                "order": 2,
+                "title": "Aula padrão",
+                "is_required": "on",
+            },
+        )
+        self.assertEqual(
+            Video.objects.get(title="Aula com override").min_percent, 80
+        )
+        self.assertIsNone(Video.objects.get(title="Aula padrão").min_percent)
+
+    def test_pagina_de_curso_mostra_o_campo_de_minimo_por_aula(self):
+        html = self.client.get("/painel/cursos/novo/").content.decode()
+        self.assertIn("video_min_percent", html)
+        self.assertIn("Percentual mínimo por aula", html)
+
+    def test_csv_da_turma_explica_aulas_abaixo_do_minimo(self):
+        curso = self._post_curso({"video_min_percent": "95"})
+        aula1 = Video.objects.create(
+            course=curso, order=1, title="Aula 1", duration=500,
+            status=Video.Status.READY,
+        )
+        aula2 = Video.objects.create(
+            course=curso, order=2, title="Aula 2", duration=500,
+            status=Video.Status.READY,
+        )
+        medico_user = User.objects.create_user("aluno-min", password="senha12345")
+        medico = Medico.objects.create(
+            user=medico_user, cpf="33322211100", nome="Aluno Minimo",
+            must_change_password=False,
+        )
+        enrollment = Enrollment.objects.create(
+            medico=medico, course=curso, min_percent=50
+        )
+        # Aula 1 inteira + aula 2 a 90%: cobertura total ≥ 50%, mas aula 2
+        # abaixo dos 95% exigidos individualmente.
+        Progress.objects.create(
+            enrollment=enrollment, video=aula1,
+            intervals=[[0.0, 500.0]], covered=500.0, furthest=500.0,
+            last_position=500.0,
+        )
+        Progress.objects.create(
+            enrollment=enrollment, video=aula2,
+            intervals=[[0.0, 450.0]], covered=450.0, furthest=450.0,
+            last_position=450.0,
+        )
+
+        resposta = self.client.get(f"/painel/cursos/{curso.pk}/exportar/")
+        csv = resposta.content.decode("utf-8-sig")
+
+        self.assertIn("Aulas abaixo do mínimo", csv)
+        self.assertIn("não", csv)
+        # A pendência cita a aula, a cobertura atual e o mínimo exigido.
+        self.assertIn("Aula 2: 90.0% (min. 95%)", csv)

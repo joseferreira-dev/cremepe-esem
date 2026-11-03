@@ -13,7 +13,7 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-from .models import AuditLog, Enrollment, Progress, Video
+from .models import AuditLog, Course, Enrollment, Progress, Video
 
 # Margem máxima acumulada (segundos). Evita que uma sessão esquecida libere
 # um salto grande depois.
@@ -140,6 +140,72 @@ def unlocked_videos(enrollment: Enrollment) -> list[Video]:
     return unlocked
 
 
+def minimo_da_aula(video: Video, curso: Course | None = None) -> float:
+    """Percentual mínimo exigido nesta aula (valor próprio ou o do curso).
+
+    ``curso`` evita N+1 ao consultar vários vídeos do mesmo curso (o acesso
+    a ``video.course`` dispararia uma consulta por aula).
+    """
+    if video.min_percent is not None:
+        return float(video.min_percent)
+    curso = curso if curso is not None else video.course
+    return float(curso.video_min_percent or 0)
+
+
+def aulas_abaixo_do_minimo(enrollment: Enrollment) -> list[dict]:
+    """Aulas disponíveis que ainda não atingiram o mínimo individual.
+
+    Com o mínimo por aula zerado (padrão), a lista vem vazia e o critério de
+    aprovação continua sendo apenas a cobertura total do curso.
+    """
+    curso = enrollment.course
+    exigidas = [
+        (video, minimo)
+        for video in course_videos(curso)
+        if (minimo := minimo_da_aula(video, curso)) > 0
+    ]
+    if not exigidas:
+        return []
+    progresses = {
+        progress.video_id: progress
+        for progress in Progress.objects.filter(
+            enrollment=enrollment, video__in=[video for video, _ in exigidas]
+        )
+    }
+    pendencias = []
+    for video, minimo in exigidas:
+        progress = progresses.get(video.pk)
+        atual = video_coverage(progress) if progress else 0.0
+        if atual < minimo:
+            pendencias.append(
+                {
+                    "video": video,
+                    "atual": round(atual, 1),
+                    "exigido": minimo,
+                }
+            )
+    return pendencias
+
+
+def criterios_de_aprovacao(enrollment: Enrollment) -> dict:
+    """Avalia os dois critériios de aprovação da matrícula.
+
+    O médico é aprovado só quando atinge o percentual exigido da matrícula
+    E cada aula com mínimo definido atinge o seu próprio percentual — sem
+    isso, um curso de 10 h com duas aulas de 5 h e mínimo de 50% seria
+    aprovado assistindo apenas a primeira aula inteira.
+    """
+    cobertura = course_coverage(enrollment)
+    exigido = float(enrollment.min_percent or 0)
+    pendencias = aulas_abaixo_do_minimo(enrollment)
+    return {
+        "cobertura": cobertura,
+        "exigido": exigido,
+        "pendencias": pendencias,
+        "atende": cobertura >= exigido and not pendencias,
+    }
+
+
 def apply_heartbeat(
     enrollment: Enrollment,
     video: Video,
@@ -261,15 +327,20 @@ def apply_heartbeat(
 
 
 def refresh_enrollment_status(enrollment: Enrollment, actor=None) -> Enrollment:
-    """Atualiza a situação da matrícula conforme a cobertura atingida."""
-    required = float(enrollment.min_percent or 0)
-    coverage = course_coverage(enrollment)
+    """Atualiza a situação da matrícula conforme os critérios de aprovação.
+
+    Cobertura total do curso + mínimo de cada aula individual
+    (``criterios_de_aprovacao``).
+    """
+    criterio = criterios_de_aprovacao(enrollment)
+    required = criterio["exigido"]
+    coverage = criterio["cobertura"]
     enrollment.deadline = enrollment.deadline or enrollment.course.deadline
 
     if enrollment.status in {Enrollment.Status.CANCELLED, Enrollment.Status.REJECTED}:
         return enrollment
 
-    if coverage >= required:
+    if criterio["atende"]:
         if enrollment.status != Enrollment.Status.APPROVED:
             enrollment.status = Enrollment.Status.APPROVED
             enrollment.approved_at = timezone.now()

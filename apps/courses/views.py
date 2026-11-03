@@ -12,7 +12,7 @@ from apps.accounts.decorators import login_required_limpo
 from apps.accounts.tokens import gerar_token_api
 
 from .models import Course, Enrollment, Progress
-from .services import course_coverage, format_hours, unlocked_videos
+from .services import course_coverage, format_hours, minimo_da_aula, unlocked_videos
 
 
 @never_cache
@@ -134,6 +134,8 @@ def course_view(request, enrollment_id: int):
                     1,
                 ),
                 "last_position": progress.last_position if progress else 0.0,
+                # Percentual mínimo individual desta aula (aprovação).
+                "minimo": minimo_da_aula(video, enrollment.course),
             }
         )
 

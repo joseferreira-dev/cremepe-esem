@@ -102,10 +102,14 @@
                 <span class="block text-sm font-medium leading-snug text-slate-800">{{ item.video.title }}</span>
                 <span class="mt-1 flex items-center gap-2 text-xs text-slate-500">
                   {{ item.video.duration|duracao }}
+                  {% if item.minimo > 0 %}
+                    <span class="text-slate-400"
+                          title="Percentual mínimo desta aula para a aprovação no curso">mín. {{ item.minimo|floatformat:0 }}%</span>
+                  {% endif %}
                   {% if not item.unlocked %}
                     <span data-cadeado class="inline-flex items-center gap-1 text-slate-400">{{ icons.cadeado|safe }} bloqueado</span>
                   {% elif item.percent > 0 %}
-                    <span class="font-semibold text-marca-600">{{ item.percent|floatformat:0 }}%</span>
+                    <span class="font-semibold {% if item.minimo > 0 and item.percent < item.minimo %}text-rose-600{% else %}text-marca-600{% endif %}">{{ item.percent|floatformat:0 }}%</span>
                   {% endif %}
                 </span>
               </span>

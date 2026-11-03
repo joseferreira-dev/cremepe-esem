@@ -2,6 +2,7 @@
 
 import csv
 import io
+from decimal import Decimal
 
 from django import forms
 from django.contrib.auth.models import User
@@ -101,6 +102,23 @@ class AdministradorForm(forms.ModelForm):
 
 
 class CursoForm(forms.ModelForm):
+    # Campo declarado (e não só listado no Meta) para aceitar o vazio no
+    # formulário e converter em 0 = "sem exigência por aula".
+    video_min_percent = forms.DecimalField(
+        required=False,
+        min_value=0,
+        max_value=100,
+        label="Percentual mínimo por aula (%)",
+        help_text=(
+            "Cada aula precisa atingir este percentual para o médico ser "
+            "aprovado — evita aprovar pela cobertura total só com uma aula. "
+            "0 = sem exigência. A aula com valor próprio prevalece."
+        ),
+        widget=forms.NumberInput(
+            attrs={"class": "campo", "step": "0.01", "min": "0", "max": "100"}
+        ),
+    )
+
     class Meta:
         model = Course
         fields = (
@@ -110,6 +128,7 @@ class CursoForm(forms.ModelForm):
             "cover",
             "status",
             "min_percent",
+            "video_min_percent",
             "sequential",
             "unlock_threshold",
             "deadline",
@@ -147,21 +166,29 @@ class CursoForm(forms.ModelForm):
             "deadline": "Prazo para conclusão",
         }
 
+    def clean_video_min_percent(self):
+        valor = self.cleaned_data.get("video_min_percent")
+        return valor if valor is not None else Decimal("0.00")
+
 
 class VideoForm(forms.ModelForm):
     class Meta:
         model = Video
-        fields = ("course", "order", "title", "is_required")
+        fields = ("course", "order", "title", "min_percent", "is_required")
         widgets = {
             "course": forms.Select(attrs={"class": "campo campo-busca-select"}),
             "order": forms.NumberInput(attrs={"class": "campo", "min": "1"}),
             "title": forms.TextInput(attrs={"class": "campo", "placeholder": "Ex.: Encontro 1"}),
+            "min_percent": forms.NumberInput(
+                attrs={"class": "campo", "step": "0.01", "min": "0", "max": "100"}
+            ),
             "is_required": forms.CheckboxInput(attrs={"class": "h-4 w-4 rounded border-slate-300 text-marca-600 focus:ring-marca-500"}),
         }
         labels = {
             "course": "Curso",
             "order": "Ordem de exibição",
             "title": "Título do vídeo",
+            "min_percent": "Percentual mínimo desta aula (%)",
             "is_required": "Vídeo obrigatório",
         }
 

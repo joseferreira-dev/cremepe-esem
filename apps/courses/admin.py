@@ -7,7 +7,7 @@ from .services import course_coverage, posicionar_video, renumerar_videos, reset
 class VideoInline(admin.TabularInline):
     model = Video
     extra = 0
-    fields = ("order", "title", "status", "duration", "is_required")
+    fields = ("order", "title", "status", "duration", "min_percent", "is_required")
     readonly_fields = ("status", "duration")
     ordering = ("order",)
 
@@ -40,10 +40,18 @@ class CourseAdmin(admin.ModelAdmin):
         (
             "Regras de aprovação",
             {
-                "fields": ("min_percent", "sequential", "unlock_threshold", "deadline"),
+                "fields": (
+                    "min_percent",
+                    "video_min_percent",
+                    "sequential",
+                    "unlock_threshold",
+                    "deadline",
+                ),
                 "description": (
                     "min_percent: percentual mínimo do curso a ser assistido para aprovação. "
-                    "Ex.: 50 para turmas de reprovação, 100 para reciclagem."
+                    "Ex.: 50 para turmas de reprovação, 100 para reciclagem. "
+                    "video_min_percent: percentual mínimo exigido em cada aula "
+                    "(0 = sem exigência; a aula com valor próprio prevalece)."
                 ),
             },
         ),
@@ -87,6 +95,7 @@ class VideoAdmin(admin.ModelAdmin):
         "order",
         "title",
         "is_required",
+        "min_percent",
         "status",
         "duration",
         "qualities",

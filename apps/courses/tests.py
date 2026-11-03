@@ -10,9 +10,12 @@ from apps.accounts.models import Medico
 from apps.courses.models import Course, Enrollment, Progress, Video
 from apps.courses.services import (
     apply_heartbeat,
+    aulas_abaixo_do_minimo,
     course_coverage,
+    criterios_de_aprovacao,
     is_video_unlocked,
     merge_intervals,
+    minimo_da_aula,
     posicionar_video,
     refresh_enrollment_status,
     renumerar_videos,
@@ -422,6 +425,107 @@ class TestAprovacao(TestCase):
         self.assertEqual(self.enrollment.status, Enrollment.Status.ENROLLED)
 
 
+class TestMinimoPorAula(TestCase):
+    """Aprovação exige o mínimo individual de cada aula, além da cobertura total.
+
+    Reproduz o caso que motiva a regra: curso de 10 h com duas aulas de 5 h
+    e mínimo de 50% — assistindo só a primeira aula inteira a cobertura já
+    atinge 50%, mas o médico não pode ser aprovado sem a segunda aula.
+    """
+
+    def setUp(self):
+        self.medico = criar_medico("77788899901")
+        self.curso = Course.objects.create(
+            title="Curso 10h",
+            status=Course.Status.ACTIVE,
+            min_percent=50,
+            video_min_percent=95,
+        )
+        self.aula1 = Video.objects.create(
+            course=self.curso, order=1, title="Aula 1", duration=500,
+            status=Video.Status.READY,
+        )
+        self.aula2 = Video.objects.create(
+            course=self.curso, order=2, title="Aula 2", duration=500,
+            status=Video.Status.READY,
+        )
+        self.enrollment = Enrollment.objects.create(
+            medico=self.medico, course=self.curso, min_percent=50
+        )
+
+    def cobrir(self, video, segundos):
+        Progress.objects.update_or_create(
+            enrollment=self.enrollment,
+            video=video,
+            defaults={
+                "intervals": [[0.0, float(segundos)]],
+                "furthest": float(segundos),
+                "covered": float(segundos),
+                "last_position": float(segundos),
+            },
+        )
+
+    def status_apos_refresh(self):
+        refresh_enrollment_status(self.enrollment)
+        self.enrollment.refresh_from_db()
+        return self.enrollment.status
+
+    def test_cobertura_total_alcancada_mas_aula_abaixo_do_minimo_nao_aprova(self):
+        # Aula 1 inteira (100%) + aula 2 só 10% = 55% de cobertura total.
+        self.cobrir(self.aula1, 500)
+        self.cobrir(self.aula2, 50)
+        self.assertGreaterEqual(course_coverage(self.enrollment), 50)
+
+        self.assertNotEqual(self.status_apos_refresh(), Enrollment.Status.APPROVED)
+
+        pendencias = aulas_abaixo_do_minimo(self.enrollment)
+        self.assertEqual([p["video"].pk for p in pendencias], [self.aula2.pk])
+        self.assertEqual(pendencias[0]["exigido"], 95.0)
+        criterio = criterios_de_aprovacao(self.enrollment)
+        self.assertFalse(criterio["atende"])
+
+    def test_aprova_quando_cada_aula_atinge_o_minimo(self):
+        self.cobrir(self.aula1, 500)   # 100% >= 95%
+        self.cobrir(self.aula2, 475)   # 95% >= 95%
+        self.assertEqual(self.status_apos_refresh(), Enrollment.Status.APPROVED)
+        self.assertEqual(aulas_abaixo_do_minimo(self.enrollment), [])
+
+    def test_minimo_zerado_no_curso_mantem_regra_antiga(self):
+        """0 = exigência desligada: só a cobertura total conta."""
+        self.curso.video_min_percent = 0
+        self.curso.save(update_fields=["video_min_percent"])
+        self.cobrir(self.aula1, 500)   # 100% da aula 1
+        self.cobrir(self.aula2, 50)    # 10% da aula 2 → 55% no total
+        self.assertEqual(self.status_apos_refresh(), Enrollment.Status.APPROVED)
+
+    def test_valor_proprio_da_aula_prevalece_sobre_o_do_curso(self):
+        # Aula 2 isenta (0) mesmo com o curso exigindo 95%.
+        self.aula2.min_percent = 0
+        self.aula2.save(update_fields=["min_percent"])
+        self.cobrir(self.aula1, 500)
+        self.cobrir(self.aula2, 50)
+        self.assertEqual(minimo_da_aula(self.aula2, self.curso), 0.0)
+        self.assertEqual(self.status_apos_refresh(), Enrollment.Status.APPROVED)
+
+    def test_valor_proprio_mais_exigente_bloqueia(self):
+        # Aula 1 com mínimo próprio de 100%: 95% não basta.
+        self.aula1.min_percent = 100
+        self.aula1.save(update_fields=["min_percent"])
+        self.cobrir(self.aula1, 475)   # 95% < 100% próprio
+        self.cobrir(self.aula2, 500)   # 100% >= 95%
+        self.assertNotEqual(self.status_apos_refresh(), Enrollment.Status.APPROVED)
+        pendencias = aulas_abaixo_do_minimo(self.enrollment)
+        self.assertEqual([p["video"].pk for p in pendencias], [self.aula1.pk])
+        self.assertEqual(pendencias[0]["exigido"], 100.0)
+
+    def test_minimo_da_aula_sem_progresso_conta_como_zero(self):
+        """Aula nunca vista não passa perto do mínimo."""
+        self.cobrir(self.aula1, 500)
+        pendencias = aulas_abaixo_do_minimo(self.enrollment)
+        self.assertEqual([p["video"].pk for p in pendencias], [self.aula2.pk])
+        self.assertEqual(pendencias[0]["atual"], 0.0)
+
+
 class TestRenumeracaoDeVideos(TestCase):
     """A numeração se ajusta sozinha: inclusão, edição e exclusão."""
 
@@ -531,6 +635,8 @@ class TestRenumeracaoNoAdmin(TestCase):
             "description": "",
             "status": Course.Status.ACTIVE,
             "min_percent": "50.00",
+            # O admin exige o valor (ele vem preenchido com o default na UI).
+            "video_min_percent": "0.00",
             "unlock_threshold": "95.00",
             "sequential": "on",
             "deadline": "",

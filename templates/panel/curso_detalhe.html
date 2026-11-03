@@ -259,6 +259,12 @@
                       </span>
                       <span class="w-10 text-right text-xs font-semibold text-slate-600">{{ linha.cobertura }}%</span>
                     </div>
+                    {% if linha.pendencias %}
+                      <p class="mt-1.5 text-xs font-medium text-rose-600"
+                         title="Aula abaixo do percentual mínimo exigido para a aprovação">
+                        {% for item in linha.pendencias %}{{ item.video.title }}: {{ item.atual }}% (mín. {{ item.exigido|floatformat:0 }}%){% if not forloop.last %}; {% endif %}{% endfor %}
+                      </p>
+                    {% endif %}
                   </td>
                   <td class="celula">
                     <span class="etiqueta {{ linha.matricula.status|cor_status }}" data-status-badge>{{ linha.matricula.get_status_display }}</span>

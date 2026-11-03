@@ -169,7 +169,7 @@
                      style="width: {{ item.coverage|floatformat:1 }}%"></div>
               </div>
               <p class="mt-2 text-xs text-slate-400">
-                Mínimo de {{ item.enrollment.min_percent|floatformat:0 }}% para aprovação
+                Mínimo de {{ item.enrollment.min_percent|floatformat:0 }}% para aprovação{% if item.enrollment.course.video_min_percent > 0 %} · {{ item.enrollment.course.video_min_percent|floatformat:0 }}% em cada aula{% endif %}
               </p>
 
               {% if item.bloqueado %}

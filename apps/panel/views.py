@@ -21,6 +21,7 @@ from apps.accounts.services import redefinir_senha
 from apps.courses.models import AuditLog, Course, Enrollment, Progress, Video, WatchSession
 from apps.courses.services import (
     course_coverage,
+    criterios_de_aprovacao,
     format_hours,
     posicionar_video,
     record_audit,
@@ -221,12 +222,13 @@ def curso_detalhe(request, pk):
     linhas = []
     for matricula in curso.enrollments.select_related("medico").order_by("medico__nome"):
         progresses = Progress.objects.filter(enrollment=matricula)
-        cobertura = course_coverage(matricula)
+        criterio = criterios_de_aprovacao(matricula)
         linhas.append(
             {
                 "matricula": matricula,
-                "cobertura": round(cobertura, 1),
-                "exigido": float(matricula.min_percent or 0),
+                "cobertura": round(criterio["cobertura"], 1),
+                "exigido": criterio["exigido"],
+                "pendencias": criterio["pendencias"],
                 "aprovado": matricula.status == Enrollment.Status.APPROVED,
                 "ultima": progresses.aggregate(last=Max("last_seen_at"))["last"],
                 "tempo": format_hours(progresses.aggregate(total=Sum("watch_seconds"))["total"] or 0),
@@ -632,6 +634,7 @@ def matricula_exportar(request, pk):
             "Cobertura %",
             "Exigido %",
             "Aprovado",
+            "Aulas abaixo do mínimo",
             "Tempo em aula",
             "Sessões",
             "Última atividade",
@@ -641,16 +644,21 @@ def matricula_exportar(request, pk):
         progresses = Progress.objects.filter(enrollment=matricula)
         ultima = progresses.aggregate(last=Max("last_seen_at"))["last"]
         tempo = progresses.aggregate(total=Sum("watch_seconds"))["total"] or 0
-        cobertura = course_coverage(matricula)
+        criterio = criterios_de_aprovacao(matricula)
+        pendencias = " | ".join(
+            f"{item['video'].title}: {item['atual']:.1f}% (min. {item['exigido']:.0f}%)"
+            for item in criterio["pendencias"]
+        )
         writer.writerow(
             [
                 matricula.medico.nome,
                 matricula.medico.cpf,
                 matricula.medico.crm,
                 matricula.get_status_display(),
-                f"{cobertura:.1f}".replace(".", ","),
-                f"{float(matricula.min_percent or 0):.0f}",
-                "sim" if cobertura >= float(matricula.min_percent or 0) else "não",
+                f"{criterio['cobertura']:.1f}".replace(".", ","),
+                f"{criterio['exigido']:.0f}",
+                "sim" if criterio["atende"] else "não",
+                pendencias,
                 format_hours(tempo),
                 WatchSession.objects.filter(enrollment=matricula).count(),
                 ultima.strftime("%d/%m/%Y %H:%M") if ultima else "",
