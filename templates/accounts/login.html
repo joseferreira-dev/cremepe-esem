@@ -36,9 +36,6 @@
     <div class="w-full max-w-md">
       <div class="cartao cartao-padrao">
         <h2 class="text-lg font-bold tracking-tight text-slate-900">Entrar no portal</h2>
-        <p class="mt-1 text-sm text-slate-500">
-          Informe o CPF cadastrado e a senha enviada pelo CREMEPE.
-        </p>
 
         {% if messages %}
           {% for message in messages %}
@@ -70,18 +67,18 @@
         </form>
 
         <p class="mt-6 border-t border-slate-100 pt-5 text-xs leading-relaxed text-slate-500">
-          <strong class="font-semibold text-slate-700">Primeiro acesso?</strong>
-          Use a senha inicial recebida do CREMEPE
-          (PrimeiroNome@CPFsemseparadores) — o sistema solicitará uma nova senha em seguida.
-          Dúvidas? Procure a secretaria do CREMEPE.
+          Em caso de dúvidas, contate a ESEM.
         </p>
       </div>
 
-      <p class="mt-6 text-center text-sm">
-        <a href="{% url 'painel_login' %}" class="font-medium text-slate-500 underline-offset-4 hover:text-slate-800 hover:underline">
+      <div class="mt-6 space-y-3">
+        <a href="{% url 'validar_certificado' %}" class="btn btn-secundario w-full">
+          Validar certificado
+        </a>
+        <a href="{% url 'painel_login' %}" class="btn btn-secundario w-full">
           Acesso administrativo
         </a>
-      </p>
+      </div>
     </div>
   </div>
 

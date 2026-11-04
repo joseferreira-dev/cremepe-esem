@@ -12,17 +12,14 @@
     Validação de certificados
   </h1>
   <p class="mt-2 text-sm text-slate-500">
-    Digite o código de autenticação impresso no rodapé do certificado
-    (formato <span class="font-mono font-semibold text-slate-700">ESEM-2026-XXXXXXXX</span>)
-    para conferir se ele foi emitido pelo Portal de Cursos da ESEM/CREMEPE.
-    A consulta é pública e não exige login.
+    O código de autenticação está impresso no rodapé do certificado.
   </p>
 
   <form method="get" action="{% url 'validar_certificado' %}" class="cartao mt-6 p-6">
     <label class="rotulo" for="codigo">Código de autenticação</label>
     <div class="mt-2 flex flex-col gap-3 sm:flex-row">
       <input type="text" name="codigo" id="codigo" value="{{ codigo }}"
-             placeholder="ESEM-2026-XXXXXXXX" autocomplete="off" spellcheck="false"
+             placeholder="ESEM-2026-XXXXXXXXXXXX" autocomplete="off" spellcheck="false"
              class="campo font-mono uppercase sm:flex-1">
       <button type="submit" class="btn btn-primary">
         {{ icons.chave|safe }} Validar
@@ -38,7 +35,7 @@
       <p class="mt-4 flex items-start gap-2 rounded-xl bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
         <span class="mt-0.5 shrink-0">{{ icons.alerta|safe }}</span>
         Código não encontrado. Confira se digitou corretamente, incluindo o
-        prefixo <span class="font-mono">ESEM-</span> e os 8 caracteres finais.
+        prefixo <span class="font-mono">ESEM-</span> e os 12 caracteres finais.
       </p>
     {% endif %}
   </form>

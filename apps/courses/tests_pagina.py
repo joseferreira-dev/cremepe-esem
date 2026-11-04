@@ -89,19 +89,34 @@ class TestPaginaDoCurso(TestCase):
 
 
 class TestPaginaInicial(TestCase):
-    """A pagina inicial e publica e fala da ESEM, nao de um curso especifico."""
+    """A pagina inicial do portal e a propria pagina de login."""
 
-    def test_pagina_inicial_e_publica(self):
+    def test_pagina_inicial_e_o_login(self):
         resposta = self.client.get("/")
         self.assertEqual(resposta.status_code, 200)
         html = resposta.content.decode()
-        self.assertIn("Escola Superior de Ética Médica", html)
-        self.assertIn("Núcleo técnico permanente", html)
-        # Nao deve citar o 17o curso (a apresentacao e da ESEM).
+        self.assertIn("Entrar no portal", html)
+        self.assertIn('name="cpf"', html)
+        self.assertIn('name="senha"', html)
+        # Nao deve citar o 17o curso.
         self.assertNotIn("17º", html)
         self.assertNotIn("17&ordm;", html)
-        # Deve oferecer o acesso aos cursos.
-        self.assertIn("/entrar/", html)
+
+    def test_pagina_inicial_tem_o_link_de_validacao(self):
+        for rota in ("/", "/entrar/"):
+            html = self.client.get(rota).content.decode()
+            self.assertIn('href="/validar/"', html, f"{rota} sem link de validacao")
+
+    def test_pagina_inicial_nao_tem_rodape(self):
+        html = self.client.get("/").content.decode()
+        self.assertNotIn("<footer", html)
+        self.assertNotIn("Como funciona", html)
+
+    def test_login_mostra_somente_o_aviso_de_duvidas(self):
+        html = self.client.get("/entrar/").content.decode()
+        self.assertIn("contate a ESEM", html)
+        self.assertNotIn("Primeiro acesso", html)
+        self.assertNotIn("PrimeiroNome@", html)
 
     def test_login_tem_banner_lateral_ao_formulario(self):
         html = self.client.get("/entrar/").content.decode()
@@ -110,18 +125,11 @@ class TestPaginaInicial(TestCase):
         self.assertIn("Banner lateral", html)
         self.assertIn("Formulário", html)
 
-    def test_pagina_inicial_sem_rodape_e_sem_secao_como_funciona(self):
+    def test_pagina_inicial_mostra_o_banner_de_acesso_para_visitante(self):
         html = self.client.get("/").content.decode()
-        self.assertNotIn("<footer", html)
-        self.assertNotIn("Conselho Regional de Medicina de Pernambuco", html)
-        self.assertIn("Escola Superior de Ética Médica", html)
-        self.assertNotIn("Como funciona", html)
+        self.assertIn("Acesso aos cursos", html)
 
-    def test_pagina_inicial_mostra_o_botao_de_acesso_para_visitante(self):
-        html = self.client.get("/").content.decode()
-        self.assertIn("Acessar os cursos", html)
-
-    def test_pagina_inicial_mostra_o_botao_de_cursos_para_autenticado(self):
+    def test_pagina_inicial_autenticado_vai_para_os_cursos(self):
         user = User.objects.create_user("medico-inicio", password="senha12345")
         Medico.objects.create(
             user=user,
@@ -130,8 +138,8 @@ class TestPaginaInicial(TestCase):
             must_change_password=False,
         )
         self.client.force_login(user)
-        html = self.client.get("/").content.decode()
-        self.assertIn("Ir para os meus cursos", html)
+        resposta = self.client.get("/")
+        self.assertRedirects(resposta, "/cursos/", target_status_code=200)
 
     def test_login_nao_cita_curso_especifico(self):
         html = self.client.get("/entrar/").content.decode()
@@ -142,23 +150,18 @@ class TestPaginaInicial(TestCase):
 
 
 class TestPaginaInstitucional(TestCase):
-    """A pagina inicial concentra a apresentacao e o conteudo institucional."""
+    """A antiga pagina institucional saiu do ar: / agora e o login."""
 
-    def test_pagina_inicial_tem_o_conteudo_institucional_completo(self):
-        resposta = self.client.get("/")
-        self.assertEqual(resposta.status_code, 200)
-        html = resposta.content.decode()
+    def test_a_pagina_institucional_foi_removida(self):
+        html = self.client.get("/").content.decode()
         for trecho in (
-            "Escola Superior de Ética Médica",
-            "Núcleo técnico permanente",
-            "03/2005",
             "Temas em debate",
             "Integração institucional",
-            "Faculdade Pernambucana de Saúde",
-            "Universidade Federal de Pernambuco",
+            "No portal",
             "Eventos",
         ):
-            self.assertIn(trecho, html)
+            self.assertNotIn(trecho, html)
+        # Nao deve citar o 17o curso.
         self.assertNotIn("17º", html)
         self.assertNotIn("17&ordm;", html)
 

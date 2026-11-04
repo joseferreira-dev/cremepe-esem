@@ -28,7 +28,8 @@ urlpatterns = [
     path("entrar/", accounts_views.login_view, name="login"),
     path("sair/", accounts_views.logout_view, name="logout"),
     path("trocar-senha/", accounts_views.password_change_view, name="password_change"),
-    path("", courses_views.inicio, name="inicio"),
+    # A página inicial é a própria página de login.
+    path("", accounts_views.login_view, name="inicio"),
     path(
         "sobre/",
         RedirectView.as_view(pattern_name="inicio", permanent=True),

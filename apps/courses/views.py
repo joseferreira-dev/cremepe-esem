@@ -16,12 +16,6 @@ from .services import course_coverage, format_hours, minimo_da_aula, unlocked_vi
 
 
 @never_cache
-def inicio(request):
-    """Pagina publica de apresentacao da ESEM (ponto de entrada do portal)."""
-    return render(request, "inicio.html", {"usuario_autenticado": request.user.is_authenticated})
-
-
-@never_cache
 @login_required_limpo
 def my_courses(request):
     if request.user.is_staff:

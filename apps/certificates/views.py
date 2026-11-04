@@ -59,7 +59,7 @@ def meus_certificados(request):
 def validar_certificado(request):
     """Validação pública de certificados — qualquer pessoa, sem login.
 
-    Consulta pelo código de autenticação (``?codigo=ESEM-2026-XXXXXXXX``).
+    Consulta pelo código de autenticação (``?codigo=ESEM-2026-XXXXXXXXXXXX``).
     Só expõe o que já está impresso no PDF (nome, curso, edição, emissão e
     carga horária): nunca CPF ou outros dados cadastrais. Cada acerto é
     registrado na auditoria.
