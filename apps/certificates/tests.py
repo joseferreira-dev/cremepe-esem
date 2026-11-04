@@ -265,6 +265,13 @@ class TestAcessoAoCertificado(BaseCertificado):
         self.assertEqual(resposta["Content-Type"], "application/pdf")
         self.assertTrue(resposta.content.startswith(b"%PDF"))
 
+    def test_staff_nao_baixa_pela_rota_do_aluno(self):
+        """A rota do aluno é do titular; administrador emite pelo painel."""
+        self.aprovar()
+        self.client.force_login(self.admin)
+        resposta = self.client.get(self.url_aluno())
+        self.assertEqual(resposta.status_code, 403)
+
     def test_painel_exige_autenticacao(self):
         resposta = self.client.get(
             reverse("painel_certificado", args=[self.matricula.pk])
@@ -310,6 +317,12 @@ class TestPaginaDeCertificados(BaseCertificado):
         resposta = self.client.get(self.url())
         self.assertEqual(resposta.status_code, 302)
         self.assertIn("/entrar/", resposta.url)
+
+    def test_staff_nao_acessa_a_pagina(self):
+        """Área do aluno: administrador emite pelo painel, não por aqui."""
+        self.client.force_login(self.admin)
+        resposta = self.client.get(self.url())
+        self.assertEqual(resposta.status_code, 403)
 
     def test_lista_o_certificado_emitido_com_codigo_e_link(self):
         self.aprovar()

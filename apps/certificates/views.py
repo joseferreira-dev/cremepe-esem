@@ -29,10 +29,14 @@ TENTATIVAS_MAX_POR_SESSAO = 10
 def meus_certificados(request):
     """Página do aluno: certificados obtidos e matrículas já aptas à emissão.
 
-    A lista mostra só o que é do próprio usuário (staff vê apenas o seu, já
-    que o painel cobre o acesso aos demais). A primeira baixa emite o PDF —
-    aqui nada é emitido, apenas sinalizado como pronto.
+    Área do aluno — administradores não entram: a emissão de terceiros é do
+    painel (``painel_certificado``). Lista só o que é do próprio usuário.
+    A primeira baixa emite o PDF; aqui nada é emitido, apenas sinalizado.
     """
+    if request.user.is_staff:
+        raise PermissionDenied(
+            "Área do aluno: administradores emitem pelo painel."
+        )
     emitidos = (
         Certificate.objects.filter(enrollment__medico__user=request.user)
         .select_related("enrollment", "enrollment__course")
@@ -133,11 +137,15 @@ def _servir(request, enrollment: Enrollment, voltar_para: str) -> HttpResponse:
 
 @login_required
 def certificado_aluno(request, enrollment_id: int):
-    """O aluno só baixa o próprio certificado (staff pode conferir o de qualquer um)."""
+    """O aluno só baixa o próprio certificado.
+
+    Administradores emitem pelo painel (``painel_certificado``); a rota do
+    aluno fica reservada ao próprio titular.
+    """
     enrollment = get_object_or_404(
         Enrollment.objects.select_related("course", "medico"), pk=enrollment_id
     )
-    if enrollment.medico.user_id != request.user.id and not request.user.is_staff:
+    if enrollment.medico.user_id != request.user.id:
         raise PermissionDenied
     return _servir(request, enrollment, reverse("course", args=[enrollment.pk]))
 

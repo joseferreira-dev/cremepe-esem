@@ -194,6 +194,32 @@ class TestPaginaInstitucional(TestCase):
         # O link de validacao ficou fora do menu superior.
         self.assertNotIn("Validar certificado", html)
 
+    def test_nav_esconde_certificados_do_administrador(self):
+        from django.template.loader import render_to_string
+        from django.test import RequestFactory
+
+        request = RequestFactory().get("/")
+        # Administrador: só os itens do painel, sem "Meus certificados".
+        request.user = User.objects.create_user(
+            "gestor-nav", password="senha12345", is_staff=True
+        )
+        html = render_to_string("partials/nav.html", request=request)
+        self.assertIn("Painel administrativo", html)
+        self.assertNotIn("Meus certificados", html)
+
+        # Médico: a área do aluno continua completa.
+        request.user = User.objects.create_user(
+            "medico-nav", password="senha12345"
+        )
+        Medico.objects.create(
+            user=request.user,
+            cpf="44455566677",
+            nome="Medico Nav",
+            must_change_password=False,
+        )
+        html = render_to_string("partials/nav.html", request=request)
+        self.assertIn("Meus certificados", html)
+
 
 class TestCatalogoDoAdmin(TestCase):
     """O admin ve todos os cursos, mesmo os que nao tem matricula."""

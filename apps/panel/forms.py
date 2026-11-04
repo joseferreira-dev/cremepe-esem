@@ -87,6 +87,12 @@ class AdministradorForm(forms.ModelForm):
         senha = (limpo.get("senha") or "").strip()
         if self._novo and not senha:
             raise forms.ValidationError("Informe a senha inicial do usuário.")
+        # Separação de contas: administrador e médico são acessos distintos.
+        if self.instance.pk and Medico.objects.filter(user=self.instance).exists():
+            raise forms.ValidationError(
+                "Esta conta pertence a um médico. Pela separação de acessos, "
+                "crie um usuário administrativo novo para esta pessoa."
+            )
         return limpo
 
     def save(self, commit=True):
@@ -298,6 +304,20 @@ class MedicoForm(forms.ModelForm):
         if queryset.exists():
             raise forms.ValidationError("Já existe um médico cadastrado com este CPF.")
         return cpf
+
+    def clean(self):
+        limpo = super().clean()
+        # Separação de contas: um usuário do painel não pode ser médico.
+        if (
+            self.instance.pk
+            and self.instance.user_id
+            and self.instance.user.is_staff
+        ):
+            raise forms.ValidationError(
+                "Esta conta é administrativa. Médicos e administradores usam "
+                "contas separadas; corrija a conta antes de editar o cadastro."
+            )
+        return limpo
 
     def save(self, commit=True):
         medico = super().save(commit=False)

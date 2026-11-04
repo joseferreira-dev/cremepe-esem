@@ -239,6 +239,27 @@ class TestGestaoDeAdministradores(TestCase):
         resposta = self.client.get(f"/painel/usuarios/{self.super.pk}/editar/")
         self.assertRedirects(resposta, "/painel/usuarios/")
 
+    def test_nao_promove_conta_de_medico_para_administrativa(self):
+        """Separação de contas: painel e médico são acessos distintos."""
+        user = User.objects.create_user("medico-gestao", password="senha12345")
+        Medico.objects.create(user=user, cpf="77788899901", nome="Medico Gestao")
+        resposta = self.client.post(
+            f"/painel/usuarios/{user.pk}/editar/",
+            {
+                "username": "medico-gestao",
+                "first_name": "Medico",
+                "last_name": "Gestao",
+                "email": "",
+                "senha": "",
+                "is_active": "on",
+            },
+        )
+        # Formulário recusado: a página volta com o erro, sem promover a conta.
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "pertence a um médico")
+        user.refresh_from_db()
+        self.assertFalse(user.is_staff)
+
     def test_desativar_bloqueia_acesso(self):
         self.client.post(
             "/painel/usuarios/novo/",

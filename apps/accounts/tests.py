@@ -66,6 +66,48 @@ class TestContaDoMedico(TestCase):
         self.assertEqual(User.objects.filter(username="medico-12345678900").count(), 1)
 
 
+class TestSeparacaoDeContas(TestCase):
+    """Administrador e médico são contas distintas — dois logins separados."""
+
+    def _medico_staff(self):
+        user = User.objects.create_user(
+            "medico-duplo", password="senha12345", is_staff=True
+        )
+        medico = Medico.objects.create(
+            user=user,
+            cpf="55566677788",
+            nome="Medico Duplo",
+            must_change_password=False,
+        )
+        return user, medico
+
+    def test_login_por_cpf_nao_aceita_conta_administrativa(self):
+        user, _ = self._medico_staff()
+        resposta = self.client.post(
+            "/entrar/", {"cpf": "555.666.777-88", "senha": "senha12345"}
+        )
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "conta é administrativa")
+        self.assertIsNone(self.client.session.get("_auth_user_id"))
+
+    def test_painel_nao_aceita_conta_de_medico(self):
+        self._medico_staff()
+        resposta = self.client.post(
+            "/painel/entrar/",
+            {"username": "medico-duplo", "password": "senha12345"},
+        )
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "conta é de médico")
+        self.assertIsNone(self.client.session.get("_auth_user_id"))
+
+    def test_conta_de_medico_nasce_sem_privilegio_de_painel(self):
+        medico = Medico(cpf="44433322211", nome="Medico Limpo")
+        criar_conta_medico(medico)
+        medico.save()
+        self.assertFalse(medico.user.is_staff)
+        self.assertFalse(medico.user.is_superuser)
+
+
 class TestSessaoERegrasDeAcesso(TestCase):
     """Regras que impedem a 'sessao expirada' espuria."""
 

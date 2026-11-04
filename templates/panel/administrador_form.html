@@ -24,6 +24,11 @@
 <form method="post" class="mt-8 max-w-2xl">
   {% csrf_token %}
   <div class="cartao cartao-padrao space-y-6">
+    {% if form.non_field_errors %}
+      <div class="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700 ring-1 ring-rose-200">
+        {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+      </div>
+    {% endif %}
     {% include "partials/campo.html" with field=form.username %}
     {% include "partials/campo.html" with field=form.first_name %}
     {% include "partials/campo.html" with field=form.last_name %}

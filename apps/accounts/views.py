@@ -50,6 +50,15 @@ def login_view(request):
             and medico.user.is_active
             and medico.user.check_password(form.cleaned_data["senha"])
         ):
+            # Separação de contas: quem é administrador entra pelo painel com
+            # usuário e senha — o CPF abre apenas a área do médico.
+            if medico.user.is_staff:
+                messages.error(
+                    request,
+                    "Esta conta é administrativa. Entre pelo Acesso "
+                    "administrativo com usuário e senha.",
+                )
+                return render(request, "accounts/login.html", {"form": form})
             login(request, medico.user)
             if medico.must_change_password and settings.EXIGIR_TROCA_SENHA:
                 return redirect("password_change")
@@ -75,6 +84,13 @@ def admin_login_view(request):
         if not user.is_staff:
             form.add_error(
                 None, "Esta conta não tem acesso ao painel administrativo."
+            )
+        elif Medico.objects.filter(user=user).exists():
+            # Separação de contas: o painel não abre com a conta de médico.
+            form.add_error(
+                None,
+                "Esta conta é de médico. O acesso administrativo usa uma conta "
+                "própria; na área do médico, entre com o CPF.",
             )
         else:
             login(request, user)

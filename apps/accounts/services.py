@@ -18,10 +18,14 @@ def criar_conta_medico(medico: Medico, senha: str | None = None) -> str:
     senha = explicita or senha_padrao(medico.nome, medico.cpf)
 
     if medico.user_id is None:
+        # Contas de médico e de administrador são separadas: a conta criada
+        # aqui nunca nasce com privilégio de painel.
         user = User.objects.create_user(
             username=f"medico-{medico.cpf}",
             email=medico.email,
             password=senha,
+            is_staff=False,
+            is_superuser=False,
         )
         medico.user = user
     else:
