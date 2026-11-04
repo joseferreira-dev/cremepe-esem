@@ -61,5 +61,7 @@ urlpatterns = [
     path("api/", include("apps.media.urls")),
 ]
 
-# 403 humanizado: nenhuma página de erro crua do Django.
+# Páginas de erro com identidade e viewport (responsivas no celular).
 handler403 = "apps.web.views.acesso_restrito"
+handler404 = "apps.web.views.pagina_nao_encontrada"
+handler500 = "apps.web.views.erro_interno"

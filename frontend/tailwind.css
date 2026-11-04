@@ -136,6 +136,14 @@
       focus:ring-2 focus:ring-inset focus:ring-marca-500 focus:outline-none;
   }
 
+  /* iOS Safari: amplia a página inteira se a fonte do campo for < 16px.
+     Em telas pequenas os campos usam 16px para manter o zoom original. */
+  @media (max-width: 639px) {
+    .campo {
+      font-size: 16px;
+    }
+  }
+
   .etiqueta {
     @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold;
   }

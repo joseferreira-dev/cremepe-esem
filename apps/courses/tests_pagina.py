@@ -224,6 +224,28 @@ class TestPaginaInstitucional(TestCase):
         self.assertIn("Meus certificados", html)
 
 
+class TestPaginasDeErro(TestCase):
+    """404/500 com viewport e identidade (a página padrão do Django não tem)."""
+
+    def test_404_e_amigavel_e_responsivo(self):
+        resposta = self.client.get("/rota-que-nao-existe/")
+        self.assertEqual(resposta.status_code, 404)
+        self.assertContains(resposta, "Página não encontrada", status_code=404)
+        self.assertContains(resposta, 'name="viewport"', status_code=404)
+        self.assertContains(resposta, "Entrar", status_code=404)
+
+    def test_500_renderiza_pagina_amigavel(self):
+        from django.test import RequestFactory
+
+        from apps.web.views import erro_interno
+
+        resposta = erro_interno(RequestFactory().get("/"))
+        self.assertEqual(resposta.status_code, 500)
+        corpo = resposta.content.decode()
+        self.assertIn("Algo não saiu como esperado", corpo)
+        self.assertIn('name="viewport"', corpo)
+
+
 class TestCatalogoDoAdmin(TestCase):
     """O admin ve todos os cursos, mesmo os que nao tem matricula."""
 

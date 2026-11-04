@@ -11,3 +11,40 @@ def acesso_restrito(request, exception=None):
     regras de upload etc.) com a identidade do portal.
     """
     return render(request, "403.html", status=403)
+
+
+def pagina_nao_encontrada(request, exception=None):
+    """404 responsivo e com a identidade do portal (``handler404``).
+
+    A página padrão do Django não tem viewport — em celular ela renderiza
+    em 980px (layout comprimido/rolável). Aqui ela estica corretamente.
+    """
+    return render(
+        request,
+        "erro.html",
+        {
+            "status": 404,
+            "titulo": "Página não encontrada",
+            "texto": (
+                "O endereço pode ter mudado ou o conteúdo não existe mais."
+            ),
+        },
+        status=404,
+    )
+
+
+def erro_interno(request):
+    """500 responsivo (``handler500``) — mesma família do 403/404."""
+    return render(
+        request,
+        "erro.html",
+        {
+            "status": 500,
+            "titulo": "Algo não saiu como esperado",
+            "texto": (
+                "Tente novamente em instantes. Se o problema persistir, "
+                "procure a secretaria do CREMEPE."
+            ),
+        },
+        status=500,
+    )

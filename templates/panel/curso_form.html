@@ -13,7 +13,7 @@
 <form method="post" enctype="multipart/form-data" class="mt-8 grid gap-6 lg:grid-cols-3">
   {% csrf_token %}
 
-  <div class="cartao cartao-padrao space-y-6 lg:col-span-2">
+  <div class="cartao cartao-padrao min-w-0 space-y-6 lg:col-span-2">
     {% include "partials/campo.html" with field=form.title %}
     {% include "partials/campo.html" with field=form.edition %}
     {% include "partials/campo.html" with field=form.description %}

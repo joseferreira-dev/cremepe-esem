@@ -65,7 +65,7 @@
   <!-- Visão geral -->
   <div data-tab-panel="visao" class="pt-6">
     <div class="grid gap-6 lg:grid-cols-3">
-      <div class="space-y-6 lg:col-span-2">
+      <div class="min-w-0 space-y-6 lg:col-span-2">
         <div class="cartao cartao-padrao">
           <div class="flex items-center justify-between gap-4">
             <h2 class="flex items-center gap-2 text-sm font-semibold text-slate-800">
@@ -122,7 +122,7 @@
         </div>
       </div>
 
-      <aside class="space-y-6">
+      <aside class="min-w-0 space-y-6">
         <div class="cartao cartao-padrao">
           <h2 class="text-sm font-semibold text-slate-800">Regras do curso</h2>
           <dl class="mt-4 space-y-3 text-sm">
@@ -336,7 +336,7 @@
   <!-- Configurações -->
   <div data-tab-panel="configuracoes" class="hidden pt-6">
     <div class="grid gap-6 lg:grid-cols-2">
-      <div class="cartao cartao-padrao">
+      <div class="cartao cartao-padrao min-w-0">
         <h2 class="text-sm font-semibold text-slate-800">Dados do curso</h2>
         <dl class="mt-4 space-y-3 text-sm">
           <div class="flex justify-between gap-4">
@@ -361,7 +361,7 @@
         <a href="{% url 'painel_curso_editar' curso.id %}" class="btn btn-secundario mt-5">Editar dados do curso</a>
       </div>
 
-      <div class="cartao cartao-padrao">
+      <div class="cartao cartao-padrao min-w-0">
         <h2 class="text-sm font-semibold text-rose-700">Zona de risco</h2>
         <p class="mt-2 text-xs leading-relaxed text-slate-500">
           A exclusão remove o curso e todas as suas gravações. Só é possível excluir cursos sem matrículas.
