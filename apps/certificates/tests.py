@@ -253,7 +253,11 @@ class TestAcessoAoCertificado(BaseCertificado):
         outro_user, _ = criar_aluno("outro-aluno", "99988877766", "Outro Médico")
         self.client.force_login(outro_user)
         resposta = self.client.get(self.url_aluno())
-        self.assertEqual(resposta.status_code, 403)
+        # Sem página de erro: volta aos cursos com aviso.
+        self.assertEqual(resposta.status_code, 302)
+        self.assertIn("/cursos/", resposta.url)
+        pagina = self.client.get(resposta.url)
+        self.assertContains(pagina, "não é seu")
 
     def test_staff_do_painel_baixa(self):
         self.aprovar()
@@ -266,11 +270,12 @@ class TestAcessoAoCertificado(BaseCertificado):
         self.assertTrue(resposta.content.startswith(b"%PDF"))
 
     def test_staff_nao_baixa_pela_rota_do_aluno(self):
-        """A rota do aluno é do titular; administrador emite pelo painel."""
+        """A rota do aluno é do titular; administrador volta para o painel."""
         self.aprovar()
         self.client.force_login(self.admin)
         resposta = self.client.get(self.url_aluno())
-        self.assertEqual(resposta.status_code, 403)
+        self.assertEqual(resposta.status_code, 302)
+        self.assertIn("/painel/", resposta.url)
 
     def test_painel_exige_autenticacao(self):
         resposta = self.client.get(
@@ -319,10 +324,11 @@ class TestPaginaDeCertificados(BaseCertificado):
         self.assertIn("/entrar/", resposta.url)
 
     def test_staff_nao_acessa_a_pagina(self):
-        """Área do aluno: administrador emite pelo painel, não por aqui."""
+        """Área do aluno: administrador volta para o painel, sem erro."""
         self.client.force_login(self.admin)
         resposta = self.client.get(self.url())
-        self.assertEqual(resposta.status_code, 403)
+        self.assertEqual(resposta.status_code, 302)
+        self.assertIn("/painel/", resposta.url)
 
     def test_lista_o_certificado_emitido_com_codigo_e_link(self):
         self.aprovar()

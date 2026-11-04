@@ -41,7 +41,10 @@ class TestPaginaDoCurso(TestCase):
         outra = Enrollment.objects.create(medico=outro, course=self.curso)
         self.client.force_login(self.user)
         resposta = self.client.get(f"/cursos/{outra.id}/")
+        # 403 com página amigável (handler403), não o erro cru do Django.
         self.assertEqual(resposta.status_code, 403)
+        self.assertContains(resposta, "Acesso restrito", status_code=403)
+        self.assertContains(resposta, "Ir para meus cursos", status_code=403)
 
     def test_pagina_tem_todos_os_elementos_do_player(self):
         """O player aborta em silêncio se faltar qualquer um destes IDs."""

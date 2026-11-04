@@ -98,10 +98,14 @@ class TestAcessoAoPainel(TestCase):
         )
         self.assertRedirects(resposta, "/painel/")
 
-    def test_medico_recebe_403(self):
+    def test_medico_elevado_para_os_cursos_com_aviso(self):
+        """Sem página de erro: o médico volta para a área dele."""
         self.client.force_login(self.medico_user)
         resposta = self.client.get("/painel/")
-        self.assertEqual(resposta.status_code, 403)
+        self.assertEqual(resposta.status_code, 302)
+        self.assertIn("/cursos/", resposta.url)
+        pagina = self.client.get(resposta.url)
+        self.assertContains(pagina, "Área restrita à administração")
 
     def test_admin_acessa(self):
         self.client.force_login(self.admin)
@@ -182,10 +186,13 @@ class TestGestaoDeAdministradores(TestCase):
         self.client.force_login(self.super)
 
     def test_staff_comum_nao_acessa_gestao(self):
+        # Sem página de erro: volta para o painel com aviso.
         self.client.force_login(self.staff)
-        self.assertEqual(self.client.get("/painel/usuarios/").status_code, 403)
-        self.assertEqual(
-            self.client.get("/painel/usuarios/novo/").status_code, 403
+        self.assertRedirects(
+            self.client.get("/painel/usuarios/"), "/painel/"
+        )
+        self.assertRedirects(
+            self.client.get("/painel/usuarios/novo/"), "/painel/"
         )
 
     def test_superusuário_lista_e_cria(self):

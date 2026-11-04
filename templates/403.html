@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Acesso restrito — CREMEPE / ESEM{% endblock %}
+
+{% block head %}<meta name="robots" content="noindex">{% endblock %}
+
+{% block corpo %}
+<div class="mx-auto max-w-xl px-4 py-20 text-center sm:px-6">
+  <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
+    {{ icons.cadeado|safe }}
+  </span>
+  <p class="rotulo mt-6">403</p>
+  <h1 class="mt-1 text-3xl font-bold tracking-tight text-slate-900">
+    Acesso restrito
+  </h1>
+  <p class="mt-4 text-sm leading-relaxed text-slate-600">
+    {% if user.is_staff %}
+      Esta página é da área do aluno. Como administrador, emita certificados
+      e gerencie tudo pelo painel.
+    {% elif user.is_authenticated %}
+      Você não tem permissão para acessar esta página. Volte aos seus cursos;
+      em caso de dúvidas, contate a ESEM.
+    {% else %}
+      Você não tem permissão para acessar esta página.
+    {% endif %}
+  </p>
+  <div class="mt-8 flex justify-center">
+    {% if not user.is_authenticated %}
+      <a href="{% url 'login' %}" class="btn btn-primary">{{ icons.seta_direita|safe }} Entrar</a>
+    {% elif user.is_staff %}
+      <a href="{% url 'painel_index' %}" class="btn btn-primary">{{ icons.painel|safe }} Ir para o painel</a>
+    {% else %}
+      <a href="{% url 'my_courses' %}" class="btn btn-primary">{{ icons.curso|safe }} Ir para meus cursos</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

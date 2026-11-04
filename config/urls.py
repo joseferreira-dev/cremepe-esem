@@ -60,3 +60,6 @@ urlpatterns = [
     path("painel/", include("apps.panel.urls")),
     path("api/", include("apps.media.urls")),
 ]
+
+# 403 humanizado: nenhuma página de erro crua do Django.
+handler403 = "apps.web.views.acesso_restrito"

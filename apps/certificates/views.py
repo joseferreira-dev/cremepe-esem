@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -34,9 +33,8 @@ def meus_certificados(request):
     A primeira baixa emite o PDF; aqui nada é emitido, apenas sinalizado.
     """
     if request.user.is_staff:
-        raise PermissionDenied(
-            "Área do aluno: administradores emitem pelo painel."
-        )
+        messages.warning(request, "Área do aluno: administradores emitem pelo painel.")
+        return redirect("painel_index")
     emitidos = (
         Certificate.objects.filter(enrollment__medico__user=request.user)
         .select_related("enrollment", "enrollment__course")
@@ -137,16 +135,22 @@ def _servir(request, enrollment: Enrollment, voltar_para: str) -> HttpResponse:
 
 @login_required
 def certificado_aluno(request, enrollment_id: int):
-    """O aluno só baixa o próprio certificado.
+    """O aluno só baixa o próprio certificado — sem página de erro.
 
-    Administradores emitem pelo painel (``painel_certificado``); a rota do
-    aluno fica reservada ao próprio titular.
+    Administradores emitem pelo painel (``painel_certificado``); quem está
+    na área errada é redirecionado com um aviso.
     """
     enrollment = get_object_or_404(
         Enrollment.objects.select_related("course", "medico"), pk=enrollment_id
     )
     if enrollment.medico.user_id != request.user.id:
-        raise PermissionDenied
+        if request.user.is_staff:
+            messages.warning(
+                request, "Administradores emitem certificados pelo painel."
+            )
+            return redirect("painel_index")
+        messages.error(request, "Este certificado não é seu.")
+        return redirect("my_courses")
     return _servir(request, enrollment, reverse("course", args=[enrollment.pk]))
 
 
