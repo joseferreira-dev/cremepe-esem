@@ -50,7 +50,7 @@ class TestHeartbeat(TestCase):
             course=self.curso, order=1, title="Aula 1", duration=3600, status=Video.Status.READY
         )
         self.enrollment = Enrollment.objects.create(
-            medico=self.medico, course=self.curso, min_percent=50
+            medico=self.medico, course=self.curso
         )
 
     def test_credita_tempo_de_reproducao_real(self):
@@ -374,7 +374,7 @@ class TestAprovacao(TestCase):
             status=Video.Status.READY,
         )
         self.enrollment = Enrollment.objects.create(
-            medico=self.medico, course=self.curso, min_percent=50
+            medico=self.medico, course=self.curso
         )
 
     def test_cobertura_do_curso(self):
@@ -450,7 +450,7 @@ class TestMinimoPorAula(TestCase):
             status=Video.Status.READY,
         )
         self.enrollment = Enrollment.objects.create(
-            medico=self.medico, course=self.curso, min_percent=50
+            medico=self.medico, course=self.curso
         )
 
     def cobrir(self, video, segundos):

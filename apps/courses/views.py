@@ -140,7 +140,7 @@ def course_view(request, enrollment_id: int):
             "enrollment": enrollment,
             "items": items,
             "coverage": course_coverage(enrollment),
-            "required": float(enrollment.min_percent or 0),
+            "required": float(enrollment.course.min_percent or 0),
             "duration": format_hours(enrollment.course.total_duration),
             # Token de API: permite ao player funcionar mesmo em ambientes que
             # reescrevem o cabecalho Cookie das requisicoes fetch.

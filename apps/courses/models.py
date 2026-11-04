@@ -213,13 +213,8 @@ class Enrollment(models.Model):
     status = models.CharField(
         "Situação", max_length=20, choices=Status, default=Status.ENROLLED
     )
-    min_percent = models.DecimalField(
-        "Percentual exigido (%)",
-        max_digits=5,
-        decimal_places=2,
-        default=Decimal("50.00"),
-        help_text="Copiado do curso no momento da matrícula.",
-    )
+    # O percentual mínimo é do curso (Course.min_percent): igual para todos
+    # os alunos da turma — não existe percentual por matrícula.
     deadline = models.DateField("Prazo", null=True, blank=True)
     approved_at = models.DateTimeField("Aprovado em", null=True, blank=True)
     approved_by = models.ForeignKey(

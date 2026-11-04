@@ -153,7 +153,7 @@ class TestDistribuicaoDoProgresso(TestCase):
             status=Video.Status.READY,
         )
         self.matricula = Enrollment.objects.create(
-            medico=self.medico, course=self.curso, min_percent=50
+            medico=self.medico, course=self.curso
         )
         Progress.objects.create(
             enrollment=self.matricula, video=self.video,
@@ -364,18 +364,19 @@ class TestFluxoCompleto(TestCase):
         medico = Medico.objects.get(cpf="11122233344")
         self.assertTrue(medico.must_change_password)
 
-        # Matrícula
+        # Matrícula (o percentual mínimo vem do curso, igual para todos)
         self.client.post(
             "/painel/matriculas/nova/",
             {
                 "medico": medico.pk,
                 "course": curso.pk,
-                "min_percent": "50",
                 "deadline": "",
             },
         )
         matricula = Enrollment.objects.get(medico=medico, course=curso)
-        self.assertEqual(matricula.min_percent, 50)
+        from apps.courses.services import criterios_de_aprovacao
+
+        self.assertEqual(criterios_de_aprovacao(matricula)["exigido"], 50)
 
         # Aprovação manual
         self.client.post(
@@ -400,10 +401,17 @@ class TestFluxoCompleto(TestCase):
 
         resposta = self.client.post(
             "/painel/matriculas/nova/",
-            {"medico": medico.pk, "course": curso.pk, "min_percent": "50", "deadline": ""},
+            {"medico": medico.pk, "course": curso.pk, "deadline": ""},
         )
         self.assertEqual(resposta.status_code, 200)
         self.assertEqual(Enrollment.objects.count(), 1)
+
+    def test_formulario_de_matricula_nao_tem_percentual(self):
+        """O mínimo é do curso (igual para todos): sem opção por matrícula."""
+        resposta = self.client.get("/painel/matriculas/nova/")
+        self.assertEqual(resposta.status_code, 200)
+        self.assertNotContains(resposta, "Percentual exigido")
+        self.assertContains(resposta, "igual para todos os alunos")
 
     def test_exportar_csv(self):
         curso = Course.objects.create(title="Curso", status=Course.Status.ACTIVE)
@@ -724,7 +732,7 @@ class TestMatriculasEmLote(TestCase):
                 )
             )
         Enrollment.objects.create(
-            medico=self.medicos[0], course=self.curso, min_percent=50
+            medico=self.medicos[0], course=self.curso
         )
         self.client.force_login(self.admin)
 
@@ -734,7 +742,6 @@ class TestMatriculasEmLote(TestCase):
             {
                 "acao": "matricular_lote",
                 "medicos": [self.medicos[1].pk, self.medicos[2].pk],
-                "min_percent": "70",
                 "deadline": "",
             },
         )
@@ -744,10 +751,11 @@ class TestMatriculasEmLote(TestCase):
             self.assertTrue(
                 Enrollment.objects.filter(medico=medico, course=self.curso).exists()
             )
-        self.assertEqual(
-            Enrollment.objects.get(medico=self.medicos[1], course=self.curso).min_percent,
-            70,
-        )
+        # O percentual é o do curso para todos (não existe ajuste por matrícula).
+        from apps.courses.services import criterios_de_aprovacao
+
+        matricula = Enrollment.objects.get(medico=self.medicos[1], course=self.curso)
+        self.assertEqual(criterios_de_aprovacao(matricula)["exigido"], 50)
 
 
 class TestRemoverMatricula(TestCase):
@@ -768,7 +776,7 @@ class TestRemoverMatricula(TestCase):
             title="Curso remover", status=Course.Status.ACTIVE, min_percent=50
         )
         self.matricula = Enrollment.objects.create(
-            medico=self.medico, course=self.curso, min_percent=50
+            medico=self.medico, course=self.curso
         )
         self.video = Video.objects.create(
             course=self.curso, order=1, title="Aula", duration=100,
@@ -979,7 +987,7 @@ class TestMinimoPorAulaNoPainel(TestCase):
             must_change_password=False,
         )
         enrollment = Enrollment.objects.create(
-            medico=medico, course=curso, min_percent=50
+            medico=medico, course=curso
         )
         # Aula 1 inteira + aula 2 a 90%: cobertura total ≥ 50%, mas aula 2
         # abaixo dos 95% exigidos individualmente.

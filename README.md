@@ -260,8 +260,8 @@ Para vários alunos de uma vez: **Painel → Médicos → Cadastrar em lote**
 ### 4. Matricular
 
 **Painel → Cursos → Abrir → Matriculados → matricular** (selecione um ou vários alunos)
-ou **Painel → Matrículas → Nova matrícula**. O `min_percent` é copiado do curso e pode
-ser ajustado por matrícula.
+ou **Painel → Matrículas → Nova matrícula**. O percentual mínimo de aprovação é o do
+curso — igual para todos os alunos da turma.
 
 ### 5. Acompanhar
 

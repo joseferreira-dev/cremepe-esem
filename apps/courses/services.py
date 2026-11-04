@@ -190,13 +190,14 @@ def aulas_abaixo_do_minimo(enrollment: Enrollment) -> list[dict]:
 def criterios_de_aprovacao(enrollment: Enrollment) -> dict:
     """Avalia os dois critériios de aprovação da matrícula.
 
-    O médico é aprovado só quando atinge o percentual exigido da matrícula
-    E cada aula com mínimo definido atinge o seu próprio percentual — sem
-    isso, um curso de 10 h com duas aulas de 5 h e mínimo de 50% seria
-    aprovado assistindo apenas a primeira aula inteira.
+    O médico é aprovado só quando atinge o percentual mínimo do curso
+    (igual para todos os alunos) E cada aula com mínimo definido atinge o
+    seu próprio percentual — sem isso, um curso de 10 h com duas aulas de
+    5 h e mínimo de 50% seria aprovado assistindo apenas a primeira aula
+    inteira.
     """
     cobertura = course_coverage(enrollment)
-    exigido = float(enrollment.min_percent or 0)
+    exigido = float(enrollment.course.min_percent or 0)
     pendencias = aulas_abaixo_do_minimo(enrollment)
     return {
         "cobertura": cobertura,

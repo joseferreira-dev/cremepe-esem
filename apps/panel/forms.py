@@ -340,19 +340,19 @@ class MedicoForm(forms.ModelForm):
 
 
 class MatriculaForm(forms.ModelForm):
+    """Nova matrícula — o percentual mínimo é o do curso (para todos)."""
+
     class Meta:
         model = Enrollment
-        fields = ("medico", "course", "min_percent", "deadline")
+        fields = ("medico", "course", "deadline")
         widgets = {
             "medico": forms.Select(attrs={"class": "campo campo-busca-select"}),
             "course": forms.Select(attrs={"class": "campo campo-busca-select"}),
-            "min_percent": forms.NumberInput(attrs={"class": "campo", "step": "0.01", "min": "0", "max": "100"}),
             "deadline": forms.DateInput(attrs={"class": "campo", "type": "date"}),
         }
         labels = {
             "medico": "Médico",
             "course": "Curso",
-            "min_percent": "Percentual exigido (%)",
             "deadline": "Prazo",
         }
 
@@ -385,17 +385,6 @@ class MatriculaLoteForm(forms.Form):
             }
         ),
     )
-    min_percent = forms.DecimalField(
-        required=False,
-        label="Percentual exigido (%)",
-        max_digits=5,
-        decimal_places=2,
-        min_value=0,
-        max_value=100,
-        widget=forms.NumberInput(
-            attrs={"class": "campo", "step": "0.01", "min": "0", "max": "100"}
-        ),
-    )
     deadline = forms.DateField(
         required=False,
         label="Prazo",
@@ -411,7 +400,6 @@ class MatriculaLoteForm(forms.Form):
                 .exclude(enrollments__course=curso)
                 .order_by("nome")
             )
-            self.fields["min_percent"].initial = curso.min_percent
             self.fields["deadline"].initial = curso.deadline
 
     def clean_medicos(self):
@@ -423,7 +411,6 @@ class MatriculaLoteForm(forms.Form):
     def save(self):
         if self.curso is None:
             raise ValueError("O curso é obrigatório para matricular em lote.")
-        min_percent = self.cleaned_data.get("min_percent") or self.curso.min_percent
         deadline = self.cleaned_data.get("deadline") or self.curso.deadline
         criadas = []
         with transaction.atomic():
@@ -431,7 +418,7 @@ class MatriculaLoteForm(forms.Form):
                 matricula, criada = Enrollment.objects.get_or_create(
                     medico=medico,
                     course=self.curso,
-                    defaults={"min_percent": min_percent, "deadline": deadline},
+                    defaults={"deadline": deadline},
                 )
                 if criada:
                     criadas.append(matricula)

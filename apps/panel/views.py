@@ -501,7 +501,7 @@ def matriculas(request):
             {
                 "matricula": matricula,
                 "cobertura": round(cobertura, 1),
-                "exigido": float(matricula.min_percent or 0),
+                "exigido": float(matricula.course.min_percent or 0),
                 "ultima": Progress.objects.filter(enrollment=matricula).aggregate(
                     last=Max("last_seen_at")
                 )["last"],

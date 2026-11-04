@@ -316,7 +316,7 @@ class TestSubstituicaoDeVideo(TestCase):
             status=Video.Status.READY, hls_path=f"hls/{self.curso.id}",
         )
         self.matricula = Enrollment.objects.create(
-            medico=self.medico, course=self.curso, min_percent=50
+            medico=self.medico, course=self.curso
         )
         Progress.objects.create(
             enrollment=self.matricula, video=self.video,
@@ -743,7 +743,7 @@ class TestJornadaDeConclusaoNoPlayer(TestCase):
             status=Video.Status.READY,
         )
         self.enrollment = Enrollment.objects.create(
-            medico=self.medico, course=self.curso, min_percent=50
+            medico=self.medico, course=self.curso
         )
         self.client.force_login(self.user)
 

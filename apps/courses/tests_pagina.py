@@ -26,7 +26,7 @@ class TestPaginaDoCurso(TestCase):
             status=Video.Status.READY,
         )
         self.enrollment = Enrollment.objects.create(
-            medico=self.medico, course=self.curso, min_percent=50
+            medico=self.medico, course=self.curso
         )
 
     def test_pagina_exige_login(self):
@@ -356,9 +356,8 @@ class TestVisibilidadeDoCursoParaAluno(TestCase):
         return Course.objects.create(**padrao)
 
     def _matricular(self, curso, **kwargs):
-        padrao = {"min_percent": 50}
-        padrao.update(kwargs)
-        return Enrollment.objects.create(medico=self.medico, course=curso, **padrao)
+        # O percentual mínimo é o do curso (Course.min_percent), não por matrícula.
+        return Enrollment.objects.create(medico=self.medico, course=curso, **kwargs)
 
     def test_rascunho_nao_aparece_para_aluno(self):
         curso = self._curso(status=Course.Status.DRAFT)
@@ -439,7 +438,7 @@ class TestDisponibilidadeDeVideo(TestCase):
             title="Curso Videos", status=Course.Status.ACTIVE
         )
         self.matricula = Enrollment.objects.create(
-            medico=self.medico, course=self.curso, min_percent=50
+            medico=self.medico, course=self.curso
         )
         self.client.force_login(self.user)
 

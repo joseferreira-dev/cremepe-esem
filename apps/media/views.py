@@ -482,7 +482,7 @@ def player_state(request):
             1,
         ),
         "course_percent": round(course_coverage(enrollment), 1),
-        "required_percent": float(enrollment.min_percent or 0),
+        "required_percent": float(enrollment.course.min_percent or 0),
         "unlocked": video.pk in unlocked,
         "unlocked_videos": unlocked,
         "heartbeat_interval": settings.HEARTBEAT_INTERVAL_SECONDS,
