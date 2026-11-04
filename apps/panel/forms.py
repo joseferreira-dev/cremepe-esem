@@ -185,7 +185,9 @@ class CursoForm(forms.ModelForm):
                 attrs={"class": "campo", "step": "0.01", "min": "0", "max": "100"}
             ),
             "deadline": forms.DateInput(attrs={"class": "campo", "type": "date"}),
-            "cover": forms.ClearableFileInput(attrs={"class": "campo"}),
+            "cover": forms.ClearableFileInput(
+                attrs={"class": "campo", "accept": "image/png,image/jpeg"}
+            ),
         }
         labels = {
             "title": "Título do curso",

@@ -413,6 +413,60 @@ class TestFluxoCompleto(TestCase):
         self.assertNotContains(resposta, "Percentual exigido")
         self.assertContains(resposta, "igual para todos os alunos")
 
+    def test_formulario_de_curso_renderiza_anexos_com_estilo(self):
+        """Anexos com estado atual, botão de escolha e prévia (sem texto cru)."""
+        resposta = self.client.get("/painel/cursos/novo/")
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "Escolher arquivo")
+        self.assertContains(resposta, "data-anexo")
+        self.assertContains(resposta, "Nenhum arquivo selecionado")
+        # O texto cru do widget do Django não aparece mais.
+        self.assertNotContains(resposta, "Modificar")
+
+    def test_limpar_a_capa_do_curso(self):
+        """O checkbox "Limpar" do anexo zera o arquivo (nome -clear padrão)."""
+        import io
+        import tempfile
+
+        from django.test import override_settings
+
+        from PIL import Image
+
+        with tempfile.TemporaryDirectory() as tmp, override_settings(MEDIA_ROOT=tmp):
+            curso = Course.objects.create(
+                title="Curso Capa", status=Course.Status.ACTIVE
+            )
+            buf = io.BytesIO()
+            Image.new("RGB", (8, 8), (10, 120, 100)).save(buf, format="PNG")
+            curso.cover.save(
+                "capa.png",
+                SimpleUploadedFile(
+                    "capa.png", buf.getvalue(), content_type="image/png"
+                ),
+                save=True,
+            )
+
+            # O template renderiza o checkbox com o nome que o Django espera.
+            pagina = self.client.get(f"/painel/cursos/{curso.pk}/editar/")
+            self.assertContains(pagina, 'name="cover-clear"')
+            self.assertContains(pagina, "data-anexo-atual")
+
+            resposta = self.client.post(
+                f"/painel/cursos/{curso.pk}/editar/",
+                {
+                    "title": "Curso Capa",
+                    "status": "active",
+                    "min_percent": "50",
+                    "video_min_percent": "",
+                    "unlock_threshold": "95",
+                    "deadline": "",
+                    "cover-clear": "on",
+                },
+            )
+            self.assertRedirects(resposta, f"/painel/cursos/{curso.pk}/")
+            curso.refresh_from_db()
+            self.assertFalse(curso.cover)
+
     def test_exportar_csv(self):
         curso = Course.objects.create(title="Curso", status=Course.Status.ACTIVE)
         user = User.objects.create_user("m3", password="x")

@@ -1,0 +1,43 @@
+{# Campo de arquivo (capa, modelo DOCX, CSV): estado atual + escolha + prévia. #}
+{% load web %}
+<div data-anexo-campo>
+  <label class="rotulo" for="{{ field.id_for_label }}">{{ field.label }}</label>
+
+  {% if field.value %}
+    <div class="mt-2 flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3.5 py-2.5 ring-1 ring-slate-200"
+         data-anexo-atual>
+      <span class="flex min-w-0 items-center gap-2 text-sm text-slate-700">
+        <span class="shrink-0 text-slate-400">{{ icons.documento|safe }}</span>
+        <span class="truncate font-medium" title="{{ field.value }}">{{ field.value|nome_arquivo }}</span>
+      </span>
+      {% if not field.field.required %}
+        <label class="flex shrink-0 cursor-pointer items-center gap-2 text-xs font-medium text-slate-500">
+          <input type="checkbox" name="{{ field.html_name }}-clear" id="{{ field.id_for_label }}_clear"
+                 class="h-4 w-4 rounded border-slate-300 text-marca-600 focus:ring-marca-500"
+                 data-anexo-limpar>
+          Limpar
+        </label>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <label for="{{ field.id_for_label }}"
+         class="mt-2 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-600 transition hover:border-marca-400 hover:bg-marca-50 hover:text-marca-600">
+    <span class="text-marca-600">{{ icons.enviar|safe }}</span>
+    <span>Escolher arquivo</span>
+    <input type="file" name="{{ field.html_name }}" id="{{ field.id_for_label }}"
+           {% if field.field.widget.attrs.accept %}accept="{{ field.field.widget.attrs.accept }}"{% endif %}
+           class="sr-only" data-anexo>
+  </label>
+
+  <img data-anexo-previa alt="" class="mt-2 hidden max-h-44 w-auto rounded-lg border border-slate-200">
+
+  <p class="mt-1.5 text-xs text-slate-500" data-anexo-nome>Nenhum arquivo selecionado.</p>
+
+  {% if field.help_text %}
+    <p class="mt-1.5 text-xs text-slate-500">{{ field.help_text }}</p>
+  {% endif %}
+  {% for error in field.errors %}
+    <p class="mt-1.5 text-xs text-rose-600">{{ error }}</p>
+  {% endfor %}
+</div>

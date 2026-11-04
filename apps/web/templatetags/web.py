@@ -1,6 +1,14 @@
 from django import template
 
+import os
+
 register = template.Library()
+
+
+@register.filter
+def nome_arquivo(caminho):
+    """Só o nome do arquivo, sem as pastas (``modelos/x.docx`` -> ``x.docx``)."""
+    return os.path.basename(str(caminho or ""))
 
 
 @register.filter
