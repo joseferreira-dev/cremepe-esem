@@ -414,12 +414,15 @@ class TestFluxoCompleto(TestCase):
         self.assertContains(resposta, "igual para todos os alunos")
 
     def test_formulario_de_curso_renderiza_anexos_com_estilo(self):
-        """Anexos com estado atual, botão de escolha e prévia (sem texto cru)."""
+        """Anexos com estado atual, botão de escolha, chip do upload e prévia."""
         resposta = self.client.get("/painel/cursos/novo/")
         self.assertEqual(resposta.status_code, 200)
         self.assertContains(resposta, "Escolher arquivo")
         self.assertContains(resposta, "data-anexo")
         self.assertContains(resposta, "Nenhum arquivo selecionado")
+        # Upload novo escolhido ganha chip com X para remover.
+        self.assertContains(resposta, "data-anexo-novo")
+        self.assertContains(resposta, "data-anexo-cancelar")
         # O texto cru do widget do Django não aparece mais.
         self.assertNotContains(resposta, "Modificar")
 
@@ -450,6 +453,9 @@ class TestFluxoCompleto(TestCase):
             pagina = self.client.get(f"/painel/cursos/{curso.pk}/editar/")
             self.assertContains(pagina, 'name="cover-clear"')
             self.assertContains(pagina, "data-anexo-atual")
+            # O checkbox virou um "X Limpar" (sr-only + rótulo).
+            self.assertContains(pagina, "data-anexo-limpar")
+            self.assertContains(pagina, "Limpar")
 
             resposta = self.client.post(
                 f"/painel/cursos/{curso.pk}/editar/",

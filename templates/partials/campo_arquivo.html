@@ -11,10 +11,11 @@
         <span class="truncate font-medium" title="{{ field.value }}">{{ field.value|nome_arquivo }}</span>
       </span>
       {% if not field.field.required %}
-        <label class="flex shrink-0 cursor-pointer items-center gap-2 text-xs font-medium text-slate-500">
+        <label for="{{ field.id_for_label }}_clear"
+               class="flex shrink-0 cursor-pointer items-center gap-1 rounded-lg bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-500 ring-1 ring-slate-200 transition hover:bg-rose-50 hover:text-rose-600 hover:ring-rose-200">
           <input type="checkbox" name="{{ field.html_name }}-clear" id="{{ field.id_for_label }}_clear"
-                 class="h-4 w-4 rounded border-slate-300 text-marca-600 focus:ring-marca-500"
-                 data-anexo-limpar>
+                 class="sr-only" data-anexo-limpar>
+          {{ icons.fechar|safe }}
           Limpar
         </label>
       {% endif %}
@@ -30,7 +31,17 @@
            class="sr-only" data-anexo>
   </label>
 
-  <img data-anexo-previa alt="" class="mt-2 hidden max-h-44 w-auto rounded-lg border border-slate-200">
+  {# Upload novo escolhido (ainda não salvo): nome em destaque + X para remover. #}
+  <div class="mt-2 hidden items-center gap-2" data-anexo-novo>
+    <span class="min-w-0 flex-1 truncate rounded-lg bg-marca-50 px-3 py-1.5 text-xs font-semibold text-marca-700 ring-1 ring-marca-200"
+          data-anexo-novo-nome></span>
+    <button type="button" data-anexo-cancelar title="Remover o arquivo escolhido"
+            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-slate-400 ring-1 ring-slate-200 transition hover:bg-rose-50 hover:text-rose-600 hover:ring-rose-200">
+      {{ icons.fechar|safe }}
+    </button>
+  </div>
+
+  <img data-anexo-previa alt="" class="mt-2 hidden w-full rounded-lg border border-slate-200">
 
   <p class="mt-1.5 text-xs text-slate-500" data-anexo-nome>Nenhum arquivo selecionado.</p>
 
