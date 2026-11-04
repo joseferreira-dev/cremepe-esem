@@ -177,6 +177,23 @@ class TestPaginaInstitucional(TestCase):
             self.assertNotIn("Sobre a ESEM", html, f"{template} nao deveria linkar Sobre")
             self.assertNotIn("/sobre/", html, f"{template} nao deveria linkar /sobre/")
 
+    def test_nav_so_traz_a_logo_da_esem_e_sem_validacao(self):
+        from django.template.loader import render_to_string
+
+        html = render_to_string("partials/nav.html", request=None)
+        # Barra branca com sombra forte (destaque/contraste sobre o fundo) e
+        # o circulo da ESEM com texto digitado em HTML (legivel).
+        self.assertIn("bg-white", html)
+        self.assertIn("sombra-forte", html)
+        self.assertNotIn("bg-marca-50", html)
+        self.assertIn("emblema-esem", html)
+        self.assertIn("Escola Superior de Ética Médica", html)
+        self.assertNotIn("logomarca-esem", html)
+        self.assertNotIn("logotipo-cremepe", html)
+        self.assertNotIn(">CREMEPE<", html)
+        # O link de validacao ficou fora do menu superior.
+        self.assertNotIn("Validar certificado", html)
+
 
 class TestCatalogoDoAdmin(TestCase):
     """O admin ve todos os cursos, mesmo os que nao tem matricula."""
