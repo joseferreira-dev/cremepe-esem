@@ -340,6 +340,12 @@ class TestFluxoCompleto(TestCase):
         curso = Course.objects.get(title="Ética Médica 2026")
         self.assertEqual(curso.min_percent, 50)
 
+        # O aviso de sucesso aparece UMA vez só (o base.html não duplica o
+        # aviso que o painel já renderiza na coluna de conteúdo).
+        pagina = self.client.get(f"/painel/cursos/{curso.pk}/")
+        aviso = "Curso “Ética Médica 2026” salvo."
+        self.assertEqual(pagina.content.decode().count(aviso), 1)
+
         # Vídeo
         self.client.post(
             "/painel/videos/novo/",

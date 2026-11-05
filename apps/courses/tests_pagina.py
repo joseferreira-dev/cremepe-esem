@@ -334,7 +334,8 @@ class TestPaginaDeLogin(TestCase):
             {"cpf": "00000000000", "senha": "errada", "csrfmiddlewaretoken": "x"},
         )
         self.assertEqual(resposta.status_code, 200)
-        self.assertIn("CPF ou senha inválidos", resposta.content.decode())
+        # O aviso aparece UMA vez só (sem duplicar entre base e cartão).
+        self.assertEqual(resposta.content.decode().count("CPF ou senha inválidos"), 1)
 
 
 class TestVisibilidadeDoCursoParaAluno(TestCase):
