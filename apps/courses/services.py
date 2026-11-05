@@ -337,7 +337,7 @@ def refresh_enrollment_status(enrollment: Enrollment, actor=None) -> Enrollment:
     required = criterio["exigido"]
     coverage = criterio["cobertura"]
 
-    if enrollment.status in {Enrollment.Status.CANCELLED, Enrollment.Status.REJECTED}:
+    if enrollment.status == Enrollment.Status.REJECTED:
         return enrollment
 
     if criterio["atende"]:

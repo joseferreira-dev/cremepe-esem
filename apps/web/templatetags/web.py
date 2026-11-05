@@ -73,7 +73,6 @@ def cor_status(status):
         "in_progress": "bg-pacifico-50 text-pacifico-700 ring-1 ring-pacifico-200",
         "enrolled": "bg-slate-100 text-slate-700 ring-1 ring-slate-200",
         "rejected": "bg-rose-50 text-rose-700 ring-1 ring-rose-200",
-        "cancelled": "bg-slate-100 text-slate-500 ring-1 ring-slate-200",
         "ready": "bg-marca-100 text-marca-700 ring-1 ring-marca-200",
         "processing": "bg-amber-50 text-amber-700 ring-1 ring-amber-200",
         "queued": "bg-amber-50 text-amber-700 ring-1 ring-amber-200",

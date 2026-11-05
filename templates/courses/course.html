@@ -16,9 +16,7 @@
         {{ enrollment.course.title }}
       </h1>
       <p class="mt-1 text-sm text-slate-500">
-        {{ duration }} ·
-        mínimo de {{ required|floatformat:0 }}% para aprovação
-        {% if enrollment.course.deadline %} · prazo até {{ enrollment.course.deadline|date:"d/m/Y" }}{% endif %}
+        {{ duration }}{% if enrollment.course.deadline %} · prazo até {{ enrollment.course.deadline|date:"d/m/Y" }}{% endif %}
       </p>
     </div>
     <div class="text-left sm:text-right">

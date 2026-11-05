@@ -368,49 +368,6 @@ class MatriculaForm(forms.ModelForm):
         return limpo
 
 
-class MatriculaLoteForm(forms.Form):
-    """Matricula vários médicos em um único curso."""
-
-    medicos = forms.ModelMultipleChoiceField(
-        queryset=Medico.objects.none(),
-        label="Médicos",
-        widget=forms.CheckboxSelectMultiple(
-            attrs={
-                "class": "h-4 w-4 rounded border-slate-300 text-marca-600 focus:ring-marca-500"
-            }
-        ),
-    )
-    def __init__(self, *args, curso=None, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.curso = curso
-        if curso:
-            self.fields["medicos"].queryset = (
-                Medico.objects.filter(ativo=True)
-                .exclude(enrollments__course=curso)
-                .order_by("nome")
-            )
-
-    def clean_medicos(self):
-        medicos = self.cleaned_data["medicos"]
-        if self.curso and not medicos:
-            raise forms.ValidationError("Selecione pelo menos um médico.")
-        return medicos
-
-    def save(self):
-        if self.curso is None:
-            raise ValueError("O curso é obrigatório para matricular em lote.")
-        criadas = []
-        with transaction.atomic():
-            for medico in self.cleaned_data["medicos"]:
-                matricula, criada = Enrollment.objects.get_or_create(
-                    medico=medico,
-                    course=self.curso,
-                )
-                if criada:
-                    criadas.append(matricula)
-        return criadas
-
-
 class MedicoLoteForm(forms.Form):
     """Cadastra médicos em lote via arquivo .csv ou dados colados.
 

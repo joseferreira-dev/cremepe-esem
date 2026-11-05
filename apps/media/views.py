@@ -601,10 +601,7 @@ def _authorize(request, payload, video_id: int, kind: str) -> Enrollment | None:
     if request.user.is_authenticated:
         if enrollment.medico.user_id != request.user.id and not request.user.is_staff:
             return None
-    if enrollment.status in {
-        Enrollment.Status.CANCELLED,
-        Enrollment.Status.REJECTED,
-    }:
+    if enrollment.status == Enrollment.Status.REJECTED:
         return None
     return enrollment
 

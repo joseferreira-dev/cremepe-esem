@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import re
 import secrets
 
 import openpyxl
@@ -20,7 +21,7 @@ from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
-from apps.accounts.models import Medico
+from apps.accounts.models import Medico, normalize_cpf
 from apps.accounts.services import redefinir_senha
 from apps.courses.models import AuditLog, Course, Enrollment, Progress, Video, WatchSession
 from apps.courses.services import (
@@ -40,7 +41,6 @@ from .forms import (
     AdministradorForm,
     CursoForm,
     MatriculaForm,
-    MatriculaLoteForm,
     MedicoForm,
     MedicoLoteForm,
     VideoForm,
@@ -76,9 +76,7 @@ def index(request):
     matriculas = Enrollment.objects.select_related("medico", "course")
 
     total_medicos = Medico.objects.filter(ativo=True).count()
-    ativas = matriculas.exclude(
-        status__in=[Enrollment.Status.CANCELLED, Enrollment.Status.REJECTED]
-    )
+    ativas = matriculas.exclude(status=Enrollment.Status.REJECTED)
     aprovadas = matriculas.filter(status=Enrollment.Status.APPROVED).count()
 
     em_andamento = []
@@ -195,33 +193,136 @@ def curso_form(request, pk=None):
     )
 
 
+def _extrair_cpfs(texto):
+    """Separa CPFs de um texto (aceita pontos/traços; por linha ou vírgula).
+
+    Devolve (válidos únicos na ordem do texto, inválidos).
+    """
+    normalizado = (texto or "").replace(".", "").replace("-", "")
+    encontrados = [token for token in re.split(r"[^0-9]+", normalizado) if token]
+    validos = []
+    invalidos = []
+    for token in encontrados:
+        if len(token) == 11:
+            if token not in validos:
+                validos.append(token)
+        else:
+            invalidos.append(token)
+    return validos, invalidos
+
+
+def _cpf_formatado(cpf: str) -> str:
+    if len(cpf) != 11:
+        return cpf
+    return f"{cpf[:3]}.{cpf[3:6]}.{cpf[6:9]}-{cpf[9:]}"
+
+
 def curso_detalhe(request, pk):
     curso = get_object_or_404(Course, pk=pk)
     videos = list(curso.videos.all())
 
-    form_matricula_lote = MatriculaLoteForm(
-        request.POST
-        if request.method == "POST" and request.POST.get("acao") == "matricular_lote"
-        else None,
-        curso=curso,
-    )
-    if request.method == "POST" and request.POST.get("acao") == "matricular_lote":
-        if form_matricula_lote.is_valid():
-            criadas = form_matricula_lote.save()
-            for matricula in criadas:
-                record_audit(
-                    "matricula_criada",
-                    actor=request.user,
-                    target=f"{matricula.medico.nome} — {curso.title}",
-                    detail={"lote": True},
-                    ip=request.META.get("REMOTE_ADDR"),
-                )
-            messages.success(
-                request,
-                f"{len(criadas)} matrícula(s) registrada(s) no curso.",
-            )
+    if request.method == "POST":
+        acao = request.POST.get("acao")
+
+        if acao == "matricular_cpf":
+            cpf = normalize_cpf(request.POST.get("cpf", ""))
+            if len(cpf) != 11:
+                messages.error(request, "Informe um CPF com 11 dígitos.")
+            else:
+                medico = Medico.objects.filter(cpf=cpf).first()
+                if medico is None:
+                    messages.warning(
+                        request,
+                        f"CPF {_cpf_formatado(cpf)} não está cadastrado. "
+                        "Cadastre em Painel → Médicos → Cadastro em lote.",
+                    )
+                elif not medico.ativo:
+                    messages.error(
+                        request,
+                        f"{medico.nome} está inativo — o acesso ao portal está bloqueado.",
+                    )
+                else:
+                    matricula, criada = Enrollment.objects.get_or_create(
+                        medico=medico, course=curso
+                    )
+                    if criada:
+                        record_audit(
+                            "matricula_criada",
+                            actor=request.user,
+                            target=f"{matricula.medico.nome} — {curso.title}",
+                            ip=request.META.get("REMOTE_ADDR"),
+                        )
+                        messages.success(
+                            request,
+                            f"{matricula.medico.nome} matriculado(a) no curso.",
+                        )
+                    else:
+                        messages.warning(
+                            request,
+                            f"{matricula.medico.nome} já está matriculado(a) "
+                            "neste curso.",
+                        )
             return redirect("painel_curso", pk=curso.pk)
-        messages.error(request, "Não foi possível registrar as matrículas. Confira os dados.")
+
+        if acao == "matricular_lote_cpfs":
+            cpfs, invalidos = _extrair_cpfs(request.POST.get("cpfs", ""))
+            if not cpfs and not invalidos:
+                messages.error(request, "Cole ao menos um CPF para matricular.")
+                return redirect("painel_curso", pk=curso.pk)
+
+            medicos = {
+                medico.cpf: medico for medico in Medico.objects.filter(cpf__in=cpfs)
+            }
+            ja_matriculados = set(
+                Enrollment.objects.filter(course=curso, medico__cpf__in=cpfs)
+                .values_list("medico__cpf", flat=True)
+            )
+            criadas = 0
+            inativos = []
+            nao_cadastrados = []
+            repetidos = []
+            for cpf in cpfs:
+                medico = medicos.get(cpf)
+                if medico is None:
+                    nao_cadastrados.append(cpf)
+                elif not medico.ativo:
+                    inativos.append(cpf)
+                elif cpf in ja_matriculados:
+                    repetidos.append(cpf)
+                else:
+                    matricula, criada = Enrollment.objects.get_or_create(
+                        medico=medico, course=curso
+                    )
+                    if criada:
+                        criadas += 1
+                        record_audit(
+                            "matricula_criada",
+                            actor=request.user,
+                            target=f"{matricula.medico.nome} — {curso.title}",
+                            detail={"lote": True},
+                            ip=request.META.get("REMOTE_ADDR"),
+                        )
+
+            partes = [f"{criadas} matrícula(s) registrada(s)"]
+            if repetidos:
+                partes.append(f"{len(repetidos)} já matriculado(s)")
+            if inativos:
+                partes.append(f"{len(inativos)} inativo(s)")
+            if invalidos:
+                partes.append(f"{len(invalidos)} CPF(s) inválido(s)")
+            messages.success(request, " · ".join(partes) + ".")
+            if nao_cadastrados:
+                exemplos = ", ".join(
+                    _cpf_formatado(cpf) for cpf in nao_cadastrados[:10]
+                )
+                if len(nao_cadastrados) > 10:
+                    exemplos += f"… (+{len(nao_cadastrados) - 10})"
+                messages.warning(
+                    request,
+                    f"Não cadastrados ({len(nao_cadastrados)}): {exemplos}. "
+                    "Cadastre em Painel → Médicos → Cadastro em lote e repita o envio.",
+                )
+            return redirect("painel_curso", pk=curso.pk)
 
     linhas = []
     for matricula in curso.enrollments.select_related("medico").order_by("medico__nome"):
@@ -240,9 +341,7 @@ def curso_detalhe(request, pk):
             }
         )
 
-    ativas = curso.enrollments.exclude(
-        status__in=[Enrollment.Status.CANCELLED, Enrollment.Status.REJECTED]
-    )
+    ativas = curso.enrollments.exclude(status=Enrollment.Status.REJECTED)
     faixa_desempenho = _faixa_desempenho(ativas)
     total_ativas = ativas.count()
 
@@ -253,8 +352,6 @@ def curso_detalhe(request, pk):
             "curso": curso,
             "videos": videos,
             "linhas": linhas,
-            "form_matricula_lote": form_matricula_lote,
-            "medicos_disponiveis": form_matricula_lote.fields["medicos"].queryset.count(),
             "duracao": format_hours(curso.total_duration),
             "faixa_desempenho": faixa_desempenho,
             "total_ativas": total_ativas,
@@ -538,7 +635,7 @@ def matricula_form(request):
             ip=request.META.get("REMOTE_ADDR"),
         )
         messages.success(request, "Matrícula registrada.")
-        return redirect("painel_curso", pk=matricula.course_id)
+        return redirect("painel_matriculas")
     return render(request, "panel/matricula_form.html", {"form": form})
 
 
@@ -589,10 +686,6 @@ def matricula_acao(request, pk):
     elif acao == "resetar":
         reset_progress(matricula, actor=request.user)
         mensagem = f"Progresso de {matricula.medico.nome} resetado."
-    elif acao == "cancelar":
-        matricula.status = Enrollment.Status.CANCELLED
-        matricula.save(update_fields=["status"])
-        mensagem = "Matrícula cancelada."
     elif acao == "remover":
         nome = matricula.medico.nome
         curso = matricula.course.title

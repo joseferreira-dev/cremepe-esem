@@ -201,7 +201,6 @@ class Enrollment(models.Model):
         IN_PROGRESS = "in_progress", "Em andamento"
         APPROVED = "approved", "Aprovado"
         REJECTED = "rejected", "Reprovado"
-        CANCELLED = "cancelled", "Cancelado"
 
     medico = models.ForeignKey(
         Medico, on_delete=models.CASCADE, related_name="enrollments", verbose_name="Médico"

@@ -369,18 +369,25 @@ class TestFluxoCompleto(TestCase):
         medico = Medico.objects.get(cpf="11122233344")
         self.assertTrue(medico.must_change_password)
 
-        # Matrícula (percentual e prazo vêm do curso)
-        self.client.post(
+        # Matrícula (percentual e prazo vêm do curso) → volta para a listagem
+        resposta = self.client.post(
             "/painel/matriculas/nova/",
             {
                 "medico": medico.pk,
                 "course": curso.pk,
             },
         )
+        self.assertEqual(resposta.status_code, 302)
+        self.assertEqual(resposta["Location"], "/painel/matriculas/")
         matricula = Enrollment.objects.get(medico=medico, course=curso)
         from apps.courses.services import criterios_de_aprovacao
 
         self.assertEqual(criterios_de_aprovacao(matricula)["exigido"], 50)
+
+        # Listagem: o nome do curso é o acesso à turma (sem botão "Turma").
+        listagem = self.client.get("/painel/matriculas/")
+        self.assertContains(listagem, f'href="/painel/cursos/{curso.pk}/"')
+        self.assertNotIn(">Turma</a>", listagem.content.decode())
 
         # Aprovação manual
         self.client.post(
@@ -411,12 +418,11 @@ class TestFluxoCompleto(TestCase):
         self.assertEqual(Enrollment.objects.count(), 1)
 
     def test_formulario_de_matricula_nao_tem_percentual(self):
-        """Percentual e prazo são do curso: sem opções por matrícula."""
+        """Percentual e prazo são do curso: sem opções nem avisos por matrícula."""
         resposta = self.client.get("/painel/matriculas/nova/")
         self.assertEqual(resposta.status_code, 200)
         self.assertNotContains(resposta, "Percentual exigido")
         self.assertNotContains(resposta, 'name="deadline"')
-        self.assertContains(resposta, "iguais para todos os alunos")
 
     def test_formulario_de_curso_renderiza_anexos_com_estilo(self):
         """Anexos com estado atual, botão de escolha, chip do upload e prévia."""
@@ -819,25 +825,87 @@ class TestMatriculasEmLote(TestCase):
         )
         self.client.force_login(self.admin)
 
-    def test_matricula_varios_medicos_no_mesmo_curso(self):
+    def test_matricular_em_lote_por_lista_de_cpfs(self):
+        """A lista de CPFs matricula e reconhece não cadastrados e inválidos."""
         resposta = self.client.post(
             f"/painel/cursos/{self.curso.pk}/",
             {
-                "acao": "matricular_lote",
-                "medicos": [self.medicos[1].pk, self.medicos[2].pk],
+                "acao": "matricular_lote_cpfs",
+                "cpfs": "\n".join(
+                    [
+                        self.medicos[1].cpf,
+                        self.medicos[2].cpf,
+                        "12345678901",  # ninguém com este CPF
+                        "123",  # inválido
+                    ]
+                ),
             },
         )
-        self.assertRedirects(resposta, f"/painel/cursos/{self.curso.pk}/")
+        # assertRedirects consumiria os avisos: captura manual + primeira leitura.
+        self.assertEqual(resposta.status_code, 302)
+        pagina = self.client.get(resposta.url)
+        # médicos[0] já estava matriculado; +2 novos.
         self.assertEqual(self.curso.enrollments.count(), 3)
         for medico in self.medicos[1:]:
             self.assertTrue(
                 Enrollment.objects.filter(medico=medico, course=self.curso).exists()
             )
-        # O percentual é o do curso para todos (não existe ajuste por matrícula).
+        self.assertContains(pagina, "2 matrícula(s) registrada(s)")
+        self.assertContains(pagina, "1 CPF(s) inválido(s)")
+        # Reconhecimento dos não cadastrados (com o CPF formatado).
+        self.assertContains(pagina, "Não cadastrados (1)")
+        self.assertContains(pagina, "123.456.789-01")
+        # O percentual continua sendo o do curso.
         from apps.courses.services import criterios_de_aprovacao
 
         matricula = Enrollment.objects.get(medico=self.medicos[1], course=self.curso)
         self.assertEqual(criterios_de_aprovacao(matricula)["exigido"], 50)
+
+    def test_matricular_um_cpf_por_vez(self):
+        resposta = self.client.post(
+            f"/painel/cursos/{self.curso.pk}/",
+            {"acao": "matricular_cpf", "cpf": self.medicos[1].cpf},
+        )
+        self.assertEqual(resposta.status_code, 302)
+        pagina = self.client.get(resposta.url)
+        self.assertTrue(
+            Enrollment.objects.filter(medico=self.medicos[1], course=self.curso).exists()
+        )
+        self.assertContains(pagina, "matriculado(a) no curso")
+
+        # Segunda vez: avisa que já está, sem duplicar a matrícula.
+        self.client.post(
+            f"/painel/cursos/{self.curso.pk}/",
+            {"acao": "matricular_cpf", "cpf": self.medicos[1].cpf},
+        )
+        self.assertEqual(self.curso.enrollments.count(), 2)
+
+    def test_cpf_nao_cadastrado_e_apontado(self):
+        resposta = self.client.post(
+            f"/painel/cursos/{self.curso.pk}/",
+            {"acao": "matricular_cpf", "cpf": "55544433322"},
+        )
+        self.assertEqual(resposta.status_code, 302)
+        pagina = self.client.get(resposta.url)
+        self.assertContains(pagina, "não está cadastrado")
+        self.assertEqual(self.curso.enrollments.count(), 1)
+
+    def test_pagina_do_curso_nao_lista_todos_os_medicos(self):
+        user = User.objects.create_user("fora-da-lista", password="x")
+        Medico.objects.create(
+            user=user,
+            cpf="77700011122",
+            nome="Zebra Fora da Lista",
+            must_change_password=False,
+        )
+        conteudo = self.client.get(
+            f"/painel/cursos/{self.curso.pk}/"
+        ).content.decode()
+        self.assertIn("Matricular em lote", conteudo)
+        self.assertIn("Matricular um aluno", conteudo)
+        # Sem lista de checkboxes de todos os médicos cadastrados.
+        self.assertNotIn("Zebra Fora da Lista", conteudo)
+        self.assertNotIn("data-filtro-lista", conteudo)
 
 
 class TestRemoverMatricula(TestCase):

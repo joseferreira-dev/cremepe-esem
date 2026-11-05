@@ -299,12 +299,6 @@ class TestAcessoAoCertificado(BaseCertificado):
 
 
 class TestSemRegressaoDoCurso(BaseCertificado):
-    def test_a_cancelada_nao_emite(self):
-        self.matricula.status = Enrollment.Status.CANCELLED
-        self.matricula.save(update_fields=["status"])
-        with self.assertRaises(CertificadoIndisponivel):
-            emitir_certificado(self.matricula)
-
     def test_reprovada_nao_emite(self):
         self.matricula.status = Enrollment.Status.REJECTED
         self.matricula.save(update_fields=["status"])

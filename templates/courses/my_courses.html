@@ -160,9 +160,6 @@
                 <div class="h-full rounded-full {% if item.bloqueado %}bg-slate-400{% else %}bg-marca-gradiente{% endif %} transition-all duration-700"
                      style="width: {{ item.coverage|floatformat:1 }}%"></div>
               </div>
-              <p class="mt-2 text-xs text-slate-400">
-                Mínimo de {{ item.enrollment.course.min_percent|floatformat:0 }}% para aprovação{% if item.enrollment.course.video_min_percent > 0 %} · {{ item.enrollment.course.video_min_percent|floatformat:0 }}% em cada aula{% endif %}
-              </p>
 
               {% if item.bloqueado %}
                 <span class="btn btn-secundario mt-5 w-full cursor-not-allowed opacity-60">

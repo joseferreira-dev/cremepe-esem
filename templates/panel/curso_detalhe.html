@@ -202,37 +202,31 @@
           <a href="{% url 'painel_medico_lote' %}" class="btn btn-secundario btn-sm">Cadastrar alunos em lote</a>
         </div>
 
-        {% if medicos_disponiveis %}
-          <form method="post" class="mt-5 space-y-5">
-            {% csrf_token %}
-            <input type="hidden" name="acao" value="matricular_lote">
-            <div>
-              <p class="rotulo">Médicos disponíveis ({{ medicos_disponiveis }})</p>
-              <input type="search" class="campo mt-2" placeholder="Buscar médico por nome ou CPF…"
-                     data-filtro-entrada autocomplete="off">
-              <div class="mt-2 grid max-h-64 gap-2 overflow-y-auto rounded-xl border border-slate-200 p-3 sm:grid-cols-2"
-                   data-filtro-lista>
-                {% for checkbox in form_matricula_lote.medicos %}
-                  <label class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-700 transition hover:bg-slate-50"
-                         data-filtro-item data-rotulo="{{ checkbox.choice_label|lower }}">
-                    {{ checkbox.tag }}
-                    <span>{{ checkbox.choice_label }}</span>
-                  </label>
-                {% endfor %}
-              </div>
-              {% for error in form_matricula_lote.medicos.errors %}
-                <p class="mt-1.5 text-xs text-rose-600">{{ error }}</p>
-              {% endfor %}
-            </div>
-
-            <button class="btn btn-primary btn-sm" type="submit">Confirmar matrícula(s)</button>
-          </form>
-        {% else %}
-          <div class="mt-5 rounded-xl bg-slate-50 px-4 py-5 text-sm text-slate-500">
-            Todos os médicos ativos já estão matriculados neste curso.
-            <a href="{% url 'painel_medico_lote' %}" class="font-semibold text-marca-600 hover:underline">Cadastrar novos alunos</a>.
+        <form method="post" class="mt-5 space-y-2">
+          {% csrf_token %}
+          <input type="hidden" name="acao" value="matricular_cpf">
+          <p class="rotulo">Matricular um aluno</p>
+          <div class="mt-2 flex gap-2">
+            <input type="text" name="cpf" inputmode="numeric" autocomplete="off"
+                   placeholder="CPF do aluno" class="campo font-mono">
+            <button class="btn btn-secundario btn-sm shrink-0" type="submit">Matricular</button>
           </div>
-        {% endif %}
+        </form>
+
+        <form method="post" class="mt-6 space-y-3 border-t border-slate-100 pt-5">
+          {% csrf_token %}
+          <input type="hidden" name="acao" value="matricular_lote_cpfs">
+          <p class="rotulo">Matricular em lote — lista de CPFs</p>
+          <textarea name="cpfs" rows="6" class="campo mt-2 font-mono text-sm"
+                    placeholder="000.000.000-00&#10;111.222.333-44&#10;999.888.777-66"></textarea>
+          <p class="text-xs text-slate-500">
+            Um CPF por linha (aceita pontos e traços). Ao final, os CPFs
+            <strong>não cadastrados</strong> são informados — cadastre-os em
+            <a href="{% url 'painel_medico_lote' %}" class="font-semibold text-marca-600 hover:underline">Cadastro em lote</a>
+            e repita o envio.
+          </p>
+          <button class="btn btn-primary btn-sm" type="submit">Matricular listados</button>
+        </form>
       </div>
 
       <div class="cartao overflow-hidden">

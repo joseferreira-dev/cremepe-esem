@@ -56,7 +56,12 @@
               <span class="font-semibold text-slate-800">{{ linha.matricula.medico.nome }}</span>
               <span class="block text-xs text-slate-500">{{ linha.matricula.medico.cpf }}</span>
             </td>
-            <td class="celula text-slate-600">{{ linha.matricula.course.title }}</td>
+            <td class="celula">
+              <a href="{% url 'painel_curso' linha.matricula.course_id %}"
+                 class="font-medium text-marca-700 hover:underline">
+                {{ linha.matricula.course.title }}
+              </a>
+            </td>
             <td class="celula w-48">
               <div class="flex items-center gap-2">
                 <span class="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
@@ -78,7 +83,6 @@
                   <a href="{% url 'painel_certificado' linha.matricula.id %}" class="btn btn-secundario btn-sm"
                      title="Baixar o certificado do aluno">Certificado</a>
                 {% endif %}
-                <a href="{% url 'painel_curso' linha.matricula.course_id %}" class="btn btn-secundario btn-sm">Turma</a>
                 <form method="post" action="{% url 'painel_matricula_acao' linha.matricula.id %}"
                       data-confirm="Remover a matrícula de {{ linha.matricula.medico.nome }} em “{{ linha.matricula.course.title }}”? O progresso será apagado.">
                   {% csrf_token %}
