@@ -20,7 +20,7 @@
     </div>
   </div>
   <div class="flex flex-wrap gap-2">
-    <a href="{% url 'painel_curso_exportar' curso.id %}" class="btn btn-secundario">Exportar CSV</a>
+    <a href="{% url 'painel_curso_exportar' curso.id %}" class="btn btn-secundario">Exportar XLSX</a>
     <a href="{% url 'painel_curso_editar' curso.id %}" class="btn btn-secundario">Editar</a>
     <a href="{% url 'painel_video_novo' %}" class="btn btn-primary">{{ icons.mais|safe }} Vídeo</a>
   </div>
@@ -241,7 +241,7 @@
       <div class="cartao overflow-hidden">
         <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
           <h2 class="text-sm font-semibold text-slate-800">Turma ({{ linhas|length }})</h2>
-          <a href="{% url 'painel_curso_exportar' curso.id %}" class="text-xs font-semibold text-marca-600 hover:underline">Exportar CSV</a>
+          <a href="{% url 'painel_curso_exportar' curso.id %}" class="text-xs font-semibold text-marca-600 hover:underline">Exportar XLSX</a>
         </div>
         <div class="overflow-x-auto">
           <table class="min-w-full divide-y divide-slate-100">

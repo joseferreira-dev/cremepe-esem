@@ -269,7 +269,7 @@ curso — igual para todos os alunos da turma.
 - **Detalhe do curso**: descrição, distribuição do progresso, vídeos e turma.
 - **Turma**: % de cada aluno, tempo em aula, última atividade e ações de
   **aprovar / reprovar / remover**.
-- **Exportar CSV** da turma.
+- **Exportar planilha XLSX** da turma (formatada, com cores e filtros).
 - **Auditoria**: registro de todas as ações administrativas.
 
 ### 6. Regras de aprovação

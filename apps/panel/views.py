@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
-import csv
+import io
 import secrets
+
+import openpyxl
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
 
 from django.contrib import messages
 from django.contrib.auth.models import User
@@ -621,25 +625,10 @@ def matricula_acao(request, pk):
 
 
 def matricula_exportar(request, pk):
+    """Planilha XLSX da turma, formatada (título, cores, filtros e larguras)."""
     curso = get_object_or_404(Course, pk=pk)
-    response = HttpResponse(content_type="text/csv; charset=utf-8-sig")
-    response["Content-Disposition"] = f'attachment; filename="turma-{curso.pk}.csv"'
-    writer = csv.writer(response)
-    writer.writerow(
-        [
-            "Matrícula",
-            "CPF",
-            "CRM",
-            "Situação",
-            "Cobertura %",
-            "Exigido %",
-            "Aprovado",
-            "Aulas abaixo do mínimo",
-            "Tempo em aula",
-            "Sessões",
-            "Última atividade",
-        ]
-    )
+
+    linhas = []
     for matricula in curso.enrollments.select_related("medico").order_by("medico__nome"):
         progresses = Progress.objects.filter(enrollment=matricula)
         ultima = progresses.aggregate(last=Max("last_seen_at"))["last"]
@@ -649,21 +638,149 @@ def matricula_exportar(request, pk):
             f"{item['video'].title}: {item['atual']:.1f}% (min. {item['exigido']:.0f}%)"
             for item in criterio["pendencias"]
         )
-        writer.writerow(
-            [
-                matricula.medico.nome,
-                matricula.medico.cpf,
-                matricula.medico.crm,
-                matricula.get_status_display(),
-                f"{criterio['cobertura']:.1f}".replace(".", ","),
-                f"{criterio['exigido']:.0f}",
-                "sim" if criterio["atende"] else "não",
-                pendencias,
-                format_hours(tempo),
-                WatchSession.objects.filter(enrollment=matricula).count(),
-                ultima.strftime("%d/%m/%Y %H:%M") if ultima else "",
-            ]
+        linhas.append(
+            {
+                "nome": matricula.medico.nome,
+                "cpf": matricula.medico.cpf,
+                "crm": matricula.medico.crm or "",
+                "situacao": matricula.get_status_display(),
+                "status": matricula.status,
+                "cobertura": round(criterio["cobertura"], 1),
+                "exigido": float(criterio["exigido"]),
+                "atende": criterio["atende"],
+                "pendencias": pendencias,
+                "tempo": format_hours(tempo),
+                "sessoes": WatchSession.objects.filter(enrollment=matricula).count(),
+                "ultima": ultima,
+            }
         )
+
+    cabecalhos = [
+        "Matrícula",
+        "CPF",
+        "CRM",
+        "Situação",
+        "Cobertura %",
+        "Exigido %",
+        "Aprovado",
+        "Aulas abaixo do mínimo",
+        "Tempo em aula",
+        "Sessões",
+        "Última atividade",
+    ]
+    larguras = [32, 14, 12, 16, 13, 12, 11, 45, 13, 9, 18]
+
+    # Paleta do portal.
+    verde_escuro = "006448"  # marca-700
+    borda_cor = "E2E8F0"  # slate-200
+    cores_situacao = {
+        "approved": ("EDFBF6", "006448"),  # marca-50 / marca-700
+        "in_progress": ("E0F2FE", "075985"),  # sky-100 / sky-700
+        "enrolled": ("F1F5F9", "334155"),  # slate-100 / slate-700
+        "rejected": ("FFE4E6", "BE123C"),  # rose-100 / rose-700
+        "cancelled": ("F1F5F9", "94A3B8"),  # slate-100 / slate-400
+    }
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Turma"
+    borda = Border(
+        left=Side(style="thin", color=borda_cor),
+        right=Side(style="thin", color=borda_cor),
+        top=Side(style="thin", color=borda_cor),
+        bottom=Side(style="thin", color=borda_cor),
+    )
+
+    # Linha 1: título do curso.
+    ws.merge_cells("A1:K1")
+    titulo = ws["A1"]
+    titulo.value = curso.title
+    titulo.font = Font(bold=True, size=14, color="FFFFFF")
+    titulo.fill = PatternFill("solid", fgColor=verde_escuro)
+    titulo.alignment = Alignment(vertical="center", indent=1)
+    ws.row_dimensions[1].height = 28
+
+    # Linha 2: contexto da exportação.
+    ws.merge_cells("A2:K2")
+    contexto = ws["A2"]
+    exportado = timezone.localtime().strftime("%d/%m/%Y às %H:%M")
+    contexto.value = (
+        f"Exportado em {exportado} · {len(linhas)} matrícula(s) · "
+        f"mínimo {float(curso.min_percent):g}% para aprovação"
+    )
+    contexto.font = Font(size=9, italic=True, color="64748B")
+    contexto.alignment = Alignment(vertical="center", indent=1)
+    ws.row_dimensions[2].height = 16
+
+    # Linha 3: cabeçalho (congelado e com filtro).
+    for indice, texto in enumerate(cabecalhos, start=1):
+        celula = ws.cell(row=3, column=indice, value=texto)
+        celula.font = Font(bold=True, color="FFFFFF")
+        celula.fill = PatternFill("solid", fgColor=verde_escuro)
+        celula.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        celula.border = borda
+    ws.row_dimensions[3].height = 30
+    ws.freeze_panes = "A4"
+
+    # Dados.
+    for indice, linha in enumerate(linhas, start=4):
+        valores = [
+            linha["nome"],
+            linha["cpf"],
+            linha["crm"],
+            linha["situacao"],
+            linha["cobertura"],
+            linha["exigido"],
+            "Sim" if linha["atende"] else "Não",
+            linha["pendencias"],
+            linha["tempo"],
+            linha["sessoes"],
+            linha["ultima"],
+        ]
+        fundo_situacao, texto_situacao = cores_situacao.get(
+            linha["status"], ("F1F5F9", "334155")
+        )
+        for coluna, valor in enumerate(valores, start=1):
+            celula = ws.cell(row=indice, column=coluna, value=valor)
+            celula.border = borda
+            celula.alignment = Alignment(vertical="center", wrap_text=(coluna == 8))
+            if coluna in (2, 3, 4, 5, 6, 7, 9, 10, 11):
+                celula.alignment = Alignment(
+                    horizontal="center", vertical="center", wrap_text=(coluna == 8)
+                )
+        # Destaque da situação.
+        celula_situacao = ws.cell(row=indice, column=4)
+        celula_situacao.fill = PatternFill("solid", fgColor=fundo_situacao)
+        celula_situacao.font = Font(bold=True, color=texto_situacao)
+        # Percentuais com formato de percentual literal (o valor é 0–100).
+        ws.cell(row=indice, column=5).number_format = '0.0"%"'
+        ws.cell(row=indice, column=6).number_format = '0"%"'
+        # Aprovado em verde/vermelho.
+        celula_aprovado = ws.cell(row=indice, column=7)
+        celula_aprovado.font = Font(
+            bold=True, color="006448" if linha["atende"] else "BE123C"
+        )
+        # Última atividade como data/hora real do Excel.
+        celula_ultima = ws.cell(row=indice, column=11)
+        if linha["ultima"] is None:
+            celula_ultima.value = "—"
+        else:
+            celula_ultima.number_format = "dd/mm/yyyy hh:mm"
+
+    for indice, largura in enumerate(larguras, start=1):
+        ws.column_dimensions[get_column_letter(indice)].width = largura
+    if linhas:
+        ws.auto_filter.ref = f"A3:K{3 + len(linhas)}"
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    response = HttpResponse(
+        buffer.getvalue(),
+        content_type=(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        ),
+    )
+    response["Content-Disposition"] = f'attachment; filename="turma-{curso.pk}.xlsx"'
     return response
 
 

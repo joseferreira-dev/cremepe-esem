@@ -478,7 +478,11 @@ class TestFluxoCompleto(TestCase):
             curso.refresh_from_db()
             self.assertFalse(curso.cover)
 
-    def test_exportar_csv(self):
+    def test_exportar_planilha_xlsx(self):
+        import io as _io
+
+        import openpyxl
+
         curso = Course.objects.create(title="Curso", status=Course.Status.ACTIVE)
         user = User.objects.create_user("m3", password="x")
         medico = Medico.objects.create(
@@ -488,10 +492,24 @@ class TestFluxoCompleto(TestCase):
 
         resposta = self.client.get(f"/painel/cursos/{curso.pk}/exportar/")
         self.assertEqual(resposta.status_code, 200)
-        self.assertIn("text/csv", resposta["Content-Type"])
-        corpo = resposta.content.decode("utf-8")
-        self.assertIn("Export", corpo)
-        self.assertIn("Cobertura %", corpo)
+        self.assertIn("spreadsheetml", resposta["Content-Type"])
+        self.assertIn(".xlsx", resposta["Content-Disposition"])
+        # XLSX é um ZIP no formato OOXML.
+        self.assertTrue(resposta.content.startswith(b"PK"))
+
+        wb = openpyxl.load_workbook(_io.BytesIO(resposta.content))
+        ws = wb.active
+        # Título do curso na linha 1 e cabeçalho na linha 3.
+        self.assertIn("Curso", ws["A1"].value)
+        cabecalhos = [celula.value for celula in ws[3]]
+        self.assertEqual(cabecalhos[0], "Matrícula")
+        self.assertIn("Cobertura %", cabecalhos)
+        self.assertIn("Aulas abaixo do mínimo", cabecalhos)
+        # A matrícula vem nos dados, com a formatação aplicada.
+        valores = [celula.value for celula in ws[4]]
+        self.assertIn("Export", valores)
+        self.assertEqual(ws.freeze_panes, "A4")
+        self.assertTrue(ws.auto_filter.ref.startswith("A3"))
 
     def test_desativar_medico_bloqueia_acesso(self):
         user = User.objects.create_user("m4", password="x")
@@ -1035,7 +1053,11 @@ class TestMinimoPorAulaNoPainel(TestCase):
         self.assertIn("video_min_percent", html)
         self.assertIn("Percentual mínimo por aula", html)
 
-    def test_csv_da_turma_explica_aulas_abaixo_do_minimo(self):
+    def test_planilha_da_turma_explica_aulas_abaixo_do_minimo(self):
+        import io as _io
+
+        import openpyxl
+
         curso = self._post_curso({"video_min_percent": "95"})
         aula1 = Video.objects.create(
             course=curso, order=1, title="Aula 1", duration=500,
@@ -1067,9 +1089,14 @@ class TestMinimoPorAulaNoPainel(TestCase):
         )
 
         resposta = self.client.get(f"/painel/cursos/{curso.pk}/exportar/")
-        csv = resposta.content.decode("utf-8-sig")
+        wb = openpyxl.load_workbook(_io.BytesIO(resposta.content))
+        ws = wb.active
+        planilha = "\n".join(
+            " | ".join(str(celula.value or "") for celula in linha)
+            for linha in ws.iter_rows()
+        )
 
-        self.assertIn("Aulas abaixo do mínimo", csv)
-        self.assertIn("não", csv)
+        self.assertIn("Aulas abaixo do mínimo", planilha)
+        self.assertIn("Não", planilha)
         # A pendência cita a aula, a cobertura atual e o mínimo exigido.
-        self.assertIn("Aula 2: 90.0% (min. 95%)", csv)
+        self.assertIn("Aula 2: 90.0% (min. 95%)", planilha)
