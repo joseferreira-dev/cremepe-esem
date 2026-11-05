@@ -80,6 +80,9 @@ def my_courses(request):
             }
         )
 
+    # Cursos ativos (sem bloqueio) sempre antes dos arquivados ou vencidos.
+    items.sort(key=lambda item: item["bloqueado"])
+
     return render(request, "courses/my_courses.html", {"items": items})
 
 

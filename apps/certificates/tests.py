@@ -338,6 +338,17 @@ class TestPaginaDeCertificados(BaseCertificado):
         )
         self.assertContains(resposta, "Certificados obtidos")
 
+    def test_textos_da_pagina_sao_simplificados(self):
+        """Estado vazio com o texto novo e sem o trecho do rodapé do PDF."""
+        self.client.force_login(self.aluno_user)
+        conteudo = self.client.get(self.url()).content.decode()
+        self.assertIn(
+            "Os certificados são liberados quando os cursos são concluídos",
+            conteudo,
+        )
+        self.assertNotIn("Seu certificado é liberado", conteudo)
+        self.assertNotIn("rodapé do PDF", conteudo)
+
     def test_aprovada_sem_emissao_aparece_como_pronta(self):
         self.aprovar()
         self.client.force_login(self.aluno_user)

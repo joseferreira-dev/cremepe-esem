@@ -34,6 +34,30 @@ def senha_padrao(nome: str, cpf: str) -> str:
     return f"{primeiro}@{digitos}"
 
 
+# Preposições que ficam minúsculas no meio do nome (padrão do cadastro).
+_PREPOSICOES = {"a", "e", "o", "as", "os", "de", "da", "do", "das", "dos"}
+
+
+def nome_padrao(texto: str) -> str:
+    """Padroniza o nome do médico: 'José PAULO DA silva' -> 'José Paulo da Silva'.
+
+    Cada palavra recebe inicial maiúscula (inclusive segmentos com hífen) e as
+    preposições comuns permanecem minúsculas, exceto na primeira palavra.
+    """
+    palavras = (texto or "").split()
+    if not palavras:
+        return ""
+    finais = []
+    for indice, palavra in enumerate(palavras):
+        if indice > 0 and palavra.lower() in _PREPOSICOES:
+            finais.append(palavra.lower())
+        else:
+            finais.append(
+                "-".join(trecho.capitalize() for trecho in palavra.split("-") if trecho)
+            )
+    return " ".join(finais)
+
+
 class Medico(models.Model):
     """Médico assistido pelo CREMEPE/ESEM."""
 
@@ -61,4 +85,7 @@ class Medico(models.Model):
 
     def save(self, *args, **kwargs):
         self.cpf = normalize_cpf(self.cpf)
+        # Padronização do nome no ponto único de gravação (formulários,
+        # cadastro em lote, comandos e admin): 'José PAULO DA silva' -> 'José Paulo da Silva'.
+        self.nome = nome_padrao(self.nome)
         super().save(*args, **kwargs)

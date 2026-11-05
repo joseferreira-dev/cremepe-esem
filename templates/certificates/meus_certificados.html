@@ -27,7 +27,6 @@
       Cada certificado tem um código de autenticação que qualquer pessoa pode
       conferir publicamente na página
       <a href="{% url 'validar_certificado' %}" class="font-semibold text-marca-700 underline-offset-2 hover:underline">Validar certificado</a>.
-      O código também é impresso no rodapé do PDF.
     </p>
   </div>
 
@@ -39,8 +38,8 @@
         </span>
         <p class="text-base font-semibold text-slate-800">Nenhum certificado ainda</p>
         <p class="max-w-md text-sm text-slate-500">
-          Seu certificado é liberado quando a matrícula é aprovada — conclua as
-          aulas do curso até o fim para que a aprovação aconteça.
+          Os certificados são liberados quando os cursos são concluídos e você
+          é aprovado(a).
         </p>
         <a href="{% url 'my_courses' %}" class="btn btn-secundario mt-2">
           {{ icons.curso|safe }} Ir para os meus cursos

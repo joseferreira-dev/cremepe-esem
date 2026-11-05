@@ -82,7 +82,7 @@
 
             <div class="p-5">
               <div class="flex items-center justify-between text-xs text-slate-500">
-                <span>{{ item.videos|length }} encontro(s) · {{ item.duration }}</span>
+                <span>{{ item.videos|length }} aula(s) · {{ item.duration }}</span>
                 <span class="font-semibold text-slate-700">{{ item.total }} matriculado(s)</span>
               </div>
 
@@ -152,7 +152,7 @@
 
             <div class="p-5">
               <div class="flex items-center justify-between text-xs text-slate-500">
-                <span>{{ item.videos|length }} encontro(s) · {{ item.duration }}</span>
+                <span>{{ item.videos|length }} aula(s) · {{ item.duration }}</span>
                 <span class="font-semibold {% if item.bloqueado %}text-slate-400{% else %}text-slate-700{% endif %}">{{ item.coverage|porcento }}</span>
               </div>
 

@@ -12,6 +12,15 @@ def nome_arquivo(caminho):
 
 
 @register.filter
+def primeiro_e_ultimo(nome):
+    """'João Pereira da Silva' -> 'João Silva' (para o ícone do menu)."""
+    partes = str(nome or "").split()
+    if len(partes) <= 2:
+        return " ".join(partes)
+    return f"{partes[0]} {partes[-1]}"
+
+
+@register.filter
 def duracao(seconds):
     """Formata segundos como ``3h53min`` / ``45min`` / ``30s``."""
     try:

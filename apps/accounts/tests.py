@@ -3,7 +3,12 @@
 from django.contrib.auth.models import User
 from django.test import TestCase, override_settings
 
-from apps.accounts.models import Medico, normalize_cpf, senha_padrao
+from apps.accounts.models import (
+    Medico,
+    nome_padrao,
+    normalize_cpf,
+    senha_padrao,
+)
 from apps.accounts.services import criar_conta_medico, redefinir_senha
 from apps.courses.models import Course, Enrollment, Video
 
@@ -33,6 +38,27 @@ class TestSenhaPadrao(TestCase):
 
     def test_normaliza_cpf(self):
         self.assertEqual(normalize_cpf("123.456.789-00"), "12345678900")
+
+
+class TestNomePadrao(TestCase):
+    """Nome do médico padronizado no ponto único de gravação (Medico.save)."""
+
+    def test_maiusculas_e_preposicoes(self):
+        self.assertEqual(nome_padrao("José PAULO DA silva"), "José Paulo da Silva")
+        self.assertEqual(
+            nome_padrao("maria DAS graças oliveira"), "Maria das Graças Oliveira"
+        )
+        self.assertEqual(nome_padrao("ANA-PAULA de souza"), "Ana-Paula de Souza")
+
+    def test_nome_ja_padronizado_nao_muda(self):
+        self.assertEqual(nome_padrao("João Pereira da Silva"), "João Pereira da Silva")
+        self.assertEqual(nome_padrao("Maria da Silva"), "Maria da Silva")
+
+    def test_medico_grava_nome_padrao(self):
+        user = User.objects.create_user("medico-nome-padrao", password="x")
+        medico = Medico(user=user, cpf="77766655544", nome="José PAULO DA silva")
+        medico.save()
+        self.assertEqual(Medico.objects.get(pk=medico.pk).nome, "José Paulo da Silva")
 
 
 class TestContaDoMedico(TestCase):

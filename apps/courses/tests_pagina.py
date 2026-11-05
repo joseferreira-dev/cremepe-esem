@@ -65,6 +65,8 @@ class TestPaginaDoCurso(TestCase):
 
         self.assertIn('data-video-id', html)
         self.assertIn('data-unlocked="1"', html)
+        # O percentual mínimo por aula não é mais exibido ao aluno.
+        self.assertNotIn("mín.", html)
 
     def test_configuracao_do_player_vem_antes_do_script(self):
         self.client.force_login(self.user)
@@ -131,6 +133,19 @@ class TestPaginaInicial(TestCase):
     def test_pagina_inicial_mostra_o_banner_de_acesso_para_visitante(self):
         html = self.client.get("/").content.decode()
         self.assertIn("Acesso aos cursos", html)
+
+    def test_troca_de_senha_pede_senha_forte(self):
+        user = User.objects.create_user("troca-texto", password="senha12345")
+        Medico.objects.create(
+            user=user,
+            cpf="66677788899",
+            nome="Troca Texto",
+            must_change_password=False,
+        )
+        self.client.force_login(user)
+        html = self.client.get("/trocar-senha/").content.decode()
+        self.assertIn("Escolha uma senha forte.", html)
+        self.assertNotIn("não utilize em outros serviços", html)
 
     def test_pagina_inicial_autenticado_vai_para_os_cursos(self):
         user = User.objects.create_user("medico-inicio", password="senha12345")
@@ -209,6 +224,9 @@ class TestPaginaInstitucional(TestCase):
         html = render_to_string("partials/nav.html", request=request)
         self.assertIn("Painel administrativo", html)
         self.assertNotIn("Meus certificados", html)
+        # O menu do ícone é de desktop; no celular quem comanda é o hambúrguer.
+        self.assertIn('class="relative hidden md:block"', html)
+        self.assertIn('class="rounded-xl p-2 text-slate-600 transition hover:bg-marca-100 md:hidden"', html)
 
         # Médico: a área do aluno continua completa.
         request.user = User.objects.create_user(
@@ -222,6 +240,15 @@ class TestPaginaInstitucional(TestCase):
         )
         html = render_to_string("partials/nav.html", request=request)
         self.assertIn("Meus certificados", html)
+
+    def test_icone_do_usuario_mostra_primeiro_e_ultimo_nome(self):
+        from apps.web.templatetags.web import primeiro_e_ultimo
+
+        self.assertEqual(
+            primeiro_e_ultimo("João Pereira da Silva"), "João Silva"
+        )
+        self.assertEqual(primeiro_e_ultimo("Maria Silva"), "Maria Silva")
+        self.assertEqual(primeiro_e_ultimo(""), "")
 
 
 class TestPaginasDeErro(TestCase):
@@ -412,6 +439,29 @@ class TestVisibilidadeDoCursoParaAluno(TestCase):
         resposta = self.client.get(f"/cursos/{matricula.id}/")
         self.assertEqual(resposta.status_code, 200)
         self.assertIn("data-video-id", resposta.content.decode())
+
+    def test_cursos_ativos_aparecem_antes_dos_bloqueados(self):
+        """Mesmo com o arquivado mais recente, o ativo vem primeiro."""
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        ativo = self._curso(status=Course.Status.ACTIVE, title="Curso Ativo")
+        arquivado = self._curso(status=Course.Status.ARCHIVED, title="Curso Arquivado")
+        matricula_ativa = self._matricular(ativo)
+        matricula_arquivada = self._matricular(arquivado)
+        Enrollment.objects.filter(pk=matricula_ativa.pk).update(
+            created_at=timezone.now() - timedelta(days=2)
+        )
+        Enrollment.objects.filter(pk=matricula_arquivada.pk).update(
+            created_at=timezone.now() - timedelta(days=1)
+        )
+
+        html = self.client.get("/cursos/").content.decode()
+        self.assertLess(html.index("Curso Ativo"), html.index("Curso Arquivado"))
+        # A contagem do card usa "aula(s)".
+        self.assertIn("aula(s)", html)
+        self.assertNotIn("encontro(s)", html)
 
 
 class TestDisponibilidadeDeVideo(TestCase):
