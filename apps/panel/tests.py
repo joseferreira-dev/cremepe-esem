@@ -330,7 +330,6 @@ class TestFluxoCompleto(TestCase):
             "/painel/cursos/novo/",
             {
                 "title": "Ética Médica 2026",
-                "edition": "1ª turma",
                 "description": "Curso de teste",
                 "status": "active",
                 "min_percent": "50",
@@ -977,7 +976,6 @@ class TestMinimoPorAulaNoPainel(TestCase):
     def _post_curso(self, extra=None):
         dados = {
             "title": "Curso mínimo por aula",
-            "edition": "1ª turma",
             "description": "",
             "status": "active",
             "min_percent": "50",

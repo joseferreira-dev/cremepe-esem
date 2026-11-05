@@ -8,7 +8,6 @@ from apps.courses.models import Course, Video
 
 CURSO = {
     "title": "17º Curso de Atualização em Ética e Bioética",
-    "edition": "17º Curso — Residência Médica",
     "description": (
         "Curso de Atualização em Ética e Bioética para Residência Médica, "
         "promovido pela Escola Superior de Ética Médica do CREMEPE. "
@@ -35,7 +34,7 @@ class Command(BaseCommand):
     @transaction.atomic
     def handle(self, *args, **options):
         course, created = Course.objects.get_or_create(
-            title=CURSO["title"], edition=CURSO["edition"], defaults=CURSO
+            title=CURSO["title"], defaults=CURSO
         )
         if not created:
             course.description = CURSO["description"]

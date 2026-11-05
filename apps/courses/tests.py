@@ -631,7 +631,6 @@ class TestRenumeracaoNoAdmin(TestCase):
         aula1, aula2, aula3 = self.videos
         dados = {
             "title": self.curso.title,
-            "edition": "",
             "description": "",
             "status": Course.Status.ACTIVE,
             "min_percent": "50.00",

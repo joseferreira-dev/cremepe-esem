@@ -8,7 +8,7 @@ from apps.accounts.models import Medico
 
 
 class Course(models.Model):
-    """Um curso de Ética Médica (uma turma/edição, com suas próprias gravações)."""
+    """Um curso de Ética Médica, com suas próprias gravações."""
 
     class Status(models.TextChoices):
         DRAFT = "draft", "Rascunho"
@@ -16,7 +16,6 @@ class Course(models.Model):
         ARCHIVED = "archived", "Arquivado"
 
     title = models.CharField("Título", max_length=200)
-    edition = models.CharField("Turma / Edição", max_length=120, blank=True)
     description = models.TextField("Descrição", blank=True)
     cover = models.FileField(
         "Imagem de capa", upload_to="cortes/", blank=True, help_text="PNG ou JPG."
@@ -85,7 +84,7 @@ class Course(models.Model):
         ordering = ["-created_at"]
 
     def __str__(self) -> str:
-        return f"{self.title}" + (f" — {self.edition}" if self.edition else "")
+        return self.title
 
     @property
     def total_duration(self) -> float:

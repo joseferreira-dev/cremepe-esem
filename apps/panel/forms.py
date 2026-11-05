@@ -155,7 +155,6 @@ class CursoForm(forms.ModelForm):
         model = Course
         fields = (
             "title",
-            "edition",
             "description",
             "cover",
             "status",
@@ -169,9 +168,6 @@ class CursoForm(forms.ModelForm):
         widgets = {
             "title": forms.TextInput(
                 attrs={"class": "campo", "placeholder": "Ex.: 17º Curso de Atualização em Ética e Bioética"}
-            ),
-            "edition": forms.TextInput(
-                attrs={"class": "campo", "placeholder": "Ex.: 17º Curso — Turma A"}
             ),
             "description": forms.Textarea(
                 attrs={"class": "campo", "rows": 4, "placeholder": "Descrição do curso"}
@@ -191,7 +187,6 @@ class CursoForm(forms.ModelForm):
         }
         labels = {
             "title": "Título do curso",
-            "edition": "Turma / Edição",
             "description": "Descrição",
             "cover": "Imagem de capa",
             "status": "Situação",

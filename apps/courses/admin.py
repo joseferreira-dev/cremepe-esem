@@ -24,7 +24,6 @@ class EnrollmentInline(admin.TabularInline):
 class CourseAdmin(admin.ModelAdmin):
     list_display = (
         "title",
-        "edition",
         "status",
         "min_percent",
         "video_count",
@@ -33,10 +32,10 @@ class CourseAdmin(admin.ModelAdmin):
         "created_at",
     )
     list_filter = ("status",)
-    search_fields = ("title", "edition", "description")
+    search_fields = ("title", "description")
     inlines = [VideoInline, EnrollmentInline]
     fieldsets = (
-        (None, {"fields": ("title", "edition", "description", "status")}),
+        (None, {"fields": ("title", "description", "status")}),
         (
             "Regras de aprovação",
             {

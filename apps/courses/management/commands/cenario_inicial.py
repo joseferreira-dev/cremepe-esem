@@ -26,7 +26,6 @@ from apps.media.services import duracao_hls, qualidades_hls
 
 CURSO = {
     "title": "17º Curso de Atualização em Ética e Bioética para Residência Médica",
-    "edition": "Webnário — 25 e 26 de maio de 2026",
     "description": (
         "Webnário do 17º Curso de Atualização em Ética e Bioética para Residência "
         "Médica, promovido pela Escola Superior de Ética Médica (ESEM) do CREMEPE, "
@@ -99,9 +98,6 @@ class Command(BaseCommand):
             curso = Course.objects.filter(title=CURSO["title"]).first()
 
         if curso is None:
-            curso = Course.objects.filter(edition=CURSO["edition"]).first()
-
-        if curso is None:
             curso = Course.objects.order_by("pk").first()
 
         if curso is None:
@@ -109,7 +105,6 @@ class Command(BaseCommand):
         else:
             curso.title = CURSO["title"]
 
-        curso.edition = CURSO["edition"]
         curso.description = CURSO["description"]
         curso.status = Course.Status.ACTIVE
         curso.min_percent = 50
@@ -211,7 +206,6 @@ class Command(BaseCommand):
         matricula, _ = Enrollment.objects.get_or_create(
             medico=medico,
             course=curso,
-            defaults={"min_percent": curso.min_percent},
         )
         if options["zerar_progresso"]:
             Progress.objects.filter(enrollment=matricula).delete()

@@ -489,7 +489,6 @@ class TestModeloPorCurso(BaseCertificado):
             "/painel/cursos/novo/",
             {
                 "title": "Curso com modelo",
-                "edition": "Turma 2026",
                 "description": "",
                 "status": Course.Status.ACTIVE,
                 "min_percent": "50",

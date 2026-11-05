@@ -162,7 +162,6 @@ def dados_do_certificado(enrollment: Enrollment, codigo: str) -> dict:
     return {
         "aluno": enrollment.medico.nome,
         "curso": curso.title,
-        "edicao": curso.edition,
         "carga": carga_horaria(segundos),
         "data": f"{hoje.day} de {MESES[hoje.month - 1]} de {hoje.year}",
         "codigo": codigo,

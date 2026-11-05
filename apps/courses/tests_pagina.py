@@ -259,7 +259,7 @@ class TestCatalogoDoAdmin(TestCase):
             must_change_password=False,
         )
         self.curso_com_matricula = Course.objects.create(
-            title="Curso com matricula", edition="Turma A", status=Course.Status.ACTIVE
+            title="Curso com matricula", status=Course.Status.ACTIVE
         )
         self.curso_sem_matricula = Course.objects.create(
             title="Curso sem matricula", status=Course.Status.DRAFT

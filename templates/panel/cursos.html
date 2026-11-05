@@ -40,7 +40,6 @@
               <a href="{% url 'painel_curso' linha.curso.id %}" class="font-semibold text-slate-800 hover:text-marca-600">
                 {{ linha.curso.title }}
               </a>
-              <span class="block text-xs text-slate-500">{{ linha.curso.edition|default:"—" }}</span>
             </td>
             <td class="celula">
               <span class="etiqueta {{ linha.curso.status|cor_status }}">{{ linha.curso.get_status_display }}</span>

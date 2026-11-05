@@ -60,11 +60,6 @@
         <article class="cartao p-5">
           <div class="flex items-start justify-between gap-3">
             <div>
-              {% if enrollment.course.edition %}
-                <span class="etiqueta bg-slate-100 text-slate-600 ring-1 ring-slate-200">
-                  {{ enrollment.course.edition }}
-                </span>
-              {% endif %}
               <h3 class="mt-2 text-base font-bold leading-snug text-slate-900">
                 {{ enrollment.course.title }}
               </h3>
@@ -99,11 +94,6 @@
         <article class="cartao p-5">
           <div class="flex items-start justify-between gap-3">
             <div>
-              {% if item.enrollment.course.edition %}
-                <span class="etiqueta bg-slate-100 text-slate-600 ring-1 ring-slate-200">
-                  {{ item.enrollment.course.edition }}
-                </span>
-              {% endif %}
               <h3 class="mt-2 text-base font-bold leading-snug text-slate-900">
                 {{ item.enrollment.course.title }}
               </h3>

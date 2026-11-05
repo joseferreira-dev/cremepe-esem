@@ -73,9 +73,6 @@
                 </span>
               {% endif %}
               <div class="absolute inset-x-0 bottom-0 p-4">
-                {% if item.curso.edition %}
-                  <span class="etiqueta bg-white/20 text-white ring-1 ring-white/30">{{ item.curso.edition }}</span>
-                {% endif %}
                 <h2 class="mt-2 text-base font-bold leading-snug text-white">{{ item.curso.title }}</h2>
               </div>
               <span class="etiqueta absolute right-3 top-3 {{ item.curso.status|cor_status }}">
@@ -138,9 +135,6 @@
                 <div class="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/10 to-transparent"></div>
               {% endif %}
               <div class="absolute inset-x-0 bottom-0 p-4">
-                {% if item.enrollment.course.edition %}
-                  <span class="etiqueta bg-white/20 text-white ring-1 ring-white/30">{{ item.enrollment.course.edition }}</span>
-                {% endif %}
                 <h2 class="mt-2 text-base font-bold leading-snug text-white">
                   {{ item.enrollment.course.title }}
                 </h2>

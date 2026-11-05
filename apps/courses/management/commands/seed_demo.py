@@ -41,7 +41,6 @@ class Command(BaseCommand):
         course, _ = Course.objects.get_or_create(
             title="Ética Médica — Turma de Teste",
             defaults={
-                "edition": "1ª turma 2026",
                 "description": "Curso de demonstração.",
                 "status": Course.Status.ACTIVE,
             },
@@ -54,7 +53,7 @@ class Command(BaseCommand):
         )
 
         enrollment, _ = Enrollment.objects.get_or_create(
-            medico=medico, course=course, defaults={"min_percent": course.min_percent}
+            medico=medico, course=course
         )
 
         self.stdout.write(self.style.SUCCESS("Dados de demonstração prontos."))
