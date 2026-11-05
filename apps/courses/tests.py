@@ -743,8 +743,9 @@ class TestIrEVoltarNoVideo(TestCase):
     def test_avanco_para_conteudo_nunca_visto_continua_bloqueado(self):
         apply_heartbeat(self.enrollment, self.aula, 10.0, playing=False)
         salto = apply_heartbeat(self.enrollment, self.aula, 200.0, playing=False)
-        # Sem margem acumulada não passa do ponto em que está.
-        self.assertLess(salto["authorized_position"], 60.0)
+        # Sem margem para o nunca visto: pousa no limite do já assistido
+        # (7:31 no caso real), não na posição em que o player estava.
+        self.assertEqual(salto["authorized_position"], 50.0)
         self.assertTrue(salto["suspicious"])
 
     def test_avanco_novo_consome_a_margem_acumulada(self):

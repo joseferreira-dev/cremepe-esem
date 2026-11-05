@@ -7,6 +7,7 @@ acumulada apenas em tempo real de reprodução.
 
 from __future__ import annotations
 
+import logging
 from decimal import Decimal
 
 from django.conf import settings
@@ -14,6 +15,8 @@ from django.db import transaction
 from django.utils import timezone
 
 from .models import AuditLog, Course, Enrollment, Progress, Video
+
+logger = logging.getLogger(__name__)
 
 # Margem máxima acumulada (segundos). Evita que uma sessão esquecida libere
 # um salto grande depois.
@@ -291,6 +294,23 @@ def apply_heartbeat(
             if delta > credit + 0.5:
                 suspicious = True
                 progress.suspicious = (progress.suspicious or 0) + 1
+                # Rejeitado: o corte é o limite do já assistido (furthest).
+                # Pousar na posição anterior fazia parecer que a trava era o
+                # ponto em que o aluno estava (ex.: "travou em 6:50") e não o
+                # fim do trecho assistido (7:31).
+                limite = float(progress.furthest or 0.0)
+                if limite > new_position:
+                    new_position = min(position, limite)
+                logger.info(
+                    "heartbeat rejeitado: video=%s position=%.1f last=%.1f "
+                    "furthest=%.1f margem=%.1f assistido=%s",
+                    video.pk,
+                    position,
+                    last_position,
+                    float(progress.furthest or 0.0),
+                    allowance,
+                    _dentro_assistido(position, progress.intervals),
+                )
 
         allowance = max(0.0, allowance - credit)
 

@@ -359,10 +359,15 @@
     heartbeatTimer = setInterval(sendHeartbeat, interval);
   }
 
-  // Camada A: impede o arrastar da barra além do ponto liberado.
+  // Camada A: impede o arrastar da barra além do limite do assistido.
+  // maxAllowed (furthest + tolerância) existe para o buffer/segmentos; o
+  // corte de seek é o próprio furthest — o aluno para exatamente no fim do
+  // que já viu, com aviso na hora, sem esperar o heartbeat (que o devolveria
+  // à posição em que estava, fazendo parecer que a trava era outro ponto).
   player.addEventListener('seeking', function () {
-    if (maxAllowed > 0 && player.currentTime > maxAllowed + 0.75) {
-      player.currentTime = Math.max(0, maxAllowed);
+    var teto = furthest > 0 ? furthest : maxAllowed;
+    if (teto > 0 && player.currentTime > teto + 0.75) {
+      player.currentTime = Math.max(0, teto);
       showWarning('Não é possível avançar para além do conteúdo que você já assistiu.');
       sendHeartbeat();
     }
