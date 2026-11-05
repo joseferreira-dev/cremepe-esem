@@ -686,3 +686,76 @@ class TestRenumeracaoNoAdmin(TestCase):
             )
         # Aula 2 saiu, Aula 1 foi pedida por último: sequência 1..N.
         self.assertEqual(self.sequencia(), [("Aula 3", 1), ("Aula 1", 2)])
+
+
+class TestIrEVoltarNoVideo(TestCase):
+    """O aluno vai e volta livremente dentro do trecho já assistido.
+
+    Reproduz o caso relatado: ao voltar para rever um trecho, o heartbeat
+    autorizava apenas a margem restante e o player era puxado de volta
+    quando o aluno tentava retomar onde tinha parado. O avanço para
+    conteúdo nunca visto continua bloqueado pela margem.
+    """
+
+    def setUp(self):
+        self.medico = criar_medico("77788899902")
+        self.curso = Course.objects.create(
+            title="Curso Ir e Voltar", status=Course.Status.ACTIVE, min_percent=50
+        )
+        self.aula = Video.objects.create(
+            course=self.curso, order=1, title="Aula", duration=600,
+            status=Video.Status.READY,
+        )
+        self.enrollment = Enrollment.objects.create(
+            medico=self.medico, course=self.curso
+        )
+        # Assistiu os primeiros 50s; a margem foi gasta (allowance zerada).
+        Progress.objects.create(
+            enrollment=self.enrollment,
+            video=self.aula,
+            intervals=[[0.0, 50.0]],
+            furthest=50.0,
+            covered=50.0,
+            last_position=50.0,
+            allowance=0.0,
+        )
+
+    def test_voltar_e_avancar_dentro_do_assistido_e_livre(self):
+        # Rebobinou para rever aos 10s.
+        retorno = apply_heartbeat(self.enrollment, self.aula, 10.0, playing=False)
+        self.assertEqual(retorno["authorized_position"], 10.0)
+
+        # Retomou onde parou (45s) sem nenhuma margem nova.
+        retomada = apply_heartbeat(self.enrollment, self.aula, 45.0, playing=False)
+        self.assertEqual(retomada["authorized_position"], 45.0)
+        self.assertFalse(retomada["suspicious"])
+
+        # E pode voltar até o fim do trecho assistido.
+        fim = apply_heartbeat(self.enrollment, self.aula, 50.0, playing=False)
+        self.assertEqual(fim["authorized_position"], 50.0)
+        self.assertFalse(fim["suspicious"])
+
+        # A cobertura não muda com a reassistida (só o relógio real conta).
+        progress = Progress.objects.get(enrollment=self.enrollment, video=self.aula)
+        self.assertEqual(progress.covered, 50.0)
+        self.assertEqual(progress.furthest, 50.0)
+
+    def test_avanco_para_conteudo_nunca_visto_continua_bloqueado(self):
+        apply_heartbeat(self.enrollment, self.aula, 10.0, playing=False)
+        salto = apply_heartbeat(self.enrollment, self.aula, 200.0, playing=False)
+        # Sem margem acumulada não passa do ponto em que está.
+        self.assertLess(salto["authorized_position"], 60.0)
+        self.assertTrue(salto["suspicious"])
+
+    def test_avanco_novo_consome_a_margem_acumulada(self):
+        # Com 30s de margem, um salto de 20s para o nunca visto é autorizado.
+        Progress.objects.filter(enrollment=self.enrollment, video=self.aula).update(
+            allowance=30.0
+        )
+        salto = apply_heartbeat(self.enrollment, self.aula, 70.0, playing=False)
+        self.assertEqual(salto["authorized_position"], 70.0)
+        self.assertFalse(salto["suspicious"])
+        progress = Progress.objects.get(enrollment=self.enrollment, video=self.aula)
+        self.assertEqual(progress.furthest, 70.0)
+        # A margem usada não é devolvida.
+        self.assertLessEqual(progress.allowance, 10.5)

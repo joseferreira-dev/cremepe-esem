@@ -207,6 +207,11 @@ def criterios_de_aprovacao(enrollment: Enrollment) -> dict:
     }
 
 
+def _dentro_assistido(position: float, intervals) -> bool:
+    """A posição está dentro de algum trecho já assistido?"""
+    return any(inicio <= position <= fim for inicio, fim in (intervals or []))
+
+
 def apply_heartbeat(
     enrollment: Enrollment,
     video: Video,
@@ -218,7 +223,8 @@ def apply_heartbeat(
 
     Regras:
       * A margem de avanço só cresce enquanto o player reporta reprodução.
-      * A posição só avança no máximo pela margem acumulada.
+      * Ir e voltar dentro de trechos já assistidos é livre (sem margem).
+      * Fora do assistido, a posição só avança pela margem acumulada.
       * Voltar no tempo é livre (reassistir), mas não gera crédito novo.
     """
     now = now or timezone.now()
@@ -270,6 +276,14 @@ def apply_heartbeat(
 
         if delta < 0:
             # Voltou no tempo: permitido, sem crédito.
+            new_position = position
+        elif _dentro_assistido(position, progress.intervals):
+            # Avanço dentro de trecho já assistido: livre. O aluno pode ir e
+            # voltar em todo o conteúdo que já viu; a margem (allowance) só
+            # rege o avanço para conteúdo nunca visto — sem isso, quem
+            # rebobinasse para rever um trecho ficava preso (o heartbeat
+            # autorizava apenas a margem restante e o player era puxado
+            # de volta).
             new_position = position
         else:
             credit = min(delta, allowance)
