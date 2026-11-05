@@ -369,13 +369,12 @@ class TestFluxoCompleto(TestCase):
         medico = Medico.objects.get(cpf="11122233344")
         self.assertTrue(medico.must_change_password)
 
-        # Matrícula (o percentual mínimo vem do curso, igual para todos)
+        # Matrícula (percentual e prazo vêm do curso)
         self.client.post(
             "/painel/matriculas/nova/",
             {
                 "medico": medico.pk,
                 "course": curso.pk,
-                "deadline": "",
             },
         )
         matricula = Enrollment.objects.get(medico=medico, course=curso)
@@ -406,17 +405,18 @@ class TestFluxoCompleto(TestCase):
 
         resposta = self.client.post(
             "/painel/matriculas/nova/",
-            {"medico": medico.pk, "course": curso.pk, "deadline": ""},
+            {"medico": medico.pk, "course": curso.pk},
         )
         self.assertEqual(resposta.status_code, 200)
         self.assertEqual(Enrollment.objects.count(), 1)
 
     def test_formulario_de_matricula_nao_tem_percentual(self):
-        """O mínimo é do curso (igual para todos): sem opção por matrícula."""
+        """Percentual e prazo são do curso: sem opções por matrícula."""
         resposta = self.client.get("/painel/matriculas/nova/")
         self.assertEqual(resposta.status_code, 200)
         self.assertNotContains(resposta, "Percentual exigido")
-        self.assertContains(resposta, "igual para todos os alunos")
+        self.assertNotContains(resposta, 'name="deadline"')
+        self.assertContains(resposta, "iguais para todos os alunos")
 
     def test_formulario_de_curso_renderiza_anexos_com_estilo(self):
         """Anexos com estado atual, botão de escolha, chip do upload e prévia."""
@@ -825,7 +825,6 @@ class TestMatriculasEmLote(TestCase):
             {
                 "acao": "matricular_lote",
                 "medicos": [self.medicos[1].pk, self.medicos[2].pk],
-                "deadline": "",
             },
         )
         self.assertRedirects(resposta, f"/painel/cursos/{self.curso.pk}/")

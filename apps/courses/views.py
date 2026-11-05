@@ -4,7 +4,6 @@ from django.conf import settings
 from django.core.exceptions import PermissionDenied
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
-from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET
 
@@ -65,7 +64,6 @@ def my_courses(request):
         bloqueado = (
             curso.status == Course.Status.ARCHIVED
             or curso.expirado
-            or bool(enrollment.deadline and enrollment.deadline < timezone.localdate())
         )
         items.append(
             {
@@ -77,12 +75,7 @@ def my_courses(request):
                 "motivo": (
                     "Arquivado"
                     if curso.status == Course.Status.ARCHIVED
-                    else (
-                        "Prazo encerrado"
-                        if curso.expirado
-                        or (enrollment.deadline and enrollment.deadline < timezone.localdate())
-                        else ""
-                    )
+                    else ("Prazo encerrado" if curso.expirado else "")
                 ),
             }
         )
@@ -99,10 +92,9 @@ def course_view(request, enrollment_id: int):
     if enrollment.medico.user_id != request.user.id and not request.user.is_staff:
         raise PermissionDenied
 
-    # Rascunho, arquivado ou fora do prazo: o aluno não acessa a página do curso.
+    # Rascunho, arquivado ou fora do prazo (do curso): o aluno não acessa.
     if not request.user.is_staff:
-        prazo_matricula = enrollment.deadline and enrollment.deadline < timezone.localdate()
-        if enrollment.course.indisponivel_para_aluno or prazo_matricula:
+        if enrollment.course.indisponivel_para_aluno:
             raise PermissionDenied
 
     videos = [v for v in enrollment.course.videos.all() if v.disponivel]

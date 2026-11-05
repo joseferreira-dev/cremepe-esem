@@ -15,7 +15,7 @@ class VideoInline(admin.TabularInline):
 class EnrollmentInline(admin.TabularInline):
     model = Enrollment
     extra = 0
-    fields = ("medico", "status", "deadline", "approved_at")
+    fields = ("medico", "status", "approved_at")
     autocomplete_fields = ("medico",)
     readonly_fields = ("approved_at",)
 

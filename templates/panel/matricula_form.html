@@ -5,7 +5,7 @@
 {% block painel %}
 <h1 class="text-3xl font-bold tracking-tight text-slate-900">Nova matrícula</h1>
 <p class="mt-2 text-sm text-slate-500">
-  O percentual mínimo de aprovação é o do curso, igual para todos os alunos.
+  Percentual mínimo e prazo são do curso — iguais para todos os alunos.
 </p>
 
 <form method="post" class="mt-8 max-w-2xl">
@@ -13,7 +13,6 @@
   <div class="cartao cartao-padrao space-y-6">
     {% include "partials/campo_busca.html" with field=form.medico placeholder="Buscar médico…" %}
     {% include "partials/campo_busca.html" with field=form.course placeholder="Buscar curso…" %}
-    {% include "partials/campo.html" with field=form.deadline %}
   </div>
   <div class="mt-6 flex gap-2">
     <button class="btn btn-primary" type="submit">Confirmar matrícula</button>

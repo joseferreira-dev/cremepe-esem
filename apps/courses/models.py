@@ -214,7 +214,8 @@ class Enrollment(models.Model):
     )
     # O percentual mínimo é do curso (Course.min_percent): igual para todos
     # os alunos da turma — não existe percentual por matrícula.
-    deadline = models.DateField("Prazo", null=True, blank=True)
+    # O prazo de conclusão é do curso (Course.deadline): igual para todos
+    # os alunos da turma — não existe prazo por matrícula.
     approved_at = models.DateTimeField("Aprovado em", null=True, blank=True)
     approved_by = models.ForeignKey(
         User,

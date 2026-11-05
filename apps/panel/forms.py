@@ -337,20 +337,18 @@ class MedicoForm(forms.ModelForm):
 
 
 class MatriculaForm(forms.ModelForm):
-    """Nova matrícula — o percentual mínimo é o do curso (para todos)."""
+    """Nova matrícula — percentual mínimo e prazo são os do curso."""
 
     class Meta:
         model = Enrollment
-        fields = ("medico", "course", "deadline")
+        fields = ("medico", "course")
         widgets = {
             "medico": forms.Select(attrs={"class": "campo campo-busca-select"}),
             "course": forms.Select(attrs={"class": "campo campo-busca-select"}),
-            "deadline": forms.DateInput(attrs={"class": "campo", "type": "date"}),
         }
         labels = {
             "medico": "Médico",
             "course": "Curso",
-            "deadline": "Prazo",
         }
 
     def __init__(self, *args, **kwargs):
@@ -382,12 +380,6 @@ class MatriculaLoteForm(forms.Form):
             }
         ),
     )
-    deadline = forms.DateField(
-        required=False,
-        label="Prazo",
-        widget=forms.DateInput(attrs={"class": "campo", "type": "date"}),
-    )
-
     def __init__(self, *args, curso=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.curso = curso
@@ -397,7 +389,6 @@ class MatriculaLoteForm(forms.Form):
                 .exclude(enrollments__course=curso)
                 .order_by("nome")
             )
-            self.fields["deadline"].initial = curso.deadline
 
     def clean_medicos(self):
         medicos = self.cleaned_data["medicos"]
@@ -408,14 +399,12 @@ class MatriculaLoteForm(forms.Form):
     def save(self):
         if self.curso is None:
             raise ValueError("O curso é obrigatório para matricular em lote.")
-        deadline = self.cleaned_data.get("deadline") or self.curso.deadline
         criadas = []
         with transaction.atomic():
             for medico in self.cleaned_data["medicos"]:
                 matricula, criada = Enrollment.objects.get_or_create(
                     medico=medico,
                     course=self.curso,
-                    defaults={"deadline": deadline},
                 )
                 if criada:
                     criadas.append(matricula)

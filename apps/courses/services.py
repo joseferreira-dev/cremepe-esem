@@ -336,7 +336,6 @@ def refresh_enrollment_status(enrollment: Enrollment, actor=None) -> Enrollment:
     criterio = criterios_de_aprovacao(enrollment)
     required = criterio["exigido"]
     coverage = criterio["cobertura"]
-    enrollment.deadline = enrollment.deadline or enrollment.course.deadline
 
     if enrollment.status in {Enrollment.Status.CANCELLED, Enrollment.Status.REJECTED}:
         return enrollment
@@ -346,7 +345,7 @@ def refresh_enrollment_status(enrollment: Enrollment, actor=None) -> Enrollment:
             enrollment.status = Enrollment.Status.APPROVED
             enrollment.approved_at = timezone.now()
             enrollment.approved_by = actor
-            enrollment.save(update_fields=["status", "approved_at", "approved_by", "deadline"])
+            enrollment.save(update_fields=["status", "approved_at", "approved_by"])
             record_audit(
                 "aprovacao_automatica",
                 actor=actor,

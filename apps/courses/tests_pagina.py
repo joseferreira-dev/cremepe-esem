@@ -403,16 +403,6 @@ class TestVisibilidadeDoCursoParaAluno(TestCase):
         self.assertNotIn(f'href="/cursos/{matricula.id}/"', html)
         self.assertEqual(self.client.get(f"/cursos/{matricula.id}/").status_code, 403)
 
-    def test_prazo_da_matricula_tambem_bloqueia(self):
-        curso = self._curso()
-        Video.objects.create(
-            course=curso, order=1, title="Aula", duration=100, status=Video.Status.READY
-        )
-        matricula = self._matricular(curso, deadline=date(2000, 1, 1))
-        html = self.client.get("/cursos/").content.decode()
-        self.assertIn("Prazo encerrado", html)
-        self.assertEqual(self.client.get(f"/cursos/{matricula.id}/").status_code, 403)
-
     def test_ativo_normal_continua_acessivel(self):
         curso = self._curso()
         video = Video.objects.create(
