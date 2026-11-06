@@ -1437,3 +1437,83 @@ class TestListagemDeAlunos(TestCase):
         self.client.logout()
         resposta = self.client.get(f"/painel/medicos/{medico.pk}/detalhe/")
         self.assertEqual(resposta.status_code, 302)
+
+
+class TestFiltrosDaAuditoria(TestCase):
+    """Busca, filtros (ação/autor) e ordenação na página de auditoria."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            "admin-audfil", "a@b.c", "senha12345"
+        )
+        self.outro = User.objects.create_user("outro-audfil", password="x")
+        self.client.force_login(self.admin)
+        AuditLog.objects.create(
+            action="aluno_criado",
+            target="Aluno Um",
+            actor=self.outro,
+            detail={"cpf": "11122233300"},
+        )
+        AuditLog.objects.create(
+            action="senha_resetada", target="Aluno Dois", actor=self.admin
+        )
+        AuditLog.objects.create(action="aluno_criado", target="Sistema X")
+
+    def test_busca_por_texto_incluindo_o_detalhe(self):
+        html = self.client.get("/painel/auditoria/?q=Aluno Dois").content.decode()
+        self.assertIn("Aluno Dois", html)
+        self.assertNotIn("Aluno Um", html)
+        self.assertNotIn("Sistema X", html)
+        self.assertIn("Nenhum registro com esses filtros", self.client.get(
+            "/painel/auditoria/?q=nao-existe"
+        ).content.decode())
+
+        # A busca varre o detalhe (JSON tratado como texto).
+        html = self.client.get("/painel/auditoria/?q=11122233300").content.decode()
+        self.assertIn("Aluno Um", html)
+        self.assertNotIn("Aluno Dois", html)
+
+    def test_filtro_por_acao_e_autor(self):
+        html = self.client.get(
+            "/painel/auditoria/?acao=senha_resetada"
+        ).content.decode()
+        self.assertIn("Aluno Dois", html)
+        self.assertNotIn("Aluno Um", html)
+        self.assertIn('value="senha_resetada" selected', html)
+
+        html = self.client.get("/painel/auditoria/?ator=outro-audfil").content.decode()
+        self.assertIn("Aluno Um", html)
+        self.assertNotIn("Aluno Dois", html)
+
+        html = self.client.get("/painel/auditoria/?ator=sistema").content.decode()
+        self.assertIn("Sistema X", html)
+        self.assertNotIn("Aluno Um", html)
+        self.assertIn('value="sistema" selected', html)
+
+    def test_ordenacao_recentes_antigas_e_acao(self):
+        antigas = self.client.get(
+            "/painel/auditoria/?ordenacao=antigas"
+        ).content.decode()
+        # Cronológica: a ordem de criação.
+        self.assertTrue(
+            antigas.index("Aluno Um") < antigas.index("Aluno Dois")
+            < antigas.index("Sistema X")
+        )
+        self.assertIn('value="antigas" selected', antigas)
+
+        por_acao = self.client.get(
+            "/painel/auditoria/?ordenacao=acao"
+        ).content.decode()
+        # aluno_criado antes de senha_resetada: "Aluno Dois" fica por último.
+        self.assertTrue(por_acao.index("Aluno Dois") > por_acao.index("Aluno Um"))
+        self.assertTrue(por_acao.index("Aluno Dois") > por_acao.index("Sistema X"))
+
+    def test_filtros_ativos_mostram_limpar_e_preservam_na_pagina(self):
+        html = self.client.get(
+            "/painel/auditoria/?q=Aluno&ordenacao=antigas"
+        ).content.decode()
+        self.assertIn("Limpar", html)
+        self.assertIn('value="antigas" selected', html)
+        # Os selects continuam marcados e a lista segue paginável.
+        self.assertIn('name="acao"', html)
+        self.assertIn('name="ator"', html)

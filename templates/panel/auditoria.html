@@ -4,14 +4,43 @@
 
 {% block painel %}
 <div>
-  <p class="rotulo">Operação</p>
-  <h1 class="mt-1 text-3xl font-bold tracking-tight text-slate-900">Auditoria</h1>
+  <h1 class="text-3xl font-bold tracking-tight text-slate-900">Auditoria</h1>
   <p class="mt-2 text-sm text-slate-500">
     Registro das ações administrativas e das aprovações realizadas no portal.
   </p>
 </div>
 
-<div class="cartao mt-8 overflow-hidden">
+<form method="get" class="mt-6 flex max-w-5xl flex-wrap items-center gap-2">
+  <div class="relative min-w-56 flex-1">
+    <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">{{ icons.busca|safe }}</span>
+    <input type="search" name="q" value="{{ busca }}" class="campo pl-10"
+           placeholder="Buscar por ação, objeto, autor ou detalhe">
+  </div>
+  <select name="acao" class="campo w-44" aria-label="Filtrar por ação">
+    <option value="">Todas as ações</option>
+    {% for item in acoes %}
+      <option value="{{ item }}" {% if acao == item %}selected{% endif %}>{{ item }}</option>
+    {% endfor %}
+  </select>
+  <select name="ator" class="campo w-44" aria-label="Filtrar por autor">
+    <option value="">Todos os autores</option>
+    <option value="sistema" {% if ator == "sistema" %}selected{% endif %}>sistema</option>
+    {% for nome in atores %}
+      <option value="{{ nome }}" {% if ator == nome %}selected{% endif %}>{{ nome }}</option>
+    {% endfor %}
+  </select>
+  <select name="ordenacao" class="campo w-44" aria-label="Ordenar os registros">
+    {% for valor, nome_ordenacao in ordenacoes %}
+      <option value="{{ valor }}" {% if ordenacao == valor %}selected{% endif %}>{{ nome_ordenacao }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn btn-secundario" type="submit">Filtrar</button>
+  {% if tem_filtros %}
+    <a href="{% url 'painel_auditoria' %}" class="btn btn-fantasma">Limpar</a>
+  {% endif %}
+</form>
+
+<div class="cartao mt-6 overflow-hidden">
   <div class="overflow-x-auto">
     <table class="min-w-full divide-y divide-slate-100">
       <thead class="bg-slate-50/80">
@@ -35,7 +64,11 @@
             <td class="celula text-xs text-slate-400">{{ log.detail|default_if_none:"—" }}</td>
           </tr>
         {% empty %}
-          <tr><td colspan="5" class="px-5 py-12 text-center text-sm text-slate-400">Nenhum registro.</td></tr>
+          <tr>
+            <td colspan="5" class="px-5 py-12 text-center text-sm text-slate-400">
+              {% if tem_filtros %}Nenhum registro com esses filtros.{% else %}Nenhum registro.{% endif %}
+            </td>
+          </tr>
         {% endfor %}
       </tbody>
     </table>

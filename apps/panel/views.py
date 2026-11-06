@@ -14,7 +14,8 @@ from django.contrib import messages
 from django.contrib.auth.models import User
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Max, Q, Sum
+from django.db.models import Max, Q, Sum, TextField
+from django.db.models.functions import Cast
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -993,9 +994,76 @@ def matricula_exportar(request, pk):
 # --------------------------------------------------------------------------
 # Auditoria
 # --------------------------------------------------------------------------
+# Opções de ordenação da auditoria: valor do select -> chaves de order_by.
+ORDENACOES_AUDITORIA = (
+    ("recentes", "Mais recentes"),
+    ("antigas", "Mais antigas"),
+    ("acao", "Ação (A–Z)"),
+    ("alvo", "Objeto (A–Z)"),
+    ("ator", "Autor (A–Z)"),
+)
+_CHAVES_ORDEM_AUDITORIA = {
+    "recentes": ("-created_at",),
+    "antigas": ("created_at",),
+    "acao": ("action", "-created_at"),
+    "alvo": ("target", "-created_at"),
+    "ator": ("actor__username", "-created_at"),
+}
+
+
 def auditoria(request):
-    logs = _paginar(request, AuditLog.objects.select_related("actor").all())
-    return render(request, "panel/auditoria.html", {"logs": logs, "pagina": logs})
+    busca = request.GET.get("q", "").strip()
+    acao = request.GET.get("acao", "").strip()
+    ator = request.GET.get("ator", "").strip()
+    ordenacao = request.GET.get("ordenacao", "").strip() or "recentes"
+
+    logs = AuditLog.objects.select_related("actor")
+    if busca:
+        # O detalhe é JSON: buscamos como texto para varrer chaves e valores.
+        logs = logs.annotate(detalhe_txt=Cast("detail", TextField())).filter(
+            Q(action__icontains=busca)
+            | Q(target__icontains=busca)
+            | Q(actor__username__icontains=busca)
+            | Q(detalhe_txt__icontains=busca)
+        )
+    if acao:
+        logs = logs.filter(action=acao)
+    if ator == "sistema":
+        logs = logs.filter(actor__isnull=True)
+    elif ator:
+        logs = logs.filter(actor__username=ator)
+    logs = logs.order_by(*_CHAVES_ORDEM_AUDITORIA.get(ordenacao, ("-created_at",)))
+
+    pagina = _paginar(request, logs)
+    # order_by() limpa a ordenação do Meta antes do distinct (exigência do
+    # SELECT DISTINCT do PostgreSQL).
+    acoes = sorted(
+        AuditLog.objects.order_by().values_list("action", flat=True).distinct()
+    )
+    atores = sorted(
+        User.objects.filter(audit_logs__isnull=False)
+        .order_by()
+        .values_list("username", flat=True)
+        .distinct()
+    )
+    return render(
+        request,
+        "panel/auditoria.html",
+        {
+            "logs": pagina,
+            "pagina": pagina,
+            "busca": busca,
+            "acao": acao,
+            "ator": ator,
+            "ordenacao": ordenacao,
+            "ordenacoes": ORDENACOES_AUDITORIA,
+            "acoes": acoes,
+            "atores": atores,
+            "tem_filtros": bool(
+                busca or acao or ator or ordenacao != "recentes"
+            ),
+        },
+    )
 
 
 # --------------------------------------------------------------------------
