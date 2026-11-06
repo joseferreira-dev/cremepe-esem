@@ -153,7 +153,15 @@
   var menu = document.querySelector('[data-menu]');
   if (botao && menu) {
     botao.addEventListener('click', function () {
+      var estavaFechado = menu.classList.contains('hidden');
       menu.classList.toggle('hidden');
+      // Hambúrguer vira X enquanto o menu está aberto.
+      var iconeMenu = botao.querySelector('[data-icone-menu]');
+      var iconeFechar = botao.querySelector('[data-icone-fechar]');
+      if (iconeMenu) { iconeMenu.classList.toggle('hidden', estavaFechado); }
+      if (iconeFechar) { iconeFechar.classList.toggle('hidden', !estavaFechado); }
+      botao.setAttribute('aria-expanded', estavaFechado ? 'true' : 'false');
+      botao.setAttribute('aria-label', estavaFechado ? 'Fechar menu' : 'Abrir menu');
     });
   }
 

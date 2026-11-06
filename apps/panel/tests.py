@@ -750,13 +750,14 @@ class TestAbasEDialogsDoCurso(TestCase):
         html = self.client.get("/painel/cursos/").content.decode()
         self.assertNotIn("Pré-visualizar", html)
         self.assertNotIn("Progresso médio", html)
-        self.assertNotIn("Abrir", html)
+        # O link de ação "Abrir" (o aria-label do hambúrguer não conta).
+        self.assertNotIn(">Abrir</a>", html)
 
     def test_detalhe_do_curso_nao_tem_voltar_ver_matriculados_nem_abrir(self):
         html = self.client.get(f"/painel/cursos/{self.curso.pk}/").content.decode()
         self.assertNotIn("Voltar", html)
         self.assertNotIn("Ver matriculados", html)
-        self.assertNotIn("Abrir", html)
+        self.assertNotIn(">Abrir</a>", html)
 
 
 class TestCadastroDeMedicosEmLote(TestCase):

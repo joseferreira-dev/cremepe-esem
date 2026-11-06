@@ -241,6 +241,13 @@ class TestPaginaInstitucional(TestCase):
         html = render_to_string("partials/nav.html", request=request)
         self.assertIn("Meus certificados", html)
 
+        # Menu mobile completo: também tem o "Sair" (form de logout duplicado:
+        # um no dropdown desktop e outro no painel de celular).
+        self.assertGreaterEqual(html.count('action="/sair/"'), 2)
+        # O hambúrguer vira X enquanto o menu está aberto.
+        self.assertIn("data-icone-menu", html)
+        self.assertIn("data-icone-fechar", html)
+
     def test_icone_do_usuario_mostra_primeiro_e_ultimo_nome(self):
         from apps.web.templatetags.web import primeiro_e_ultimo
 

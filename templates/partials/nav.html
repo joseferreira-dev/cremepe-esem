@@ -79,9 +79,13 @@
         </a>
       {% endif %}
 
-      <button type="button" data-menu-toggle class="rounded-xl p-2 text-slate-600 transition hover:bg-marca-100 md:hidden">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="h-6 w-6">
+      <button type="button" data-menu-toggle aria-expanded="false" aria-label="Abrir menu"
+              class="rounded-xl p-2 text-slate-600 transition hover:bg-marca-100 md:hidden">
+        <svg data-icone-menu xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="h-6 w-6">
           <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>
+        </svg>
+        <svg data-icone-fechar xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="hidden h-6 w-6">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
         </svg>
       </button>
     </div>
@@ -100,6 +104,13 @@
           <a href="{% url 'painel_index' %}" class="link-menu block">Painel administrativo</a>
         {% endif %}
         <a href="{% url 'password_change' %}" class="link-menu block">Trocar senha</a>
+        <form method="post" action="{% url 'logout' %}" class="contents">
+          {% csrf_token %}
+          <button type="submit"
+                  class="link-menu flex w-full items-center gap-2.5 text-left text-rose-600 transition hover:bg-rose-50">
+            {{ icons.sair|safe }} Sair
+          </button>
+        </form>
       {% else %}
         <a href="{% url 'login' %}" class="link-menu block">Acessar os cursos</a>
       {% endif %}
