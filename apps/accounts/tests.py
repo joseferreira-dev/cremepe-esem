@@ -39,6 +39,17 @@ class TestSenhaPadrao(TestCase):
     def test_normaliza_cpf(self):
         self.assertEqual(normalize_cpf("123.456.789-00"), "12345678900")
 
+    def test_criacao_e_reset_derivam_do_nome_padronizado(self):
+        """Nome em caixa alta não pode gerar senhas diferentes nos dois fluxos."""
+        bruto = "ÁGUIDA LETÍCIA MARQUES DE MENEZES JERICÓ"
+        padronizado = nome_padrao(bruto)
+        self.assertEqual(padronizado, "Águida Letícia Marques de Menezes Jericó")
+        self.assertEqual(senha_padrao(bruto, "11023680408"), "Aguida@11023680408")
+        self.assertEqual(
+            senha_padrao(bruto, "11023680408"),
+            senha_padrao(padronizado, "11023680408"),
+        )
+
 
 class TestNomePadrao(TestCase):
     """Nome do médico padronizado no ponto único de gravação (Medico.save)."""

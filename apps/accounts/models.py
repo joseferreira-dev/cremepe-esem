@@ -25,9 +25,14 @@ def primeiro_nome(nome: str) -> str:
 def senha_padrao(nome: str, cpf: str) -> str:
     """Senha inicial padrão: PrimeiroNome + '@' + CPF sem traços e pontos.
 
+    O nome é padronizado antes de derivar (mesma regra do cadastro), para
+    **criação e reset** convergirem sempre para o mesmo valor — sem a
+    correção, um nome em caixa alta geraria "AGUIDA@..." na criação e
+    "Aguida@..." no reset.
+
     Ex.: 'José da Silva' / '123.456.789-00' -> 'Jose@12345678900'
     """
-    primeiro = primeiro_nome(nome)
+    primeiro = primeiro_nome(nome_padrao(nome))
     if primeiro:
         primeiro = primeiro[0].upper() + primeiro[1:]
     digitos = normalize_cpf(cpf)
