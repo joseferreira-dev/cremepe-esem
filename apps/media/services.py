@@ -461,6 +461,22 @@ def enqueue_transcode(video: Video) -> None:
     video.save(update_fields=["status", "error_message"])
 
 
+def recuperar_jobs_orfaos() -> int:
+    """Devolve à fila os jobs deixados em RUNNING por um worker que morreu.
+
+    O worker só consome jobs ``QUEUED``: um restart no meio da
+    transcodificação deixaria o job órfão em ``RUNNING`` e o vídeo preso em
+    "processing" para sempre. Chamado na inicialização do worker (instância
+    única), que então recomeça o processamento do zero (o diretório
+    pendente é limpo por ``process_transcode``).
+    """
+    from .models import Job
+
+    return Job.objects.filter(status=Job.Status.RUNNING).update(
+        status=Job.Status.QUEUED
+    )
+
+
 def process_transcode(video: Video) -> dict:
     """Processa o arquivo original e gera o HLS. Devolve as qualidades.
 

@@ -15,6 +15,7 @@ from apps.media.services import (
     limpar_uploads_abandonados,
     process_transcode,
     promote_hls,
+    recuperar_jobs_orfaos,
 )
 
 
@@ -46,6 +47,12 @@ class Command(BaseCommand):
             return
 
         self.stdout.write(self.style.SUCCESS("Worker de mídia iniciado."))
+        recuperados = recuperar_jobs_orfaos()
+        if recuperados:
+            self.stdout.write(
+                f"{recuperados} tarefa(s) órfã(s) de um worker anterior "
+                "recolocada(s) na fila."
+            )
         removidos = limpar_uploads_abandonados()
         if removidos:
             self.stdout.write(f"{removidos} upload(s) abandonado(s) removido(s).")

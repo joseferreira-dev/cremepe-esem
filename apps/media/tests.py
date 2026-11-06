@@ -800,3 +800,41 @@ class TestJornadaDeConclusaoNoPlayer(TestCase):
         self.assertFalse(dados["completed"])
         self.assertFalse(dados["next_unlocked"])
         self.assertNotEqual(dados["enrollment_status"], Enrollment.Status.APPROVED)
+
+
+class TestRecuperacaoDeJobs(TestCase):
+    """Job deixado em RUNNING por um worker que morreu volta para a fila.
+
+    O worker só consome QUEUED: sem a recuperação, um restart no meio da
+    transcodificação deixava o vídeo preso em "processing" para sempre
+    (caso do Webnário dia 25 — parado por ~18 h).
+    """
+
+    def setUp(self):
+        self.curso = Course.objects.create(
+            title="Curso Job", status=Course.Status.ACTIVE
+        )
+        self.video = Video.objects.create(
+            course=self.curso,
+            order=1,
+            title="Aula",
+            duration=100,
+            status=Video.Status.PROCESSING,
+        )
+
+    def test_job_running_orfao_volta_para_a_fila(self):
+        from apps.media.models import Job
+        from apps.media.services import recuperar_jobs_orfaos
+
+        job = Job.objects.create(video=self.video, status=Job.Status.RUNNING)
+        self.assertEqual(recuperar_jobs_orfaos(), 1)
+        job.refresh_from_db()
+        self.assertEqual(job.status, Job.Status.QUEUED)
+
+    def test_jobs_em_outros_estados_nao_sao_mexidos(self):
+        from apps.media.models import Job
+        from apps.media.services import recuperar_jobs_orfaos
+
+        Job.objects.create(video=self.video, status=Job.Status.DONE)
+        Job.objects.create(video=self.video, status=Job.Status.FAILED)
+        self.assertEqual(recuperar_jobs_orfaos(), 0)
