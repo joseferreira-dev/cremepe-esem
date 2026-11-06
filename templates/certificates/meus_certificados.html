@@ -38,8 +38,7 @@
         </span>
         <p class="text-base font-semibold text-slate-800">Nenhum certificado ainda</p>
         <p class="max-w-md text-sm text-slate-500">
-          Os certificados são liberados quando os cursos são concluídos e você
-          é aprovado(a).
+          Liberados ao concluir o curso com aprovação.
         </p>
         <a href="{% url 'my_courses' %}" class="btn btn-secundario mt-2">
           {{ icons.curso|safe }} Ir para os meus cursos
@@ -51,8 +50,7 @@
   {% if prontos %}
     <h2 class="mt-10 text-lg font-semibold text-slate-800">Prontos para baixar</h2>
     <p class="mt-1 text-sm text-slate-500">
-      Matrículas aprovadas: o PDF é emitido no primeiro download, com o código
-      de autenticação da ESEM.
+      PDF emitido no primeiro download, com código de autenticação da ESEM.
     </p>
     <div class="mt-4 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
       {% for enrollment in prontos %}
@@ -77,8 +75,7 @@
             </a>
           {% else %}
             <p class="mt-5 rounded-xl bg-amber-50 px-4 py-3 text-xs font-medium text-amber-700">
-              Certificado indisponível: o curso ainda não tem modelo
-              cadastrado. Procure a secretaria do CREMEPE.
+              Sem modelo de certificado cadastrado — procure a secretaria.
             </p>
           {% endif %}
         </article>

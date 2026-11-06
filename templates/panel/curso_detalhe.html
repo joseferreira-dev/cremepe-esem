@@ -54,7 +54,7 @@
         </table>
       </div>
       <p class="border-t border-slate-100 px-5 py-3 text-xs text-slate-500">
-        CPFs não matriculados: cadastre quem não estiver no cadastro em
+        CPFs não matriculados: cadastre-os em
         <a href="{% url 'painel_medico_lote' %}" class="font-semibold text-marca-600 hover:underline">Cadastro em lote</a>
         e repita o envio.
       </p>
@@ -258,10 +258,7 @@
           <textarea name="cpfs" rows="6" class="campo mt-2 font-mono text-sm"
                     placeholder="000.000.000-00&#10;111.222.333-44&#10;999.888.777-66"></textarea>
           <p class="text-xs text-slate-500">
-            Um CPF por linha (aceita pontos e traços). Ao final, os CPFs
-            <strong>não cadastrados</strong> são informados — cadastre-os em
-            <a href="{% url 'painel_medico_lote' %}" class="font-semibold text-marca-600 hover:underline">Cadastro em lote</a>
-            e repita o envio.
+            Um CPF por linha (aceita pontos e traços).
           </p>
           <button class="btn btn-primary btn-sm" type="submit">Matricular listados</button>
         </form>
@@ -389,7 +386,7 @@
       <div class="cartao cartao-padrao min-w-0">
         <h2 class="text-sm font-semibold text-rose-700">Zona de risco</h2>
         <p class="mt-2 text-xs leading-relaxed text-slate-500">
-          A exclusão remove o curso e todas as suas gravações. Só é possível excluir cursos sem matrículas.
+          Remove o curso e todas as gravações — só para cursos sem matrículas.
         </p>
         <form method="post" action="{% url 'painel_curso_remover' curso.id %}" class="mt-4"
               data-confirm="Excluir o curso “{{ curso.title }}”? Esta ação não pode ser desfeita.">

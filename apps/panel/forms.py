@@ -121,9 +121,7 @@ class CursoForm(forms.ModelForm):
         max_value=100,
         label="Percentual mínimo por aula (%)",
         help_text=(
-            "Cada aula precisa atingir este percentual para o médico ser "
-            "aprovado — evita aprovar pela cobertura total só com uma aula. "
-            "0 = sem exigência. A aula com valor próprio prevalece."
+            "Percentual mínimo por aula para aprovação (0 = sem exigência)."
         ),
         widget=forms.NumberInput(
             attrs={"class": "campo", "step": "0.01", "min": "0", "max": "100"}
@@ -133,11 +131,8 @@ class CursoForm(forms.ModelForm):
         required=False,
         label="Modelo de certificado (DOCX)",
         help_text=(
-            "Modelo Word deste curso: deve conter o campo NOME COMPLETO "
-            "(substituído pelo nome do médico na emissão) e uma imagem de "
-            "fundo. A arte e o texto são extraídos automaticamente. "
-            "Obrigatório para emitir certificados: sem modelo, a emissão "
-            "fica bloqueada."
+            "Modelo Word com o campo NOME COMPLETO e imagem de fundo. "
+            "Obrigatório para emitir certificados."
         ),
         widget=forms.ClearableFileInput(
             attrs={

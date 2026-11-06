@@ -377,7 +377,7 @@ class TestPaginaDeCertificados(BaseCertificado):
         self.client.force_login(self.aluno_user)
         conteudo = self.client.get(self.url()).content.decode()
         self.assertIn(
-            "Os certificados são liberados quando os cursos são concluídos",
+            "Liberados ao concluir o curso com aprovação",
             conteudo,
         )
         self.assertNotIn("Seu certificado é liberado", conteudo)
