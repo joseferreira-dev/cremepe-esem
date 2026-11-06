@@ -22,7 +22,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from apps.accounts.models import Medico, normalize_cpf
-from apps.accounts.services import redefinir_senha
+from apps.accounts.services import criar_conta_medico, redefinir_senha
 from apps.courses.models import AuditLog, Course, Enrollment, Progress, Video, WatchSession
 from apps.courses.services import (
     course_coverage,
@@ -518,13 +518,56 @@ def medico_form(request, pk=None):
     )
 
 
+# Tamanho do pedaço do cadastro em lote: ~15 alunos por requisição (o hash
+# de senha custa ~200-300 ms cada) — cada chamada fica bem abaixo do timeout
+# do nginx (60 s) e do gunicorn (180 s), e o JS acompanha a barra de
+# progresso enquanto os pedaços acontecem.
+LOTE_TAMANHO = 15
+
+
 def medico_lote(request):
     form = MedicoLoteForm(request.POST or None, request.FILES or None)
-    criados = []
     if request.method == "POST" and form.is_valid():
-        criados = form.save()
-        for item in criados:
-            medico = item["medico"]
+        # A validação completa é rápida; a gravação acontece em pedaços
+        # (medico_lote_parcial) — lotes grandes estouravam o timeout e
+        # perdiam tudo (transação abortada).
+        request.session["lote_alunos"] = form.linhas
+        request.session["lote_inicio"] = 0
+        form = MedicoLoteForm()
+        return render(
+            request,
+            "panel/medico_lote.html",
+            {
+                "form": form,
+                "lote_iniciar": True,
+                "lote_total": len(request.session["lote_alunos"]),
+            },
+        )
+    return render(request, "panel/medico_lote.html", {"form": form})
+
+
+@require_POST
+def medico_lote_parcial(request):
+    """Cria o próximo pedaço do lote guardado na sessão (chamado pelo JS).
+
+    O deslocamento vive na sessão (não no cliente): recarregar a página
+    retoma de onde parou e o envio duplicado não cria alunos repetidos —
+    CPFs já cadastrados são ignorados e contados.
+    """
+    linhas = request.session.get("lote_alunos") or []
+    inicio = request.session.get("lote_inicio") or 0
+    fatia = linhas[inicio : inicio + LOTE_TAMANHO]
+
+    criados = []
+    ignorados = 0
+    with transaction.atomic():
+        for dados in fatia:
+            if Medico.objects.filter(cpf=dados["cpf"]).exists():
+                ignorados += 1
+                continue
+            medico = Medico(ativo=True, **dados)
+            senha = criar_conta_medico(medico)
+            medico.save()
             record_audit(
                 "medico_criado",
                 actor=request.user,
@@ -532,13 +575,24 @@ def medico_lote(request):
                 detail={"cpf": medico.cpf, "senha_padrao": True, "lote": True},
                 ip=request.META.get("REMOTE_ADDR"),
             )
-        messages.success(
-            request,
-            f"{len(criados)} médico(s) cadastrado(s) em lote. Anote as senhas iniciais.",
-        )
-        form = MedicoLoteForm()
+            criados.append(
+                {"nome": medico.nome, "cpf": medico.cpf, "senha": senha}
+            )
 
-    return render(request, "panel/medico_lote.html", {"form": form, "criados": criados})
+    processados = min(inicio + len(fatia), len(linhas))
+    if processados >= len(linhas):
+        request.session.pop("lote_alunos", None)
+        request.session.pop("lote_inicio", None)
+    else:
+        request.session["lote_inicio"] = processados
+    return JsonResponse(
+        {
+            "processados": processados,
+            "total": len(linhas),
+            "criados": criados,
+            "ignorados": ignorados,
+        }
+    )
 
 
 @require_POST

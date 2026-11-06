@@ -9,7 +9,6 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import UploadedFile
 from django.core.validators import validate_email
-from django.db import transaction
 
 from apps.accounts.models import Medico, normalize_cpf
 from apps.accounts.services import criar_conta_medico
@@ -468,10 +467,6 @@ class MedicoLoteForm(forms.Form):
                 raise forms.ValidationError(
                     f"Linha {numero}: CPF repetido dentro do lote."
                 )
-            if Medico.objects.filter(cpf=cpf).exists():
-                raise forms.ValidationError(
-                    f"Linha {numero}: já existe um médico cadastrado com este CPF."
-                )
             if email:
                 try:
                     validate_email(email)
@@ -480,6 +475,8 @@ class MedicoLoteForm(forms.Form):
                         f"Linha {numero}: e-mail inválido."
                     ) from exc
 
+            # CPF já cadastrado NÃO cancela o lote: a gravação (em pedaços)
+            # ignora o duplicado e o conta no relatório final.
             cpfs_no_lote.add(cpf)
             yield {"nome": nome, "cpf": cpf, "email": email}
 
@@ -490,13 +487,3 @@ class MedicoLoteForm(forms.Form):
             raise forms.ValidationError("Nenhuma linha válida foi encontrada.")
         self.linhas = linhas
         return limpo
-
-    def save(self):
-        criados = []
-        with transaction.atomic():
-            for dados in self.linhas:
-                medico = Medico(ativo=True, **dados)
-                senha = criar_conta_medico(medico)
-                medico.save()
-                criados.append({"medico": medico, "senha": senha})
-        return criados

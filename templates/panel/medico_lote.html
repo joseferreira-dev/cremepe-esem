@@ -5,19 +5,34 @@
 {% block painel %}
 <h1 class="text-3xl font-bold tracking-tight text-slate-900">Cadastro de alunos em lote</h1>
 <p class="mt-2 max-w-3xl text-sm text-slate-500">
-  Cole uma pessoa por linha. Os alunos serão criados com a senha padrão do CREMEPE
-  e deverão trocá-la no primeiro acesso.
+  Envie um CSV (separador vírgula ou ponto e vírgula; colunas Nome, CPF, e-mail)
+  ou cole uma pessoa por linha. Os alunos serão criados com a senha padrão do
+  CREMEPE e deverão trocá-la no primeiro acesso.
 </p>
 
-{% if criados %}
-  <div class="cartao mt-8 overflow-hidden">
+{% if lote_iniciar %}
+  <div class="cartao mt-8 max-w-3xl p-6" id="lote-ui">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <p class="text-sm font-semibold text-slate-800" id="lote-titulo">Importando alunos…</p>
+      <p class="text-sm text-slate-500">
+        <span id="lote-feitos">0</span> de {{ lote_total }}
+      </p>
+    </div>
+    <div class="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+      <div id="lote-barra" class="h-full w-0 rounded-full bg-marca-gradiente transition-all duration-300"></div>
+    </div>
+    <p id="lote-aviso" class="mt-3 hidden text-xs font-medium text-rose-600"></p>
+  </div>
+
+  <div class="cartao mt-8 hidden max-w-3xl overflow-hidden" id="lote-resultado">
     <div class="border-b border-slate-100 bg-marca-50 px-5 py-4">
       <h2 class="text-sm font-semibold text-marca-800">
-        {{ criados|length }} aluno(s) cadastrado(s)
+        <span id="lote-qtd">0</span> aluno(s) cadastrado(s)
       </h2>
       <p class="mt-1 text-xs text-marca-700">
         Anote ou entregue as senhas iniciais abaixo. Elas não serão exibidas novamente.
       </p>
+      <p class="mt-1 hidden text-xs font-marca-700" id="lote-ignorados"></p>
     </div>
     <div class="overflow-x-auto">
       <table class="min-w-full divide-y divide-slate-100">
@@ -28,15 +43,7 @@
             <th class="cabecalho-tabela">Senha inicial</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-slate-100">
-          {% for item in criados %}
-            <tr>
-              <td class="celula font-semibold text-slate-800">{{ item.medico.nome }}</td>
-              <td class="celula text-slate-600">{{ item.medico.cpf }}</td>
-              <td class="celula font-mono text-sm font-semibold text-slate-800">{{ item.senha }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
+        <tbody id="lote-corpo" class="divide-y divide-slate-100"></tbody>
       </table>
     </div>
   </div>
@@ -53,7 +60,7 @@
     {% include "partials/campo.html" with field=form.arquivo %}
     <div class="relative flex items-center gap-3">
       <span class="h-px flex-1 bg-slate-200"></span>
-      <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">ou cole os dados</span>
+      <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">ou cole os dados</span>
       <span class="h-px flex-1 bg-slate-200"></span>
     </div>
     {% include "partials/campo.html" with field=form.dados %}
@@ -63,4 +70,125 @@
     <a href="{% url 'painel_medicos' %}" class="btn btn-secundario">Cancelar</a>
   </div>
 </form>
+{% endblock %}
+
+{% block scripts %}
+{% if lote_iniciar %}
+<script>
+  // Importação em pedaços: cada requisição cria ~15 alunos (hash de senha)
+  // — bem abaixo do timeout do nginx — e a barra acompanha o progresso.
+  // O deslocamento fica na sessão: recarregar retoma de onde parou.
+  (function () {
+    var total = {{ lote_total }};
+    var mostrados = 0;
+    var criados = 0;
+    var ignorados = 0;
+    var passoMs = 150; // ritmo padrão do "1 em 1"
+    var animTimer = null;
+    var barra = document.getElementById('lote-barra');
+    var feitos = document.getElementById('lote-feitos');
+    var aviso = document.getElementById('lote-aviso');
+
+    // Contador/barra de1 em1 — o ritmo espelha o tempo do último pedaço,
+    // e a próxima requisição já dispara em paralelo: a barra quase não para.
+    function animar(ate, aoTerminar) {
+      if (animTimer) { clearInterval(animTimer); }
+      animTimer = setInterval(function () {
+        if (mostrados >= ate) {
+          clearInterval(animTimer);
+          animTimer = null;
+          aoTerminar();
+          return;
+        }
+        mostrados = Math.min(mostrados + 1, ate);
+        feitos.textContent = mostrados;
+        barra.style.width =
+          Math.round((mostrados / Math.max(total, 1)) * 100) + '%';
+      }, passoMs);
+    }
+
+    function finalizar() {
+      document.getElementById('lote-titulo').textContent =
+        'Importação concluída';
+      document.getElementById('lote-qtd').textContent = criados;
+      if (ignorados > 0) {
+        var nota = document.getElementById('lote-ignorados');
+        nota.textContent =
+          ignorados + ' aluno(s) já existentes foram ignorados.';
+        nota.classList.remove('hidden');
+      }
+      var resultado = document.getElementById('lote-resultado');
+      resultado.classList.remove('hidden');
+      resultado.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function proximo() {
+      var t0 = Date.now();
+      fetch("{% url 'painel_medico_lote_parcial' %}", {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+        },
+        body: ''
+      })
+        .then(function (resp) {
+          if (!resp.ok) {
+            throw new Error('Falha ao importar (HTTP ' + resp.status + ').');
+          }
+          return resp.json();
+        })
+        .then(function (dados) {
+          var delta = dados.processados - mostrados;
+          if (delta > 0) {
+            var decorrido = Date.now() - t0;
+            passoMs = Math.min(
+              400,
+              Math.max(20, Math.round(decorrido / delta))
+            );
+          }
+          criados += dados.criados.length;
+          ignorados += dados.ignorados;
+
+          dados.criados.forEach(function (item) {
+            var linha = document.createElement('tr');
+            var nome = document.createElement('td');
+            nome.className = 'celula font-semibold text-slate-800';
+            nome.textContent = item.nome;
+            var cpf = document.createElement('td');
+            cpf.className = 'celula font-mono text-slate-600';
+            cpf.textContent = item.cpf;
+            var senha = document.createElement('td');
+            senha.className = 'celula font-mono text-sm font-semibold text-slate-800';
+            senha.textContent = item.senha;
+            linha.appendChild(nome);
+            linha.appendChild(cpf);
+            linha.appendChild(senha);
+            document.getElementById('lote-corpo').appendChild(linha);
+          });
+
+          var haMais = dados.processados < total;
+          if (haMais) {
+            proximo(); // pedaço seguinte em paralelo à animação
+          }
+          animar(dados.processados, function () {
+            if (!haMais) {
+              finalizar();
+            }
+          });
+        })
+        .catch(function (erro) {
+          aviso.textContent =
+            erro.message +
+            ' Os alunos já importados foram mantidos — envie o arquivo ' +
+            'novamente para continuar de onde parou.';
+          aviso.classList.remove('hidden');
+        });
+    }
+
+    proximo();
+  })();
+</script>
+{% endif %}
 {% endblock %}

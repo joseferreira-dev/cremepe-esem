@@ -11,6 +11,27 @@ from apps.courses.models import AuditLog, Course, Enrollment, Progress, Video
 from apps.panel.forms import MedicoForm
 
 
+def processar_lote(client, resposta):
+    """Executa os pedaços do cadastro em lote até concluir (o que o JS faz).
+
+    Devolve (criados, ignorados) a partir dos JSONs parciais.
+    """
+    if resposta.context is not None and "lote_total" not in resposta.context:
+        raise AssertionError("a página não expôs lote_total (UI de progresso)")
+    criados = []
+    ignorados = 0
+    for _ in range(100):  # trava de segurança contra laço infinito
+        parcial = client.post("/painel/medicos/lote/parcial/")
+        if parcial.status_code != 200:
+            raise AssertionError(f"pedaço devolveu {parcial.status_code}")
+        dados = parcial.json()
+        criados.extend(dados["criados"])
+        ignorados += dados["ignorados"]
+        if dados["processados"] >= dados["total"]:
+            return criados, ignorados
+    raise AssertionError("o lote não terminou dentro do limite de pedaços")
+
+
 class TestAcessoAoPainel(TestCase):
     def setUp(self):
         self.admin = User.objects.create_superuser("admin", "a@b.c", "senha12345")
@@ -776,13 +797,16 @@ class TestCadastroDeMedicosEmLote(TestCase):
             },
         )
         self.assertEqual(resposta.status_code, 200)
-        self.assertContains(resposta, "2 aluno(s) cadastrado(s)")
-        self.assertContains(resposta, "Maria@11122233344")
-        self.assertContains(resposta, "Joao@55566677788")
+        # A gravação acontece nos pedaços (como o JS faz), com senhas em cada.
+        criados, ignorados = processar_lote(self.client, resposta)
+        self.assertEqual(len(criados), 2)
+        self.assertEqual(ignorados, 0)
+        senhas = {item["senha"] for item in criados}
+        self.assertEqual(senhas, {"Maria@11122233344", "Joao@55566677788"})
         self.assertEqual(Medico.objects.count(), 2)
         self.assertEqual(User.objects.filter(username__startswith="medico-").count(), 2)
 
-    def test_cpf_duplicado_cancela_o_lote_inteiro(self):
+    def test_cpf_duplicado_e_ignorado_sem_cancelar_o_lote(self):
         user = User.objects.create_user("medico-existente", password="x")
         Medico.objects.create(
             user=user,
@@ -800,8 +824,49 @@ class TestCadastroDeMedicosEmLote(TestCase):
             },
         )
         self.assertEqual(resposta.status_code, 200)
-        self.assertContains(resposta, "já existe um médico cadastrado")
-        self.assertEqual(Medico.objects.count(), 1)
+        criados, ignorados = processar_lote(self.client, resposta)
+        # O duplicado é pulado (contado); o resto do lote é criado.
+        self.assertEqual(len(criados), 1)
+        self.assertEqual(ignorados, 1)
+        self.assertEqual(Medico.objects.count(), 2)
+
+    def test_lote_grande_e_processado_em_varios_pedacos(self):
+        linhas = "\n".join(
+            f"Aluno {i:02d};10000000{i:03d};aluno{i}@exemplo.com" for i in range(20)
+        )
+        resposta = self.client.post("/painel/medicos/lote/", {"dados": linhas})
+        self.assertEqual(resposta.status_code, 200)
+
+        # Primeiro pedaço: LOTE_TAMANHO (15) dos 20.
+        parcial = self.client.post("/painel/medicos/lote/parcial/")
+        dados = parcial.json()
+        self.assertEqual(dados["total"], 20)
+        self.assertEqual(dados["processados"], 15)
+        self.assertEqual(len(dados["criados"]), 15)
+        self.assertEqual(Medico.objects.count(), 15)
+
+        # Segundo pedaço conclui e limpa a sessão.
+        criados, ignorados = processar_lote(self.client, resposta)
+        self.assertEqual(len(criados), 5)
+        self.assertEqual(Medico.objects.count(), 20)
+
+        # Sessão limpa: um pedaço extra não tem mais o que fazer.
+        extra = self.client.post("/painel/medicos/lote/parcial/").json()
+        self.assertEqual(extra["total"], 0)
+
+    def test_ui_de_progresso_e_exibida_apos_o_envio(self):
+        resposta = self.client.post(
+            "/painel/medicos/lote/",
+            {"dados": "Ana Paula;11199988877;ana@exemplo.com"},
+        )
+        self.assertEqual(resposta.status_code, 200)
+        html = resposta.content.decode()
+        self.assertIn('id="lote-barra"', html)
+        self.assertIn("Importando alunos", html)
+        self.assertIn("var total = 1", html)
+        # Os cards da importação acompanham a largura do formulário (max-w-3xl).
+        self.assertIn('class="cartao mt-8 max-w-3xl p-6" id="lote-ui"', html)
+        processar_lote(self.client, resposta)
 
 
 class TestMatriculasEmLote(TestCase):
@@ -988,7 +1053,8 @@ class TestCadastroCsv(TestCase):
         ).encode("utf-8")
         arquivo = SimpleUploadedFile("alunos.csv", conteudo, content_type="text/csv")
         resposta = self.client.post("/painel/medicos/lote/", {"arquivo": arquivo})
-        self.assertContains(resposta, "2 aluno(s) cadastrado(s)")
+        criados, _ = processar_lote(self.client, resposta)
+        self.assertEqual(len(criados), 2)
         self.assertEqual(Medico.objects.filter(cpf__in=["11122233344", "55566677788"]).count(), 2)
 
     def test_cadastra_via_dados_colados_com_virgula(self):
@@ -1001,7 +1067,8 @@ class TestCadastroCsv(TestCase):
                 )
             },
         )
-        self.assertContains(resposta, "2 aluno(s) cadastrado(s)")
+        criados, _ = processar_lote(self.client, resposta)
+        self.assertEqual(len(criados), 2)
         self.assertEqual(Medico.objects.count(), 2)
 
     def test_aceita_ponto_e_virgula_do_excel(self):
@@ -1009,7 +1076,8 @@ class TestCadastroCsv(TestCase):
             "/painel/medicos/lote/",
             {"dados": "Maria da Silva; 11122233344; maria@exemplo.com"},
         )
-        self.assertContains(resposta, "1 aluno(s) cadastrado(s)")
+        criados, _ = processar_lote(self.client, resposta)
+        self.assertEqual(len(criados), 1)
 
     def test_aceita_o_padrao_da_lista_de_alunos_com_normalizacao(self):
         """Padrão real do CREMEPE: UTF-8 com BOM, separador ; e caixa alta."""
@@ -1022,7 +1090,8 @@ class TestCadastroCsv(TestCase):
             "Lista de alunos.csv", conteudo, content_type="text/csv"
         )
         resposta = self.client.post("/painel/medicos/lote/", {"arquivo": arquivo})
-        self.assertContains(resposta, "2 aluno(s) cadastrado(s)")
+        criados, _ = processar_lote(self.client, resposta)
+        self.assertEqual(len(criados), 2)
         # Normalização no banco: caixa alta vira o nome padrão e o CPF limpo.
         self.assertEqual(Medico.objects.get(cpf="11122233344").nome, "Maria Silva")
         self.assertEqual(
@@ -1039,18 +1108,24 @@ class TestCadastroCsv(TestCase):
         self.assertContains(resposta, "CPF deve ter 11 dígitos")
         self.assertEqual(Medico.objects.count(), 0)
 
-    def test_erro_do_lote_aparece_na_pagina(self):
+    def test_reenvio_ignora_cpfs_ja_cadastrados(self):
         resposta = self.client.post(
             "/painel/medicos/lote/",
             {"dados": "Maria da Silva,11122233344"},
         )
-        # Primeiro cria, depois o mesmo CPF é rejeitado.
-        self.assertEqual(Medico.objects.count(), 1)
+        criados, _ = processar_lote(self.client, resposta)
+        self.assertEqual(len(criados), 1)
+
+        # Reenvio do mesmo dado: não aborta nem duplica — pula o existente.
         resposta2 = self.client.post(
             "/painel/medicos/lote/",
             {"dados": "Maria da Silva,11122233344"},
         )
-        self.assertContains(resposta2, "já existe um médico cadastrado")
+        self.assertEqual(resposta2.status_code, 200)
+        criados2, ignorados2 = processar_lote(self.client, resposta2)
+        self.assertEqual(len(criados2), 0)
+        self.assertEqual(ignorados2, 1)
+        self.assertEqual(Medico.objects.count(), 1)
 
 
 class TestCamposDeBusca(TestCase):

@@ -52,6 +52,11 @@ urlpatterns = [
     path("medicos/novo/", somente_admin(views.medico_form), name="painel_medico_novo"),
     path("medicos/lote/", somente_admin(views.medico_lote), name="painel_medico_lote"),
     path(
+        "medicos/lote/parcial/",
+        somente_admin(views.medico_lote_parcial),
+        name="painel_medico_lote_parcial",
+    ),
+    path(
         "medicos/<int:pk>/editar/",
         somente_admin(views.medico_form),
         name="painel_medico_editar",
