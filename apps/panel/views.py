@@ -278,17 +278,19 @@ def curso_detalhe(request, pk):
                 .values_list("medico__cpf", flat=True)
             )
             criadas = 0
-            inativos = []
-            nao_cadastrados = []
-            repetidos = []
+            falhas = []  # [exibição do CPF, motivo da não matrícula]
             for cpf in cpfs:
                 medico = medicos.get(cpf)
                 if medico is None:
-                    nao_cadastrados.append(cpf)
+                    falhas.append(
+                        [_cpf_formatado(cpf), "Não encontrado no cadastro"]
+                    )
                 elif not medico.ativo:
-                    inativos.append(cpf)
+                    falhas.append([_cpf_formatado(cpf), "Aluno inativo"])
                 elif cpf in ja_matriculados:
-                    repetidos.append(cpf)
+                    falhas.append(
+                        [_cpf_formatado(cpf), "Já matriculado neste curso"]
+                    )
                 else:
                     matricula, criada = Enrollment.objects.get_or_create(
                         medico=medico, course=curso
@@ -302,26 +304,14 @@ def curso_detalhe(request, pk):
                             detail={"lote": True},
                             ip=request.META.get("REMOTE_ADDR"),
                         )
+            for token in invalidos:
+                falhas.append([token, "CPF inválido (não tem 11 dígitos)"])
 
-            partes = [f"{criadas} matrícula(s) registrada(s)"]
-            if repetidos:
-                partes.append(f"{len(repetidos)} já matriculado(s)")
-            if inativos:
-                partes.append(f"{len(inativos)} inativo(s)")
-            if invalidos:
-                partes.append(f"{len(invalidos)} CPF(s) inválido(s)")
-            messages.success(request, " · ".join(partes) + ".")
-            if nao_cadastrados:
-                exemplos = ", ".join(
-                    _cpf_formatado(cpf) for cpf in nao_cadastrados[:10]
-                )
-                if len(nao_cadastrados) > 10:
-                    exemplos += f"… (+{len(nao_cadastrados) - 10})"
-                messages.warning(
-                    request,
-                    f"Não cadastrados ({len(nao_cadastrados)}): {exemplos}. "
-                    "Cadastre em Painel → Médicos → Cadastro em lote e repita o envio.",
-                )
+            # Relatório exibido uma única vez na próxima carga da página.
+            request.session["relatorio_matricula"] = {
+                "criadas": criadas,
+                "falhas": falhas,
+            }
             return redirect("painel_curso", pk=curso.pk)
 
     linhas = []
@@ -345,6 +335,9 @@ def curso_detalhe(request, pk):
     faixa_desempenho = _faixa_desempenho(ativas)
     total_ativas = ativas.count()
 
+    # Relatório do último lote (exibido uma vez; some no reload seguinte).
+    relatorio = request.session.pop("relatorio_matricula", None)
+
     return render(
         request,
         "panel/curso_detalhe.html",
@@ -352,6 +345,7 @@ def curso_detalhe(request, pk):
             "curso": curso,
             "videos": videos,
             "linhas": linhas,
+            "relatorio": relatorio,
             "duracao": format_hours(curso.total_duration),
             "faixa_desempenho": faixa_desempenho,
             "total_ativas": total_ativas,

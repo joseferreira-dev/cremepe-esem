@@ -26,6 +26,44 @@
   </div>
 </div>
 
+{% if relatorio %}
+  <div class="mt-4 overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200 sombra-suave">
+    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+      <h2 class="text-sm font-semibold text-slate-800">Relatório da matrícula em lote</h2>
+      <span class="etiqueta bg-marca-100 text-marca-700 ring-1 ring-marca-200">
+        {{ relatorio.criadas }} matriculada(s)
+      </span>
+    </div>
+    {% if relatorio.falhas %}
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-100">
+          <thead class="bg-slate-50/80">
+            <tr>
+              <th class="cabecalho-tabela">CPF</th>
+              <th class="cabecalho-tabela">Motivo da não matrícula</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {% for falha in relatorio.falhas %}
+              <tr>
+                <td class="celula font-mono">{{ falha.0 }}</td>
+                <td class="celula text-slate-600">{{ falha.1 }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="border-t border-slate-100 px-5 py-3 text-xs text-slate-500">
+        CPFs não matriculados: cadastre quem não estiver no cadastro em
+        <a href="{% url 'painel_medico_lote' %}" class="font-semibold text-marca-600 hover:underline">Cadastro em lote</a>
+        e repita o envio.
+      </p>
+    {% else %}
+      <p class="px-5 py-4 text-sm text-slate-600">Todos os CPFs foram matriculados.</p>
+    {% endif %}
+  </div>
+{% endif %}
+
 {% if not curso.certificate_background %}
   <div class="mt-4 flex items-start gap-3 rounded-2xl bg-amber-50 px-5 py-4 ring-1 ring-amber-200">
     <span class="mt-0.5 shrink-0 text-amber-600">{{ icons.alerta|safe }}</span>

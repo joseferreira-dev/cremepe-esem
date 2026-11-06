@@ -827,13 +827,14 @@ class TestMatriculasEmLote(TestCase):
         self.client.force_login(self.admin)
 
     def test_matricular_em_lote_por_lista_de_cpfs(self):
-        """A lista de CPFs matricula e reconhece não cadastrados e inválidos."""
+        """A lista de CPFs matricula e o relatório aponta cada falha com o motivo."""
         resposta = self.client.post(
             f"/painel/cursos/{self.curso.pk}/",
             {
                 "acao": "matricular_lote_cpfs",
                 "cpfs": "\n".join(
                     [
+                        self.medicos[0].cpf,  # já matriculado no setUp
                         self.medicos[1].cpf,
                         self.medicos[2].cpf,
                         "12345678901",  # ninguém com este CPF
@@ -842,7 +843,7 @@ class TestMatriculasEmLote(TestCase):
                 ),
             },
         )
-        # assertRedirects consumiria os avisos: captura manual + primeira leitura.
+        # assertRedirects consumiria o relatório: captura manual + primeira leitura.
         self.assertEqual(resposta.status_code, 302)
         pagina = self.client.get(resposta.url)
         # médicos[0] já estava matriculado; +2 novos.
@@ -851,11 +852,19 @@ class TestMatriculasEmLote(TestCase):
             self.assertTrue(
                 Enrollment.objects.filter(medico=medico, course=self.curso).exists()
             )
-        self.assertContains(pagina, "2 matrícula(s) registrada(s)")
-        self.assertContains(pagina, "1 CPF(s) inválido(s)")
-        # Reconhecimento dos não cadastrados (com o CPF formatado).
-        self.assertContains(pagina, "Não cadastrados (1)")
+
+        # Relatório com a contagem de sucesso e cada falha com o motivo.
+        self.assertContains(pagina, "Relatório da matrícula em lote")
+        self.assertContains(pagina, "2 matriculada(s)")
+        self.assertContains(pagina, "Já matriculado neste curso")
         self.assertContains(pagina, "123.456.789-01")
+        self.assertContains(pagina, "Não encontrado no cadastro")
+        self.assertContains(pagina, "CPF inválido (não tem 11 dígitos)")
+
+        # O relatório é exibido uma única vez (some no reload seguinte).
+        segunda = self.client.get(resposta.url)
+        self.assertNotContains(segunda, "Relatório da matrícula em lote")
+
         # O percentual continua sendo o do curso.
         from apps.courses.services import criterios_de_aprovacao
 
@@ -1001,6 +1010,24 @@ class TestCadastroCsv(TestCase):
             {"dados": "Maria da Silva; 11122233344; maria@exemplo.com"},
         )
         self.assertContains(resposta, "1 aluno(s) cadastrado(s)")
+
+    def test_aceita_o_padrao_da_lista_de_alunos_com_normalizacao(self):
+        """Padrão real do CREMEPE: UTF-8 com BOM, separador ; e caixa alta."""
+        conteudo = (
+            "\ufeffNOME;CPF;E-MAIL\r\n"
+            "MARIA SILVA;111.222.333-44;maria@exemplo.com\r\n"
+            "JOAO PAULO DA COSTA;555.666.777-88;joao@exemplo.com\r\n"
+        ).encode("utf-8")
+        arquivo = SimpleUploadedFile(
+            "Lista de alunos.csv", conteudo, content_type="text/csv"
+        )
+        resposta = self.client.post("/painel/medicos/lote/", {"arquivo": arquivo})
+        self.assertContains(resposta, "2 aluno(s) cadastrado(s)")
+        # Normalização no banco: caixa alta vira o nome padrão e o CPF limpo.
+        self.assertEqual(Medico.objects.get(cpf="11122233344").nome, "Maria Silva")
+        self.assertEqual(
+            Medico.objects.get(cpf="55566677788").nome, "Joao Paulo da Costa"
+        )
 
     def test_csv_com_cpf_invalido_rejeitado(self):
         arquivo = SimpleUploadedFile(
