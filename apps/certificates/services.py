@@ -233,7 +233,9 @@ def emitir_certificado(
     """Emite (ou recupera) o certificado da matrícula.
 
     Só matrículas **aprovadas** podem ser emitidas. A primeira emissão é
-    registrada na auditoria; baixas seguintes reutilizam o mesmo arquivo.
+    registrada na auditoria; baixas seguintes reutilizam o mesmo código — e,
+    se os dados cadastrais mudaram (ex.: nome corrigido), regeram o PDF com
+    o cadastro atual (auditoria ``certificado_reemitido``).
     """
     if enrollment.status != Enrollment.Status.APPROVED:
         raise CertificadoIndisponivel(
@@ -276,6 +278,30 @@ def emitir_certificado(
             },
             ip=ip,
         )
+    else:
+        # Dados cadastrais podem ser corrigidos depois da emissão (nome é o
+        # caso mais comum): se o que seria impresso mudou, o download regera
+        # o PDF com o cadastro atual. O código de autenticação é o mesmo —
+        # links e QRs já emitidos continuam válidos.
+        dados = dados_do_certificado(enrollment, certificate.code)
+        anterior = certificate.payload or {}
+        if (
+            dados["aluno"] != anterior.get("aluno")
+            or dados["curso"] != anterior.get("curso")
+        ):
+            gerar_pdf(certificate)
+            record_audit(
+                "certificado_reemitido",
+                actor=actor,
+                target=certificate.code,
+                detail={
+                    "aluno_antes": anterior.get("aluno"),
+                    "aluno_agora": dados["aluno"],
+                    "curso_antes": anterior.get("curso"),
+                    "curso_agora": dados["curso"],
+                },
+                ip=ip,
+            )
 
     if not caminho_pdf(certificate.code).exists():
         gerar_pdf(certificate)

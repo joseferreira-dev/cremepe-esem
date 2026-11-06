@@ -277,6 +277,40 @@ class TestAcessoAoCertificado(BaseCertificado):
         self.assertEqual(resposta.status_code, 302)
         self.assertIn("/painel/", resposta.url)
 
+    def test_correcao_do_nome_e_refletida_no_download(self):
+        """Cadastro corrigido depois da emissão aparece no PDF baixado.
+
+        Médicos comuns enviam o nome com erro e corrigem depois: o download
+        seguinte deve regerar o PDF com o nome atual (o código de
+        autenticação não muda — links e QRs antigos continuam válidos).
+        """
+        self.aprovar()
+        self.client.force_login(self.aluno_user)
+
+        primeiro = self.client.get(self.url_aluno())
+        self.assertEqual(primeiro.status_code, 200)
+        certificate = Certificate.objects.get(enrollment=self.matricula)
+        codigo = certificate.code
+        self.assertEqual(certificate.payload["aluno"], self.medico.nome)
+
+        # Correção cadastral: o nome passa a valer para o certificado.
+        self.medico.nome = "Maria Silva Marques"
+        self.medico.save()
+
+        segundo = self.client.get(self.url_aluno())
+        self.assertEqual(segundo.status_code, 200)
+
+        certificate.refresh_from_db()
+        self.assertEqual(certificate.payload["aluno"], "Maria Silva Marques")
+        # O código é preservado: QRs e links já emitidos continuam válidos.
+        self.assertEqual(certificate.code, codigo)
+        self.assertTrue(
+            AuditLog.objects.filter(action="certificado_reemitido").exists()
+        )
+        # A página de validação acompanha o nome vivo do cadastro.
+        pagina = self.client.get(f"/validar/?codigo={codigo}")
+        self.assertContains(pagina, "Maria Silva Marques")
+
     def test_painel_exige_autenticacao(self):
         resposta = self.client.get(
             reverse("painel_certificado", args=[self.matricula.pk])
