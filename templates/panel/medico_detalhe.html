@@ -34,14 +34,6 @@
     <dd class="text-right font-semibold text-slate-800">{{ medico.crm|default:"—" }}</dd>
   </div>
   <div class="flex justify-between gap-4">
-    <dt class="text-slate-500">Telefone</dt>
-    <dd class="text-right font-semibold text-slate-800">{{ medico.telefone|default:"—" }}</dd>
-  </div>
-  <div class="flex justify-between gap-4">
-    <dt class="text-slate-500">Usuário</dt>
-    <dd class="break-all text-right font-mono text-xs font-semibold text-slate-800">{{ medico.user.username }}</dd>
-  </div>
-  <div class="flex justify-between gap-4">
     <dt class="text-slate-500">Senha</dt>
     <dd class="text-right font-semibold text-slate-800">
       {% if medico.must_change_password %}

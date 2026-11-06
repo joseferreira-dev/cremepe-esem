@@ -45,7 +45,7 @@
           <th class="cabecalho-tabela">CPF</th>
           <th class="cabecalho-tabela">Última atividade</th>
           <th class="cabecalho-tabela">Situação</th>
-          <th class="cabecalho-tabela text-right">Ações</th>
+          <th class="cabecalho-tabela">Ações</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-slate-100">
@@ -84,9 +84,12 @@
               </div>
             </td>
             <td class="celula">
-              <div class="flex justify-end gap-1.5">
+              <div class="flex gap-1.5">
                 <a href="{% url 'painel_medico_editar' linha.medico.id %}" class="btn btn-secundario btn-sm">Editar</a>
-                <form method="post" action="{% url 'painel_medico_acao' linha.medico.id %}">
+                <form method="post" action="{% url 'painel_medico_acao' linha.medico.id %}"
+                      {% if linha.medico.ativo %}
+                      data-confirm="Desativar o aluno “{{ linha.medico.nome }}”? Ele perde o acesso ao portal até ser reativado."
+                      {% endif %}>
                   {% csrf_token %}
                   <input type="hidden" name="acao" value="{% if linha.medico.ativo %}desativar{% else %}ativar{% endif %}">
                   <button class="btn btn-fantasma btn-sm" type="submit">

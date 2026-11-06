@@ -1353,9 +1353,21 @@ class TestListagemDeAlunos(TestCase):
         self._criar(1)
         html = self.client.get("/painel/medicos/").content.decode()
         self.assertNotIn('<th class="cabecalho-tabela">Matrículas</th>', html)
-        self.assertIn('<th class="cabecalho-tabela text-right">Ações</th>', html)
+        # Ações alinhado como os demais cabeçalhos (à esquerda), sobre o
+        # conteúdo da própria coluna (também à esquerda).
+        self.assertIn('<th class="cabecalho-tabela">Ações</th>', html)
+        self.assertNotIn("cabecalho-tabela text-right", html)
         # Cinco colunas: Médico, CPF, Última atividade, Situação, Ações.
         self.assertEqual(html.count("cabecalho-tabela"), 5)
+
+    def test_desativar_pedee_confirmacao(self):
+        ativo = self._criar(1)
+        self._criar(2, ativo=False)
+        html = self.client.get("/painel/medicos/").content.decode()
+        # Só a desativação pede confirmação (a reativação não).
+        self.assertEqual(html.count("data-confirm="), 1)
+        self.assertIn("Desativar o aluno", html)
+        self.assertIn(f"/painel/medicos/{ativo.pk}/acao/", html)
 
     def test_dez_alunos_por_pagina(self):
         for i in range(12):
@@ -1410,6 +1422,9 @@ class TestListagemDeAlunos(TestCase):
         self.assertIn("00000000001", html)
         self.assertIn("Matrículas (1)", html)
         self.assertIn("Curso do Dialogo", html)
+        # Campos removidos do diálogo a pedido.
+        self.assertNotIn("Telefone", html)
+        self.assertNotIn("Usuário", html)
 
     def test_dialogo_sem_matriculas_e_protegido(self):
         medico = self._criar(1, provisoria=True)
