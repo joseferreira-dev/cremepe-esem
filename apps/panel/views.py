@@ -12,6 +12,7 @@ from openpyxl.utils import get_column_letter
 
 from django.contrib import messages
 from django.contrib.auth.models import User
+from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Max, Q, Sum
 from django.http import HttpResponse, JsonResponse
@@ -146,16 +147,27 @@ def index(request):
 # --------------------------------------------------------------------------
 # Cursos
 # --------------------------------------------------------------------------
+PAGINA_TAMANHO = 50
+
+
+def _paginar(request, consulta):
+    """Página da listagem (50 por página; valores inválidos são absorvidos).
+
+    Paginar ANTES de montar as linhas também evita montar dezenas de milhares
+    de linhas (e suas consultas por linha) quando só uma página é exibida.
+    """
+    return Paginator(consulta, PAGINA_TAMANHO).get_page(request.GET.get("pagina"))
+
+
 def cursos(request):
     busca = request.GET.get("q", "").strip()
     consulta = Course.objects.all()
     if busca:
-        consulta = consulta.filter(
-            Q(title__icontains=busca) | Q(edition__icontains=busca)
-        )
+        consulta = consulta.filter(Q(title__icontains=busca))
 
+    pagina = _paginar(request, consulta)
     linhas = []
-    for curso in consulta:
+    for curso in pagina:
         matriculas = curso.enrollments.select_related("medico")
         linhas.append(
             {
@@ -167,7 +179,11 @@ def cursos(request):
             }
         )
 
-    return render(request, "panel/cursos.html", {"linhas": linhas, "busca": busca})
+    return render(
+        request,
+        "panel/cursos.html",
+        {"linhas": linhas, "busca": busca, "pagina": pagina},
+    )
 
 
 def curso_form(request, pk=None):
@@ -315,7 +331,11 @@ def curso_detalhe(request, pk):
             return redirect("painel_curso", pk=curso.pk)
 
     linhas = []
-    for matricula in curso.enrollments.select_related("medico").order_by("medico__nome"):
+    turma = _paginar(
+        request,
+        curso.enrollments.select_related("medico").order_by("medico__nome"),
+    )
+    for matricula in turma:
         progresses = Progress.objects.filter(enrollment=matricula)
         criterio = criterios_de_aprovacao(matricula)
         linhas.append(
@@ -345,6 +365,7 @@ def curso_detalhe(request, pk):
             "curso": curso,
             "videos": videos,
             "linhas": linhas,
+            "pagina": turma,
             "relatorio": relatorio,
             "duracao": format_hours(curso.total_duration),
             "faixa_desempenho": faixa_desempenho,
@@ -459,8 +480,9 @@ def medicos(request):
             | Q(crm__icontains=busca)
         )
 
+    pagina = _paginar(request, consulta)
     linhas = []
-    for medico in consulta:
+    for medico in pagina:
         matriculas = medico.enrollments.select_related("course")
         linhas.append(
             {
@@ -473,7 +495,11 @@ def medicos(request):
             }
         )
 
-    return render(request, "panel/medicos.html", {"linhas": linhas, "busca": busca})
+    return render(
+        request,
+        "panel/medicos.html",
+        {"linhas": linhas, "busca": busca, "pagina": pagina},
+    )
 
 
 def medico_form(request, pk=None):
@@ -643,8 +669,9 @@ def matriculas(request):
     if curso_id:
         consulta = consulta.filter(course_id=curso_id)
 
+    pagina = _paginar(request, consulta)
     linhas = []
-    for matricula in consulta:
+    for matricula in pagina:
         cobertura = course_coverage(matricula)
         linhas.append(
             {
@@ -662,6 +689,7 @@ def matriculas(request):
         "panel/matriculas.html",
         {
             "linhas": linhas,
+            "pagina": pagina,
             "busca": busca,
             "situacao": situacao,
             "curso_id": curso_id,
@@ -929,8 +957,8 @@ def matricula_exportar(request, pk):
 # Auditoria
 # --------------------------------------------------------------------------
 def auditoria(request):
-    logs = AuditLog.objects.select_related("actor").all()[:300]
-    return render(request, "panel/auditoria.html", {"logs": logs})
+    logs = _paginar(request, AuditLog.objects.select_related("actor").all())
+    return render(request, "panel/auditoria.html", {"logs": logs, "pagina": logs})
 
 
 # --------------------------------------------------------------------------
@@ -949,11 +977,11 @@ def administradores(request):
             | Q(last_name__icontains=busca)
             | Q(email__icontains=busca)
         )
-    linhas = list(consulta)
+    pagina = _paginar(request, consulta)
     return render(
         request,
         "panel/administradores.html",
-        {"linhas": linhas, "busca": busca},
+        {"linhas": list(pagina), "busca": busca, "pagina": pagina},
     )
 
 

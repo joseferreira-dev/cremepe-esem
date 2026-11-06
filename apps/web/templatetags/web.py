@@ -5,6 +5,17 @@ import os
 register = template.Library()
 
 
+@register.simple_tag(takes_context=True)
+def paginas(context, numero):
+    """URL da página pedida, preservando os filtros atuais da listagem."""
+    request = context.get("request")
+    if request is None:
+        return f"?pagina={numero}"
+    params = request.GET.copy()
+    params["pagina"] = numero
+    return f"?{params.urlencode()}"
+
+
 @register.filter
 def nome_arquivo(caminho):
     """Só o nome do arquivo, sem as pastas (``modelos/x.docx`` -> ``x.docx``)."""

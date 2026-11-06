@@ -1270,3 +1270,60 @@ class TestMinimoPorAulaNoPainel(TestCase):
         self.assertIn("Não", planilha)
         # A pendência cita a aula, a cobertura atual e o mínimo exigido.
         self.assertIn("Aula 2: 90.0% (min. 95%)", planilha)
+
+
+
+class TestPaginacaoDasListagens(TestCase):
+    """Listagens do painel paginam em blocos de 50 e preservam os filtros."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser("admin-pag", "a@b.c", "senha12345")
+        self.client.force_login(self.admin)
+
+    def _criar_medicos(self, quantidade):
+        for i in range(quantidade):
+            user = User.objects.create_user(f"pag-med-{i}", password="x")
+            Medico.objects.create(
+                user=user,
+                cpf=f"{i:011d}",
+                nome=f"Médico Pag {i:02d}",
+                must_change_password=False,
+            )
+
+    def test_medicos_paginam_em_blocos_de_50(self):
+        self._criar_medicos(60)
+        pagina1 = self.client.get("/painel/medicos/").content.decode()
+        self.assertIn("<strong>1–50</strong> de 60", pagina1)
+        self.assertIn("pagina=2", pagina1)
+        self.assertNotIn("Médico Pag 55", pagina1)
+
+        pagina2 = self.client.get("/painel/medicos/?pagina=2").content.decode()
+        self.assertIn("<strong>51–60</strong> de 60", pagina2)
+        self.assertIn("Médico Pag 55", pagina2)
+
+    def test_busca_preservada_nos_links_de_pagina(self):
+        self._criar_medicos(60)
+        html = self.client.get("/painel/medicos/?q=Médico Pag").content.decode()
+        self.assertIn("<strong>1–50</strong> de 60", html)
+        # O filtro q acompanha os links das páginas.
+        self.assertIn("q=M%C3%A9dico", html)
+
+    def test_pagina_invalida_e_absorvida(self):
+        self._criar_medicos(60)
+        html = self.client.get("/painel/medicos/?pagina=999").content.decode()
+        # get_page absorve valores inválidos: cai na última página.
+        self.assertIn("<strong>51–60</strong> de 60", html)
+
+    def test_cursos_e_auditoria_tambem_paginam(self):
+        for i in range(55):
+            Course.objects.create(
+                title=f"Curso Pag {i:02d}", status=Course.Status.DRAFT
+            )
+        html = self.client.get("/painel/cursos/").content.decode()
+        self.assertIn("<strong>1–50</strong> de 55", html)
+        self.assertIn("pagina=2", html)
+
+        for i in range(55):
+            AuditLog.objects.create(action="teste_pag", target=f"log {i}")
+        html_aud = self.client.get("/painel/auditoria/").content.decode()
+        self.assertIn("<strong>1–50</strong> de 55", html_aud)

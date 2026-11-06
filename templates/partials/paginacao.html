@@ -1,0 +1,26 @@
+{# Controles de paginação das listagens do painel (50 por página). #}
+{% load web %}
+{% if pagina and pagina.paginator.num_pages > 1 %}
+  <nav class="mt-5 flex flex-wrap items-center justify-between gap-3" aria-label="Paginação">
+    <p class="text-xs text-slate-500">
+      <strong>{{ pagina.start_index }}–{{ pagina.end_index }}</strong> de {{ pagina.paginator.count }} · página {{ pagina.number }} de {{ pagina.paginator.num_pages }}
+    </p>
+    <div class="flex items-center gap-2">
+      {% if pagina.has_previous %}
+        <a href="{% paginas pagina.previous_page_number %}" class="btn btn-secundario btn-sm">Anterior</a>
+      {% endif %}
+      <label class="flex items-center gap-2 text-xs text-slate-500">
+        Página
+        <select class="campo w-20 py-1.5 text-sm"
+                onchange="window.location = this.value;">
+          {% for num in pagina.paginator.page_range %}
+            <option value="{% paginas num %}"{% if num == pagina.number %} selected{% endif %}>{{ num }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      {% if pagina.has_next %}
+        <a href="{% paginas pagina.next_page_number %}" class="btn btn-secundario btn-sm">Próxima</a>
+      {% endif %}
+    </div>
+  </nav>
+{% endif %}
