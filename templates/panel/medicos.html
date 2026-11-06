@@ -10,6 +10,7 @@
     <h1 class="mt-1 text-3xl font-bold tracking-tight text-slate-900">Médicos</h1>
     <p class="mt-2 text-sm text-slate-500">
       Cadastre os médicos reprovados, defina a senha provisória e acompanhe as matrículas.
+      Clique no nome do aluno para ver os dados e as matrículas.
     </p>
   </div>
   <div class="flex flex-wrap gap-2">
@@ -18,12 +19,21 @@
   </div>
 </div>
 
-<form method="get" class="mt-6 flex max-w-md gap-2">
-  <div class="relative flex-1">
+<form method="get" class="mt-6 flex max-w-2xl flex-wrap items-center gap-2">
+  <div class="relative min-w-52 flex-1">
     <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">{{ icons.busca|safe }}</span>
     <input type="search" name="q" value="{{ busca }}" class="campo pl-10" placeholder="Buscar por nome ou CPF">
   </div>
-  <button class="btn btn-secundario" type="submit">Buscar</button>
+  <select name="situacao" class="campo w-48" aria-label="Filtrar por situação">
+    <option value="">Todas as situações</option>
+    <option value="ativo" {% if situacao == "ativo" %}selected{% endif %}>Ativos</option>
+    <option value="inativo" {% if situacao == "inativo" %}selected{% endif %}>Inativos</option>
+    <option value="provisoria" {% if situacao == "provisoria" %}selected{% endif %}>Senha provisória</option>
+  </select>
+  <button class="btn btn-secundario" type="submit">Filtrar</button>
+  {% if busca or situacao %}
+    <a href="{% url 'painel_medicos' %}" class="btn btn-fantasma">Limpar</a>
+  {% endif %}
 </form>
 
 <div class="cartao mt-6 overflow-hidden">
@@ -33,10 +43,9 @@
         <tr>
           <th class="cabecalho-tabela">Médico</th>
           <th class="cabecalho-tabela">CPF</th>
-          <th class="cabecalho-tabela">Matrículas</th>
           <th class="cabecalho-tabela">Última atividade</th>
           <th class="cabecalho-tabela">Situação</th>
-          <th class="cabecalho-tabela"></th>
+          <th class="cabecalho-tabela text-right">Ações</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-slate-100">
@@ -48,30 +57,31 @@
                   {{ linha.medico.nome|slice:":1"|upper }}
                 </span>
                 <span>
-                  <span class="block font-semibold text-slate-800">{{ linha.medico.nome }}</span>
+                  <a href="{% url 'painel_medico_detalhe' linha.medico.id %}"
+                     data-medico-dialog
+                     class="block font-semibold text-slate-800 hover:text-marca-700 hover:underline"
+                     title="Ver dados e matrículas">
+                    {{ linha.medico.nome }}
+                  </a>
                   <span class="block text-xs text-slate-500">{{ linha.medico.email|default:"—" }}</span>
                 </span>
               </div>
             </td>
             <td class="celula text-slate-600">{{ linha.medico.cpf }}</td>
-            <td class="celula">
-              {{ linha.matriculas }}
-              {% if linha.aprovado %}
-                <span class="ml-1 text-xs font-semibold text-marca-600">({{ linha.aprovado }} aprovado{{ linha.aprovado|pluralize:"s" }})</span>
-              {% endif %}
-            </td>
             <td class="celula text-xs text-slate-500">
               {% if linha.ultimo %}{{ linha.ultimo|date:"d/m/Y H:i" }}{% else %}nunca acessou{% endif %}
             </td>
             <td class="celula">
-              {% if linha.medico.ativo %}
-                <span class="etiqueta bg-marca-100 text-marca-700 ring-1 ring-marca-200">Ativo</span>
-              {% else %}
-                <span class="etiqueta bg-slate-100 text-slate-500 ring-1 ring-slate-200">Inativo</span>
-              {% endif %}
-              {% if linha.medico.must_change_password %}
-                <span class="etiqueta ml-1 bg-amber-50 text-amber-700 ring-1 ring-amber-200">Senha provisória</span>
-              {% endif %}
+              <div class="flex flex-wrap items-center gap-1.5 whitespace-nowrap">
+                {% if linha.medico.ativo %}
+                  <span class="etiqueta bg-marca-100 text-marca-700 ring-1 ring-marca-200">Ativo</span>
+                {% else %}
+                  <span class="etiqueta bg-slate-100 text-slate-500 ring-1 ring-slate-200">Inativo</span>
+                {% endif %}
+                {% if linha.medico.must_change_password %}
+                  <span class="etiqueta bg-amber-50 text-amber-700 ring-1 ring-amber-200">Senha provisória</span>
+                {% endif %}
+              </div>
             </td>
             <td class="celula">
               <div class="flex justify-end gap-1.5">
@@ -88,8 +98,8 @@
           </tr>
         {% empty %}
           <tr>
-            <td colspan="6" class="px-5 py-12 text-center text-sm text-slate-400">
-              {% if busca %}Nenhum médico encontrado.{% else %}Nenhum médico cadastrado.{% endif %}
+            <td colspan="5" class="px-5 py-12 text-center text-sm text-slate-400">
+              {% if busca or situacao %}Nenhum médico encontrado com esses filtros.{% else %}Nenhum médico cadastrado.{% endif %}
             </td>
           </tr>
         {% endfor %}
@@ -98,4 +108,57 @@
   </div>
 </div>
 {% include "partials/paginacao.html" %}
+
+<dialog id="medico-dialogo"
+        class="cartao m-auto w-[calc(100%-2rem)] max-w-2xl overflow-hidden p-0 backdrop:bg-slate-950/60">
+  <div id="medico-dialogo-conteudo" class="max-h-[85vh] overflow-y-auto p-6"></div>
+</dialog>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Diálogo do aluno: busca os dados (HTML pronto) ao clicar no nome da lista.
+  (function () {
+    var dialogo = document.getElementById('medico-dialogo');
+    var conteudo = document.getElementById('medico-dialogo-conteudo');
+    if (!dialogo || !conteudo || typeof dialogo.showModal !== 'function') {
+      return; // sem <dialog> nativo: o link segue navegando normalmente
+    }
+
+    document.addEventListener('click', function (evento) {
+      var gatilho = evento.target.closest('[data-medico-dialog]');
+      if (gatilho) {
+        evento.preventDefault();
+        conteudo.innerHTML = '<p class="text-sm text-slate-500">Carregando…</p>';
+        dialogo.showModal();
+        fetch(gatilho.getAttribute('href'), {
+          credentials: 'same-origin',
+          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+          .then(function (resposta) {
+            if (!resposta.ok) {
+              throw new Error('HTTP ' + resposta.status);
+            }
+            return resposta.text();
+          })
+          .then(function (html) {
+            conteudo.innerHTML = html;
+          })
+          .catch(function () {
+            conteudo.innerHTML =
+              '<p class="text-sm text-rose-600">' +
+              'Não foi possível carregar os dados do aluno. Feche e tente novamente.</p>';
+          });
+        return;
+      }
+      if (evento.target.closest('[data-dialogo-fechar]')) {
+        dialogo.close();
+        return;
+      }
+      if (evento.target === dialogo) {
+        dialogo.close(); // clique no fundo escuro
+      }
+    });
+  })();
+</script>
 {% endblock %}

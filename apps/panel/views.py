@@ -148,15 +148,16 @@ def index(request):
 # Cursos
 # --------------------------------------------------------------------------
 PAGINA_TAMANHO = 50
+ALUNOS_POR_PAGINA = 10  # listagem de alunos (médicos): 10 por página
 
 
-def _paginar(request, consulta):
-    """Página da listagem (50 por página; valores inválidos são absorvidos).
+def _paginar(request, consulta, tamanho=PAGINA_TAMANHO):
+    """Página da listagem (valores inválidos são absorvidos).
 
     Paginar ANTES de montar as linhas também evita montar dezenas de milhares
     de linhas (e suas consultas por linha) quando só uma página é exibida.
     """
-    return Paginator(consulta, PAGINA_TAMANHO).get_page(request.GET.get("pagina"))
+    return Paginator(consulta, tamanho).get_page(request.GET.get("pagina"))
 
 
 def cursos(request):
@@ -472,6 +473,7 @@ def video_remover(request, pk):
 # --------------------------------------------------------------------------
 def medicos(request):
     busca = request.GET.get("q", "").strip()
+    situacao = request.GET.get("situacao", "").strip()
     consulta = Medico.objects.select_related("user").all()
     if busca:
         consulta = consulta.filter(
@@ -479,16 +481,19 @@ def medicos(request):
             | Q(cpf__icontains=busca.replace(".", "").replace("-", ""))
             | Q(crm__icontains=busca)
         )
+    if situacao == "ativo":
+        consulta = consulta.filter(ativo=True)
+    elif situacao == "inativo":
+        consulta = consulta.filter(ativo=False)
+    elif situacao == "provisoria":
+        consulta = consulta.filter(must_change_password=True)
 
-    pagina = _paginar(request, consulta)
+    pagina = _paginar(request, consulta, tamanho=ALUNOS_POR_PAGINA)
     linhas = []
     for medico in pagina:
-        matriculas = medico.enrollments.select_related("course")
         linhas.append(
             {
                 "medico": medico,
-                "matriculas": matriculas.count(),
-                "aprovado": matriculas.filter(status=Enrollment.Status.APPROVED).count(),
                 "ultimo": Progress.objects.filter(enrollment__medico=medico).aggregate(
                     last=Max("last_seen_at")
                 )["last"],
@@ -498,7 +503,39 @@ def medicos(request):
     return render(
         request,
         "panel/medicos.html",
-        {"linhas": linhas, "busca": busca, "pagina": pagina},
+        {
+            "linhas": linhas,
+            "busca": busca,
+            "situacao": situacao,
+            "pagina": pagina,
+        },
+    )
+
+
+def medico_detalhe(request, pk):
+    """Dados do aluno e de suas matrículas (conteúdo do diálogo da listagem)."""
+    medico = get_object_or_404(Medico.objects.select_related("user"), pk=pk)
+
+    matriculas = []
+    for matricula in medico.enrollments.select_related("course"):
+        ultima = Progress.objects.filter(enrollment=matricula).aggregate(
+            last=Max("last_seen_at")
+        )["last"]
+        matriculas.append(
+            {
+                "matricula": matricula,
+                "cobertura": round(course_coverage(matricula), 1),
+                "ultima": ultima,
+            }
+        )
+
+    ultimo_geral = Progress.objects.filter(enrollment__medico=medico).aggregate(
+        last=Max("last_seen_at")
+    )["last"]
+    return render(
+        request,
+        "panel/medico_detalhe.html",
+        {"medico": medico, "matriculas": matriculas, "ultimo": ultimo_geral},
     )
 
 

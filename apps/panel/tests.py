@@ -1274,7 +1274,7 @@ class TestMinimoPorAulaNoPainel(TestCase):
 
 
 class TestPaginacaoDasListagens(TestCase):
-    """Listagens do painel paginam em blocos de 50 e preservam os filtros."""
+    """Listagens do painel paginam (alunos: 10 por página; demais: 50)."""
 
     def setUp(self):
         self.admin = User.objects.create_superuser("admin-pag", "a@b.c", "senha12345")
@@ -1290,21 +1290,22 @@ class TestPaginacaoDasListagens(TestCase):
                 must_change_password=False,
             )
 
-    def test_medicos_paginam_em_blocos_de_50(self):
+    def test_medicos_paginam_em_blocos_de_10(self):
         self._criar_medicos(60)
         pagina1 = self.client.get("/painel/medicos/").content.decode()
-        self.assertIn("<strong>1–50</strong> de 60", pagina1)
+        self.assertIn("<strong>1–10</strong> de 60", pagina1)
         self.assertIn("pagina=2", pagina1)
-        self.assertNotIn("Médico Pag 55", pagina1)
+        self.assertNotIn("Médico Pag 10", pagina1)
 
         pagina2 = self.client.get("/painel/medicos/?pagina=2").content.decode()
-        self.assertIn("<strong>51–60</strong> de 60", pagina2)
-        self.assertIn("Médico Pag 55", pagina2)
+        self.assertIn("<strong>11–20</strong> de 60", pagina2)
+        self.assertIn("Médico Pag 11", pagina2)
+        self.assertNotIn("Médico Pag 20", pagina2)
 
     def test_busca_preservada_nos_links_de_pagina(self):
         self._criar_medicos(60)
         html = self.client.get("/painel/medicos/?q=Médico Pag").content.decode()
-        self.assertIn("<strong>1–50</strong> de 60", html)
+        self.assertIn("<strong>1–10</strong> de 60", html)
         # O filtro q acompanha os links das páginas.
         self.assertIn("q=M%C3%A9dico", html)
 
@@ -1327,3 +1328,97 @@ class TestPaginacaoDasListagens(TestCase):
             AuditLog.objects.create(action="teste_pag", target=f"log {i}")
         html_aud = self.client.get("/painel/auditoria/").content.decode()
         self.assertIn("<strong>1–50</strong> de 55", html_aud)
+
+
+class TestListagemDeAlunos(TestCase):
+    """Colunas da lista de alunos, filtro de situação e diálogo de detalhes."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            "admin-alunos", "a@b.c", "senha12345"
+        )
+        self.client.force_login(self.admin)
+
+    def _criar(self, i, ativo=True, provisoria=False):
+        user = User.objects.create_user(f"aluno-lista-{i}", password="x")
+        return Medico.objects.create(
+            user=user,
+            cpf=f"{i:011d}",
+            nome=f"Aluno Lista {i:02d}",
+            ativo=ativo,
+            must_change_password=provisoria,
+        )
+
+    def test_colunas_sem_matriculas_e_com_acoes(self):
+        self._criar(1)
+        html = self.client.get("/painel/medicos/").content.decode()
+        self.assertNotIn('<th class="cabecalho-tabela">Matrículas</th>', html)
+        self.assertIn('<th class="cabecalho-tabela text-right">Ações</th>', html)
+        # Cinco colunas: Médico, CPF, Última atividade, Situação, Ações.
+        self.assertEqual(html.count("cabecalho-tabela"), 5)
+
+    def test_dez_alunos_por_pagina(self):
+        for i in range(12):
+            self._criar(i)
+        pagina1 = self.client.get("/painel/medicos/").content.decode()
+        self.assertIn("<strong>1–10</strong> de 12", pagina1)
+        self.assertNotIn("Aluno Lista 10", pagina1)
+
+        pagina2 = self.client.get("/painel/medicos/?pagina=2").content.decode()
+        self.assertIn("<strong>11–12</strong> de 12", pagina2)
+        self.assertIn("Aluno Lista 10", pagina2)
+
+    def test_filtro_de_situacao(self):
+        self._criar(1)  # ativo, senha definida
+        self._criar(2, ativo=False)  # inativo
+        self._criar(3, provisoria=True)  # ativo com senha provisória
+
+        ativos = self.client.get("/painel/medicos/?situacao=ativo").content.decode()
+        self.assertIn("Aluno Lista 01", ativos)
+        self.assertIn("Aluno Lista 03", ativos)  # ativo, mesmo com senha provisória
+        self.assertNotIn("Aluno Lista 02", ativos)
+
+        inativos = self.client.get("/painel/medicos/?situacao=inativo").content.decode()
+        self.assertNotIn("Aluno Lista 01", inativos)
+        self.assertIn("Aluno Lista 02", inativos)
+
+        provisoria = self.client.get(
+            "/painel/medicos/?situacao=provisoria"
+        ).content.decode()
+        self.assertIn("Aluno Lista 03", provisoria)
+        self.assertNotIn("Aluno Lista 01", provisoria)
+        self.assertNotIn("Aluno Lista 02", provisoria)
+        # O select mantém a escolha marcada na página filtrada.
+        self.assertIn('value="provisoria" selected', provisoria)
+
+    def test_dialogo_mostra_dados_e_matriculas(self):
+        medico = self._criar(1)
+        curso = Course.objects.create(
+            title="Curso do Dialogo", status=Course.Status.DRAFT
+        )
+        Enrollment.objects.create(medico=medico, course=curso)
+
+        lista = self.client.get("/painel/medicos/").content.decode()
+        # O nome da lista é o gatilho do diálogo.
+        self.assertIn("data-medico-dialog", lista)
+        self.assertIn(f"/painel/medicos/{medico.pk}/detalhe/", lista)
+
+        resposta = self.client.get(f"/painel/medicos/{medico.pk}/detalhe/")
+        self.assertEqual(resposta.status_code, 200)
+        html = resposta.content.decode()
+        self.assertIn("Aluno Lista 01", html)
+        self.assertIn("00000000001", html)
+        self.assertIn("Matrículas (1)", html)
+        self.assertIn("Curso do Dialogo", html)
+
+    def test_dialogo_sem_matriculas_e_protegido(self):
+        medico = self._criar(1, provisoria=True)
+        html = self.client.get(
+            f"/painel/medicos/{medico.pk}/detalhe/"
+        ).content.decode()
+        self.assertIn("Nenhuma matrícula", html)
+        self.assertIn("provisória (troca obrigatória)", html)
+
+        self.client.logout()
+        resposta = self.client.get(f"/painel/medicos/{medico.pk}/detalhe/")
+        self.assertEqual(resposta.status_code, 302)
