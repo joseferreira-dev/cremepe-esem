@@ -91,6 +91,24 @@
     0 18px 40px -20px rgb(4 63 47 / 0.35);
 }
 
+/* Largura da barra de rolagem fica reservada em todas as telas. Sem a
+   reserva, páginas sem rolagem (ex.: /cursos/ com poucos cursos) ficam
+   ~15px mais largas que páginas com rolagem (ex.: o painel) e o conteúdo
+   centralizado "pula" para a direita ao navegar entre elas. */
+@layer base {
+  html {
+    scrollbar-gutter: stable;
+  }
+}
+
+/* Fallback para navegadores sem scrollbar-gutter (Safari <= 16): mostra a
+   barra sempre — largura estável em qualquer navegador. */
+@supports not (scrollbar-gutter: stable) {
+  html {
+    overflow-y: scroll;
+  }
+}
+
 @layer components {
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold
