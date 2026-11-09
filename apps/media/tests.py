@@ -296,6 +296,61 @@ class TestUpload(TestCase):
         self.assertEqual(segunda["received"], [0])
 
 
+class TestSelecaoCursoVideo(TestCase):
+    """Upload: seleção em duas etapas (curso → vídeo) e card limitado."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            "admin-selecao", "a@b.c", "senha12345"
+        )
+        self.client.force_login(self.admin)
+        self.curso_a = Course.objects.create(
+            title="Curso Alfa", status=Course.Status.ACTIVE
+        )
+        self.curso_b = Course.objects.create(
+            title="Curso Beta", status=Course.Status.ACTIVE
+        )
+        for i in range(3):
+            Video.objects.create(
+                course=self.curso_a, order=i + 1, title=f"Aula Alfa {i + 1}"
+            )
+        Video.objects.create(course=self.curso_b, order=1, title="Aula Beta 1")
+
+    def test_sem_curso_o_video_fica_bloqueado_e_instrucoes_foram_removidas(self):
+        html = self.client.get("/api/uploads/pagina/").content.decode()
+        # Card "Como funciona após o envio" removido a pedido.
+        self.assertNotIn("Como funciona após o envio", html)
+        # Duas etapas: o vídeo só é escolhido depois do curso.
+        self.assertIn('id="curso-select"', html)
+        self.assertIn("Selecione um curso primeiro", html)
+        self.assertIn('id="start-upload" type="button" disabled', html)
+        self.assertIn("Vídeos cadastrados (4)", html)
+        # Um curso aparece uma única vez no select (join1:N não duplica).
+        self.assertEqual(html.count("Curso Alfa</option>"), 1)
+
+    def test_com_curso_lista_somente_os_videos_daquele_curso(self):
+        html = self.client.get(
+            f"/api/uploads/pagina/?curso={self.curso_a.pk}"
+        ).content.decode()
+        self.assertIn("2. Aula Alfa 2", html)
+        self.assertNotIn("Aula Beta 1", html)
+        self.assertIn(f'value="{self.curso_a.pk}"', html)
+        self.assertIn("selected", html)
+        self.assertIn('id="start-upload" type="button"', html)
+        self.assertNotIn('id="start-upload" type="button" disabled', html)
+
+    def test_card_sem_filtro_mostra_no_maximo_30_mais_recentes(self):
+        for i in range(40):
+            Video.objects.create(
+                course=self.curso_b, order=i + 10, title=f"Massa {i:02d}"
+            )
+        html = self.client.get("/api/uploads/pagina/").content.decode()
+        self.assertIn("Vídeos cadastrados (44)", html)
+        itens = html.count('class="block truncate text-sm font-medium')
+        self.assertEqual(itens, 30)
+        self.assertIn("Mostrando os 30 mais recentes de 44", html)
+
+
 class TestSubstituicaoDeVideo(TestCase):
     """Regra 3: a versão antiga fica disponível até a nova terminar."""
 

@@ -21,7 +21,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from apps.accounts.tokens import gerar_token_api, token_do_request, validar_token_api
-from apps.courses.models import Enrollment, Progress, Video, WatchSession
+from apps.courses.models import Course, Enrollment, Progress, Video, WatchSession
 from apps.courses.services import (
     apply_heartbeat,
     course_coverage,
@@ -179,20 +179,42 @@ def api_login_required(view):
 # --------------------------------------------------------------------------
 # Upload em blocos (admin)
 # --------------------------------------------------------------------------
+# Card "Vídeos cadastrados" sem filtro: só os N mais recentes — com centenas
+# de vídeos no banco, a lista completa não cabe no card nem precisa caber.
+VIDEOS_NO_CARD = 30
+
+
 @require_GET
 @never_cache
 @staff_member_required
 def upload_page(request):
-    videos = (
-        Video.objects.select_related("course")
-        .order_by("course__title", "order")
-    )
+    # Seleção em duas etapas: primeiro o curso, depois o vídeo daquele curso.
+    curso_id = request.GET.get("curso", "").strip()
+    todos = Video.objects.select_related("course").order_by("course__title", "order")
+
+    # distinct(): o filtro por related_name "videos" faz join1:N e duplicaria.
+    cursos = Course.objects.filter(videos__isnull=False).distinct().order_by("title")
+    # Sem curso escolhido o select fica vazio (placeholder + botão desabilitado).
+    videos = todos.filter(course_id=curso_id) if curso_id else todos.none()
+
+    if curso_id:
+        card_videos = list(videos)
+        card_limitado = False
+    else:
+        card_videos = list(todos.order_by("-id")[:VIDEOS_NO_CARD])
+        card_limitado = todos.count() > VIDEOS_NO_CARD
+
     placeholder = "00000000-0000-0000-0000-000000000000"
     return render(
         request,
         "panel/upload.html",
         {
             "videos": videos,
+            "cursos": cursos,
+            "curso_id": curso_id,
+            "card_videos": card_videos,
+            "card_limitado": card_limitado,
+            "total_videos": todos.count(),
             "upload_urls": {
                 "init": reverse("upload_init"),
                 "chunk": reverse("upload_chunk", kwargs={"upload_id": placeholder}),

@@ -20,13 +20,33 @@
 
     <div class="mt-6 space-y-5">
       <div>
-        <label class="rotulo" for="video-select_busca">Vídeo de destino</label>
+        <label class="rotulo" for="curso-select">1. Curso</label>
+        <form method="get" class="mt-2">
+          <select name="curso" id="curso-select" class="campo" onchange="this.form.submit()">
+            <option value="">Selecione o curso…</option>
+            {% for curso in cursos %}
+              <option value="{{ curso.id }}"
+                      {% if curso_id == curso.id|stringformat:"s" %}selected{% endif %}>{{ curso.title }}</option>
+            {% endfor %}
+          </select>
+        </form>
+        {% if not cursos %}
+          <p class="mt-1.5 text-xs text-slate-500">Nenhum curso com vídeos cadastrados.</p>
+        {% endif %}
+      </div>
+
+      <div>
+        <label class="rotulo" for="video-select_busca">2. Vídeo de destino</label>
         <div class="campo-busca mt-2" data-busca>
-          <select class="campo campo-busca-select" id="video-select">
+          <select class="campo campo-busca-select" id="video-select" {% if not videos %}disabled{% endif %}>
             {% for video in videos %}
               <option value="{{ video.id }}"
                       data-tem-media="{% if video.tem_media %}1{% else %}0{% endif %}">
-                {{ video.course.title }} — {{ video.order }}. {{ video.title }}
+                {{ video.order }}. {{ video.title }}
+              </option>
+            {% empty %}
+              <option value="" data-tem-media="0">
+                {% if curso_id %}Nenhum vídeo neste curso{% else %}Selecione um curso primeiro{% endif %}
               </option>
             {% endfor %}
           </select>
@@ -35,9 +55,10 @@
             type="text"
             class="campo campo-busca-entrada"
             id="video-select_busca"
-            placeholder="Buscar curso ou vídeo…"
+            placeholder="{% if videos %}Buscar vídeo…{% else %}Selecione um curso primeiro{% endif %}"
             autocomplete="off"
             data-busca-entrada
+            {% if not videos %}disabled{% endif %}
           >
           <div class="campo-busca-lista hidden" data-busca-lista></div>
         </div>
@@ -87,10 +108,10 @@
 
   <div class="cartao min-w-0 overflow-hidden lg:col-span-2">
     <div class="border-b border-slate-100 px-5 py-4">
-      <h2 class="text-sm font-semibold text-slate-800">Vídeos cadastrados</h2>
+      <h2 class="text-sm font-semibold text-slate-800">Vídeos cadastrados ({{ total_videos }})</h2>
     </div>
     <div class="max-h-[32rem] divide-y divide-slate-100 overflow-y-auto">
-      {% for video in videos %}
+      {% for video in card_videos %}
         <div class="flex items-center gap-3 px-5 py-3.5">
           <span class="min-w-0 flex-1">
             <a href="{% url 'painel_video' video.id %}" class="block truncate text-sm font-medium text-slate-800 hover:text-marca-600">
@@ -102,23 +123,20 @@
         </div>
       {% empty %}
         <p class="px-5 py-10 text-center text-sm text-slate-400">
-          Nenhum vídeo cadastrado. <a class="font-semibold text-marca-600 hover:underline" href="{% url 'painel_video_novo' %}">Cadastre um vídeo</a> primeiro.
+          {% if curso_id %}
+            Nenhum vídeo neste curso.
+          {% else %}
+            Nenhum vídeo cadastrado. <a class="font-semibold text-marca-600 hover:underline" href="{% url 'painel_video_novo' %}">Cadastre um vídeo</a> primeiro.
+          {% endif %}
         </p>
       {% endfor %}
     </div>
+    {% if card_limitado %}
+      <p class="border-t border-slate-100 px-5 py-3 text-xs text-slate-500">
+        Mostrando os {{ card_videos|length }} mais recentes de {{ total_videos }} — selecione um curso para filtrar.
+      </p>
+    {% endif %}
   </div>
-</div>
-
-<div class="cartao mt-6 border-l-4 border-l-pacifico-500 p-5">
-  <h2 class="text-sm font-semibold text-slate-800">Como funciona após o envio</h2>
-  <ol class="mt-3 space-y-2 text-sm text-slate-600">
-    <li class="flex gap-3"><span class="font-bold text-pacifico-500">1.</span>
-      O arquivo é gravado em disco e entra na fila de processamento.</li>
-    <li class="flex gap-3"><span class="font-bold text-pacifico-500">2.</span>
-      O servidor gera o formato de streaming (HLS) e a imagem de capa.</li>
-    <li class="flex gap-3"><span class="font-bold text-pacifico-500">3.</span>
-      Com o status <strong>Pronto</strong>, o vídeo passa a ser liberado para os médicos.</li>
-  </ol>
 </div>
 {% endblock %}
 
