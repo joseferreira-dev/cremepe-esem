@@ -81,9 +81,16 @@ def index(request):
     ativas = matriculas.exclude(status=Enrollment.Status.REJECTED)
     aprovadas = matriculas.filter(status=Enrollment.Status.APPROVED).count()
 
+    # Ranking por cobertura; só os 5 mais adiantados são exibidos — e a última
+    # atividade (uma consulta por matrícula) é buscada apenas deles.
+    coberturas = [
+        (matricula, course_coverage(matricula))
+        for matricula in ativas.select_related("medico", "course")
+    ]
+    coberturas.sort(key=lambda par: par[1], reverse=True)
+
     em_andamento = []
-    for matricula in ativas.select_related("medico", "course"):
-        cobertura = course_coverage(matricula)
+    for matricula, cobertura in coberturas[:5]:
         em_andamento.append(
             {
                 "matricula": matricula,
@@ -92,7 +99,6 @@ def index(request):
                 .aggregate(last=Max("last_seen_at"))["last"],
             }
         )
-    em_andamento.sort(key=lambda item: item["cobertura"], reverse=True)
 
     videos_processando = list(
         Video.objects.filter(status__in=[Video.Status.QUEUED, Video.Status.PROCESSING])
@@ -137,7 +143,7 @@ def index(request):
             "linhas": linhas,
             "videos_processando": videos_processando,
             "videos_com_erro": videos_com_erro,
-            "ultimos_logs": AuditLog.objects.select_related("actor")[:8],
+            "ultimos_logs": AuditLog.objects.select_related("actor")[:5],
             "sessoes_hoje": WatchSession.objects.filter(
                 started_at__date=timezone.now().date()
             ).count(),

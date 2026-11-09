@@ -214,6 +214,34 @@ class TestDistribuicaoDoProgresso(TestCase):
         self.assertNotIn("Distribuição do progresso", html)
         self.assertIn("Progresso por curso", html)
 
+    def test_visao_geral_lista_no_maximo_5_e_processamento_largo(self):
+        #7 matrículas (6 novas + a do setUp) e6 logs: os cards ficam em5.
+        for i in range(6):
+            user = User.objects.create_user(f"dash-{i}", password="x")
+            medico = Medico.objects.create(
+                user=user,
+                cpf=f"9{i:010d}",
+                nome=f"Aluno Dash {i}",
+                must_change_password=False,
+            )
+            Enrollment.objects.create(medico=medico, course=self.curso)
+        for i in range(6):
+            AuditLog.objects.create(action="dash_teste", target=f"reg {i}")
+
+        self.video.status = Video.Status.PROCESSING
+        self.video.save(update_fields=["status"])
+
+        resposta = self.client.get("/painel/")
+        self.assertEqual(len(resposta.context["em_andamento"]), 5)
+        self.assertEqual(len(resposta.context["ultimos_logs"]), 5)
+
+        html = resposta.content.decode()
+        # O card de processamento ocupa toda a largura (sem grid de 2 colunas).
+        self.assertIn(
+            'class="mt-6 cartao border-l-4 border-l-amber-400 p-5"', html
+        )
+        self.assertNotIn("mt-6 grid gap-4 lg:grid-cols-2", html)
+
     def test_detalhe_do_curso_mostra_distribuicao(self):
         html = self.client.get(f"/painel/cursos/{self.curso.pk}/").content.decode()
         self.assertIn("Distribuição do progresso", html)
