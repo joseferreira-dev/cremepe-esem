@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import re
 import secrets
+from datetime import datetime
 
 import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -978,6 +979,11 @@ def matricula_exportar(request, pk):
             linha["status"], ("F1F5F9", "334155")
         )
         for coluna, valor in enumerate(valores, start=1):
+            # O Excel não aceita datetime consciente do fuso (USE_TZ) —
+            # openpyxl levanta TypeError no save. Converte para horário
+            # local sem tzinfo.
+            if isinstance(valor, datetime) and valor.tzinfo is not None:
+                valor = timezone.localtime(valor).replace(tzinfo=None)
             celula = ws.cell(row=indice, column=coluna, value=valor)
             celula.border = borda
             celula.alignment = Alignment(vertical="center", wrap_text=(coluna == 8))

@@ -595,6 +595,34 @@ class TestFluxoCompleto(TestCase):
         self.assertEqual(ws.freeze_panes, "A4")
         self.assertTrue(ws.auto_filter.ref.startswith("A3"))
 
+    def test_exportar_planilha_com_ultima_atividade_consciente_do_fuso(self):
+        """O Excel recusa datetime com fuso — precisa ir convertido (USE_TZ)."""
+        import io as _io
+
+        import openpyxl
+        from django.utils import timezone
+
+        curso = Course.objects.create(title="Curso Fuso", status=Course.Status.ACTIVE)
+        user = User.objects.create_user("m-fuso", password="x")
+        medico = Medico.objects.create(
+            user=user, cpf="77766655544", nome="Fuso", must_change_password=False
+        )
+        matricula = Enrollment.objects.create(medico=medico, course=curso)
+        video = Video.objects.create(course=curso, order=1, title="Aula")
+        Progress.objects.create(
+            enrollment=matricula, video=video, last_seen_at=timezone.now()
+        )
+
+        resposta = self.client.get(f"/painel/cursos/{curso.pk}/exportar/")
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn("spreadsheetml", resposta["Content-Type"])
+
+        wb = openpyxl.load_workbook(_io.BytesIO(resposta.content))
+        ws = wb.active
+        valor = ws.cell(row=4, column=11).value  # Última atividade
+        self.assertIsNotNone(valor)
+        self.assertIsNone(valor.tzinfo)
+
     def test_desativar_medico_bloqueia_acesso(self):
         user = User.objects.create_user("m4", password="x")
         medico = Medico.objects.create(
