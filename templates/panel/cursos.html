@@ -7,16 +7,26 @@
 <div class="flex flex-wrap items-end justify-between gap-4">
   <div>
     <h1 class="text-3xl font-bold tracking-tight text-slate-900">Cursos</h1>
+    <p class="mt-2 text-sm text-slate-500">Listagem dos cursos cadastrados no portal.</p>
   </div>
   <a href="{% url 'painel_curso_novo' %}" class="btn btn-primary">{{ icons.mais|safe }} Novo curso</a>
 </div>
 
-<form method="get" class="mt-6 flex max-w-md gap-2">
-  <div class="relative flex-1">
+<form method="get" class="mt-6 flex max-w-2xl flex-wrap items-center gap-2">
+  <div class="relative min-w-56 flex-1">
     <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">{{ icons.busca|safe }}</span>
-    <input type="search" name="q" value="{{ busca }}" class="campo pl-10" placeholder="Buscar por título ou turma">
+    <input type="search" name="q" value="{{ busca }}" class="campo pl-10" placeholder="Buscar por título">
   </div>
-  <button class="btn btn-secundario" type="submit">Buscar</button>
+  <select name="status" class="campo w-48" aria-label="Filtrar por situação">
+    <option value="">Todas as situações</option>
+    {% for chave, rotulo in situacoes %}
+      <option value="{{ chave }}" {% if situacao == chave %}selected{% endif %}>{{ rotulo }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn btn-secundario" type="submit">Filtrar</button>
+  {% if busca or situacao %}
+    <a href="{% url 'painel_cursos' %}" class="btn btn-fantasma">Limpar</a>
+  {% endif %}
 </form>
 
 <div class="cartao mt-6 overflow-hidden">
@@ -51,7 +61,7 @@
         {% empty %}
           <tr>
             <td colspan="6" class="px-5 py-12 text-center text-sm text-slate-400">
-              {% if busca %}Nenhum curso encontrado para “{{ busca }}”.{% else %}Nenhum curso cadastrado.{% endif %}
+              {% if busca or situacao %}Nenhum curso encontrado com esses filtros.{% else %}Nenhum curso cadastrado.{% endif %}
             </td>
           </tr>
         {% endfor %}

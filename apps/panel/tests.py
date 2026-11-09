@@ -1591,3 +1591,38 @@ class TestFiltrosDaAuditoria(TestCase):
         # Os selects continuam marcados e a lista segue paginável.
         self.assertIn('name="acao"', html)
         self.assertIn('name="ator"', html)
+
+
+class TestListagemDeCursos(TestCase):
+    """Subtítulo padrão e filtros (busca + situação) na listagem de cursos."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            "admin-cursos-filtros", "a@b.c", "senha12345"
+        )
+        self.client.force_login(self.admin)
+        Course.objects.create(title="Curso Rascunho X", status=Course.Status.DRAFT)
+        Course.objects.create(title="Curso Ativo Y", status=Course.Status.ACTIVE)
+
+    def test_subtitulo_padrao_das_listagens(self):
+        html = self.client.get("/painel/cursos/").content.decode()
+        self.assertIn("Listagem dos cursos cadastrados no portal.", html)
+
+    def test_filtro_de_situacao(self):
+        html = self.client.get("/painel/cursos/?status=active").content.decode()
+        self.assertIn("Curso Ativo Y", html)
+        self.assertNotIn("Curso Rascunho X", html)
+        self.assertIn('value="active" selected', html)
+        self.assertIn("Limpar", html)
+
+        html = self.client.get("/painel/cursos/").content.decode()
+        self.assertIn("Curso Rascunho X", html)
+
+    def test_busca_por_titulo(self):
+        html = self.client.get("/painel/cursos/?q=Rascunho").content.decode()
+        self.assertIn("Curso Rascunho X", html)
+        self.assertNotIn("Curso Ativo Y", html)
+        self.assertIn('value="Rascunho"', html)
+
+        vazio = self.client.get("/painel/cursos/?q=nao-existe").content.decode()
+        self.assertIn("Nenhum curso encontrado com esses filtros", vazio)

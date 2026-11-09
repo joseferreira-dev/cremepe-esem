@@ -169,9 +169,12 @@ def _paginar(request, consulta, tamanho=PAGINA_TAMANHO):
 
 def cursos(request):
     busca = request.GET.get("q", "").strip()
+    situacao = request.GET.get("status", "").strip()
     consulta = Course.objects.all()
     if busca:
         consulta = consulta.filter(Q(title__icontains=busca))
+    if situacao:
+        consulta = consulta.filter(status=situacao)
 
     pagina = _paginar(request, consulta)
     linhas = []
@@ -190,7 +193,13 @@ def cursos(request):
     return render(
         request,
         "panel/cursos.html",
-        {"linhas": linhas, "busca": busca, "pagina": pagina},
+        {
+            "linhas": linhas,
+            "busca": busca,
+            "situacao": situacao,
+            "situacoes": Course.Status.choices,
+            "pagina": pagina,
+        },
     )
 
 
