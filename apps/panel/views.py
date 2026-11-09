@@ -628,6 +628,13 @@ def medico_lote_parcial(request):
         for dados in fatia:
             if Medico.objects.filter(cpf=dados["cpf"]).exists():
                 ignorados += 1
+                record_audit(
+                    "medico_duplicado_ignorado",
+                    actor=request.user,
+                    target=dados["nome"],
+                    detail={"cpf": dados["cpf"], "lote": True},
+                    ip=request.META.get("REMOTE_ADDR"),
+                )
                 continue
             medico = Medico(ativo=True, **dados)
             senha = criar_conta_medico(medico)
@@ -667,10 +674,24 @@ def medico_acao(request, pk):
     if acao == "ativar":
         medico.ativo = True
         medico.save(update_fields=["ativo"])
+        record_audit(
+            "medico_ativado",
+            actor=request.user,
+            target=medico.nome,
+            detail={"cpf": medico.cpf},
+            ip=request.META.get("REMOTE_ADDR"),
+        )
         messages.success(request, "Médico ativado.")
     elif acao == "desativar":
         medico.ativo = False
         medico.save(update_fields=["ativo"])
+        record_audit(
+            "medico_desativado",
+            actor=request.user,
+            target=medico.nome,
+            detail={"cpf": medico.cpf},
+            ip=request.META.get("REMOTE_ADDR"),
+        )
         messages.success(request, "Médico desativado — o acesso ao portal é bloqueado.")
     elif acao == "resetar_senha":
         senha = redefinir_senha(medico)

@@ -63,6 +63,33 @@ class TestAcessoAoPainel(TestCase):
         self.assertRedirects(resposta, "/painel/")
         self.assertEqual(self.client.get("/painel/").status_code, 200)
 
+    def test_login_auditado(self):
+        """Entrada bem-sucedida e tentativas que falham ficam na auditoria."""
+        self.client.post(
+            "/painel/entrar/", {"username": "admin", "password": "senha12345"}
+        )
+        self.assertTrue(
+            AuditLog.objects.filter(action="login_sucesso", target="admin").exists()
+        )
+        self.client.logout()
+
+        self.client.post(
+            "/painel/entrar/", {"username": "admin", "password": "errada"}
+        )
+        falha = AuditLog.objects.filter(action="login_falha", target="admin")
+        self.assertEqual(falha.count(), 1)
+        self.assertEqual(falha.first().detail.get("motivo"), "credenciais")
+
+        # Conta existente sem perfil de admin também é registrada.
+        self.client.post(
+            "/painel/entrar/", {"username": "medico", "password": "senha12345"}
+        )
+        sem_permissao = AuditLog.objects.filter(action="login_falha", target="medico")
+        self.assertEqual(sem_permissao.count(), 1)
+        self.assertEqual(
+            sem_permissao.first().detail.get("motivo"), "conta_sem_permissao"
+        )
+
     def test_login_administrativo_respeita_next(self):
         resposta = self.client.post(
             "/painel/entrar/?next=/painel/medicos/",
@@ -1126,6 +1153,10 @@ class TestCadastroCsv(TestCase):
         self.assertEqual(len(criados2), 0)
         self.assertEqual(ignorados2, 1)
         self.assertEqual(Medico.objects.count(), 1)
+        # O pulo do duplicado também vira registro de auditoria.
+        duplicado = AuditLog.objects.filter(action="medico_duplicado_ignorado")
+        self.assertEqual(duplicado.count(), 1)
+        self.assertEqual(duplicado.first().detail.get("cpf"), "11122233344")
 
 
 class TestCamposDeBusca(TestCase):
@@ -1368,6 +1399,19 @@ class TestListagemDeAlunos(TestCase):
         self.assertEqual(html.count("data-confirm="), 1)
         self.assertIn("Desativar o aluno", html)
         self.assertIn(f"/painel/medicos/{ativo.pk}/acao/", html)
+
+    def test_ativar_e_desativar_sao_auditados(self):
+        medico = self._criar(1)
+        self.client.post(
+            f"/painel/medicos/{medico.pk}/acao/", {"acao": "desativar"}
+        )
+        self.assertTrue(
+            AuditLog.objects.filter(
+                action="medico_desativado", target="Aluno Lista 01"
+            ).exists()
+        )
+        self.client.post(f"/painel/medicos/{medico.pk}/acao/", {"acao": "ativar"})
+        self.assertTrue(AuditLog.objects.filter(action="medico_ativado").exists())
 
     def test_dez_alunos_por_pagina(self):
         for i in range(12):

@@ -14,6 +14,7 @@ from django.views.decorators.http import require_http_methods
 from .forms import AdminLoginForm, LoginByCpfForm
 from .models import Medico, normalize_cpf
 from .services import limpar_cookie_sessao
+from apps.courses.services import record_audit
 
 
 def _destino_pos_login(request, padrao: str) -> str:
@@ -79,22 +80,40 @@ def admin_login_view(request):
     form = AdminLoginForm(
         request, data=request.POST if request.method == "POST" else None
     )
-    if request.method == "POST" and form.is_valid():
-        user = form.get_user()
-        if not user.is_staff:
-            form.add_error(
-                None, "Esta conta não tem acesso ao painel administrativo."
-            )
-        elif Medico.objects.filter(user=user).exists():
-            # Separação de contas: o painel não abre com a conta de médico.
-            form.add_error(
-                None,
-                "Esta conta é de médico. O acesso administrativo usa uma conta "
-                "própria; na área do médico, entre com o CPF.",
-            )
-        else:
-            login(request, user)
-            return redirect(_destino_pos_login(request, "painel_index"))
+    if request.method == "POST":
+        motivo_falha = "credenciais"
+        if form.is_valid():
+            user = form.get_user()
+            if not user.is_staff:
+                form.add_error(
+                    None, "Esta conta não tem acesso ao painel administrativo."
+                )
+                motivo_falha = "conta_sem_permissao"
+            elif Medico.objects.filter(user=user).exists():
+                # Separação de contas: o painel não abre com a conta de médico.
+                form.add_error(
+                    None,
+                    "Esta conta é de médico. O acesso administrativo usa uma conta "
+                    "própria; na área do médico, entre com o CPF.",
+                )
+                motivo_falha = "conta_de_medico"
+            else:
+                login(request, user)
+                record_audit(
+                    "login_sucesso",
+                    actor=request.user,
+                    target=user.username,
+                    ip=request.META.get("REMOTE_ADDR"),
+                )
+                return redirect(_destino_pos_login(request, "painel_index"))
+        # Toda tentativa que não entrou fica registrada na auditoria.
+        record_audit(
+            "login_falha",
+            actor=None,
+            target=(request.POST.get("username") or "")[:150],
+            detail={"motivo": motivo_falha},
+            ip=request.META.get("REMOTE_ADDR"),
+        )
 
     return render(
         request,
