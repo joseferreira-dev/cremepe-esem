@@ -304,7 +304,8 @@ class TestCatalogoDoAdmin(TestCase):
         self.client.force_login(self.admin)
         html = self.client.get("/cursos/").content.decode()
 
-        self.assertIn("Gerenciar cursos", html)
+        # A aba "Gerenciar cursos" foi removida: ela só repetia o link do painel.
+        self.assertNotIn("Gerenciar cursos", html)
         self.assertIn("Curso com matricula", html)
         self.assertIn("Curso sem matricula", html)
         self.assertIn("1 matriculado(s)", html)
