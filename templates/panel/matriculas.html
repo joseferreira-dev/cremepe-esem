@@ -12,21 +12,21 @@
   <a href="{% url 'painel_matricula_nova' %}" class="btn btn-primary">{{ icons.mais|safe }} Nova matrícula</a>
 </div>
 
-<form method="get" class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-  <div class="relative sm:col-span-2">
+<form method="get" class="mt-6 flex max-w-2xl flex-wrap items-center gap-2">
+  <div class="relative min-w-56 flex-1">
     <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">{{ icons.busca|safe }}</span>
     <input type="search" name="q" value="{{ busca }}" class="campo pl-10" placeholder="Buscar por nome ou CPF">
   </div>
-  <select name="status" class="campo">
+  <select name="status" class="campo w-48" aria-label="Filtrar por situação">
     <option value="">Todas as situações</option>
     {% for chave, rotulo in situacoes %}
       <option value="{{ chave }}" {% if situacao == chave %}selected{% endif %}>{{ rotulo }}</option>
     {% endfor %}
   </select>
-  <div class="flex gap-2 sm:col-span-2 lg:col-span-3">
-    <button class="btn btn-secundario" type="submit">Filtrar</button>
+  <button class="btn btn-secundario" type="submit">Filtrar</button>
+  {% if busca or situacao %}
     <a href="{% url 'painel_matriculas' %}" class="btn btn-fantasma">Limpar</a>
-  </div>
+  {% endif %}
 </form>
 
 <div class="cartao mt-6 overflow-hidden">
@@ -39,7 +39,7 @@
           <th class="cabecalho-tabela">Progresso</th>
           <th class="cabecalho-tabela">Situação</th>
           <th class="cabecalho-tabela">Última atividade</th>
-          <th class="cabecalho-tabela"></th>
+          <th class="cabecalho-tabela">Ações</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-slate-100">
@@ -57,13 +57,13 @@
             </td>
             <td class="celula">{{ linha.cobertura }}%</td>
             <td class="celula">
-              <span class="etiqueta {{ linha.matricula.status|cor_status }}">{{ linha.matricula.get_status_display }}</span>
+              <span class="etiqueta whitespace-nowrap {{ linha.matricula.status|cor_status }}">{{ linha.matricula.get_status_display }}</span>
             </td>
             <td class="celula text-xs text-slate-500">
               {% if linha.ultima %}{{ linha.ultima|date:"d/m/Y H:i" }}{% else %}—{% endif %}
             </td>
             <td class="celula">
-              <div class="flex justify-end gap-1.5">
+              <div class="flex gap-1.5">
                 {% if linha.matricula.status == "approved" %}
                   <a href="{% url 'painel_certificado' linha.matricula.id %}" class="btn btn-secundario btn-sm"
                      title="Baixar o certificado do aluno">Certificado</a>

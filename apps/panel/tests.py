@@ -760,6 +760,32 @@ class TestAcoesDeMatricula(TestCase):
         self.assertRegex(html, r"\d+(?:\.\d)?%")
         self.assertNotIn("bg-pacifico-500", html)
 
+    def test_filtros_no_padrao_das_demais_listacoes_e_coluna_acoes(self):
+        html = self.client.get("/painel/matriculas/").content.decode()
+        # Mesmo formulário das listagens de Médicos e Cursos, em uma linha.
+        self.assertIn(
+            'class="mt-6 flex max-w-2xl flex-wrap items-center gap-2"', html
+        )
+        self.assertIn('name="status" class="campo w-48"', html)
+        # Limpar só aparece com filtro ativo (padrão das demais listagens).
+        self.assertNotIn("Limpar", html)
+        filtrada = self.client.get(
+            "/painel/matriculas/?q=Medico Acoes"
+        ).content.decode()
+        self.assertIn("Limpar", filtrada)
+
+        # Botões de remover/certificado na coluna Ações.
+        self.assertIn('<th class="cabecalho-tabela">Ações</th>', html)
+        self.assertIn(">Remover<", html)
+
+    def test_badge_de_em_andamento_nao_quebra_a_linha(self):
+        self.matricula.status = Enrollment.Status.IN_PROGRESS
+        self.matricula.save(update_fields=["status"])
+        html = self.client.get("/painel/matriculas/").content.decode()
+        self.assertRegex(
+            html, r"etiqueta whitespace-nowrap[^>]*>Em andamento<"
+        )
+
     def test_aprovar_via_ajax_nao_redireciona(self):
         resposta = self.client.post(
             f"/painel/matriculas/{self.matricula.pk}/acao/",
