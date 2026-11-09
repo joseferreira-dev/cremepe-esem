@@ -327,6 +327,13 @@ class TestCatalogoDoAdmin(TestCase):
         self.assertNotIn("Curso sem matricula", html)
         self.assertNotIn("Gerenciar cursos", html)
 
+    def test_fundo_padrao_do_painel_em_todas_as_paginas(self):
+        """Padrão visual: o fundo do painel vale para todo o portal."""
+        self.client.force_login(self.user)
+        for url in ("/cursos/", "/meus-certificados/", "/validar/"):
+            html = self.client.get(url).content.decode()
+            self.assertIn("bg-painel-gradiente", html, url)
+
 
 class TestPaginaDeLogin(TestCase):
     def setUp(self):

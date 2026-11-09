@@ -53,7 +53,9 @@ class TestAcessoAoPainel(TestCase):
         self.assertEqual(resposta.status_code, 200)
         self.assertContains(resposta, "Acesso restrito")
         self.assertContains(resposta, "bg-marca-gradiente")
-        self.assertNotContains(resposta, "bg-painel-gradiente")
+        # Padrão do portal: o gradiente do painel está no <body> de todas as
+        # telas; aqui ele fica coberto pelo gradiente da própria tela de acesso.
+        self.assertContains(resposta, "bg-painel-gradiente")
 
     def test_login_administrativo_por_usuario_e_senha(self):
         resposta = self.client.post(
