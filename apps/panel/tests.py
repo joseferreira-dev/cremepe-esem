@@ -750,6 +750,16 @@ class TestAcoesDeMatricula(TestCase):
         )
         self.client.force_login(self.admin)
 
+    def test_listagem_sem_filtro_de_curso_e_com_so_a_porcentagem(self):
+        html = self.client.get("/painel/matriculas/").content.decode()
+        # Filtro de cursos removido; busca e situação permanecem.
+        self.assertNotIn('name="curso"', html)
+        self.assertIn('name="q"', html)
+        self.assertIn('name="status"', html)
+        # Coluna Progresso mostra só a porcentagem (sem barra).
+        self.assertRegex(html, r"\d+(?:\.\d)?%")
+        self.assertNotIn("bg-pacifico-500", html)
+
     def test_aprovar_via_ajax_nao_redireciona(self):
         resposta = self.client.post(
             f"/painel/matriculas/{self.matricula.pk}/acao/",

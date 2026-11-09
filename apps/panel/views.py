@@ -730,7 +730,6 @@ def medico_acao(request, pk):
 def matriculas(request):
     busca = request.GET.get("q", "").strip()
     situacao = request.GET.get("status", "").strip()
-    curso_id = request.GET.get("curso", "").strip()
 
     consulta = Enrollment.objects.select_related("medico", "course").all()
     if busca:
@@ -740,8 +739,6 @@ def matriculas(request):
         )
     if situacao:
         consulta = consulta.filter(status=situacao)
-    if curso_id:
-        consulta = consulta.filter(course_id=curso_id)
 
     pagina = _paginar(request, consulta)
     linhas = []
@@ -751,7 +748,6 @@ def matriculas(request):
             {
                 "matricula": matricula,
                 "cobertura": round(cobertura, 1),
-                "exigido": float(matricula.course.min_percent or 0),
                 "ultima": Progress.objects.filter(enrollment=matricula).aggregate(
                     last=Max("last_seen_at")
                 )["last"],
@@ -766,8 +762,6 @@ def matriculas(request):
             "pagina": pagina,
             "busca": busca,
             "situacao": situacao,
-            "curso_id": curso_id,
-            "cursos": Course.objects.all(),
             "form": MatriculaForm(),
             "situacoes": Enrollment.Status.choices,
         },
