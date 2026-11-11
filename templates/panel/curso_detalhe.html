@@ -229,39 +229,19 @@
   <!-- Matriculados -->
   <div data-tab-panel="matriculados" class="hidden pt-6">
     <div class="space-y-6">
-      <div class="cartao cartao-padrao">
-        <div class="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h2 class="text-sm font-semibold text-slate-800">Matricular médicos</h2>
-            <p class="mt-1 text-xs text-slate-500">
-              Selecione um ou mais médicos ativos que ainda não estão neste curso.
-            </p>
-          </div>
+      <div class="cartao cartao-padrao flex flex-wrap items-center justify-between gap-4">
+        <div class="min-w-0">
+          <h2 class="text-sm font-semibold text-slate-800">Matricular médicos</h2>
+          <p class="mt-1 text-xs text-slate-500">
+            Matrícula individual por CPF ou em lote — abre em dialog.
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button type="button" class="btn btn-primary btn-sm" data-matricula-dialogo>
+            {{ icons.mais|safe }} Matricular
+          </button>
           <a href="{% url 'painel_medico_lote' %}" class="btn btn-secundario btn-sm">Cadastrar alunos em lote</a>
         </div>
-
-        <form method="post" class="mt-5 space-y-2">
-          {% csrf_token %}
-          <input type="hidden" name="acao" value="matricular_cpf">
-          <p class="rotulo">Matricular um aluno</p>
-          <div class="mt-2 flex gap-2">
-            <input type="text" name="cpf" inputmode="numeric" autocomplete="off"
-                   placeholder="CPF do aluno" class="campo font-mono">
-            <button class="btn btn-secundario btn-sm shrink-0" type="submit">Matricular</button>
-          </div>
-        </form>
-
-        <form method="post" class="mt-6 space-y-3 border-t border-slate-100 pt-5">
-          {% csrf_token %}
-          <input type="hidden" name="acao" value="matricular_lote_cpfs">
-          <p class="rotulo">Matricular em lote — lista de CPFs</p>
-          <textarea name="cpfs" rows="6" class="campo mt-2 font-mono text-sm"
-                    placeholder="000.000.000-00&#10;111.222.333-44&#10;999.888.777-66"></textarea>
-          <p class="text-xs text-slate-500">
-            Um CPF por linha (aceita pontos e traços).
-          </p>
-          <button class="btn btn-primary btn-sm" type="submit">Matricular listados</button>
-        </form>
       </div>
 
       <div class="cartao overflow-hidden">
@@ -278,7 +258,7 @@
                 <th class="cabecalho-tabela">Situação</th>
                 <th class="cabecalho-tabela">Tempo</th>
                 <th class="cabecalho-tabela">Última atividade</th>
-                <th class="cabecalho-tabela"></th>
+                <th class="cabecalho-tabela">Ações</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
@@ -301,8 +281,8 @@
                   <td class="celula text-xs text-slate-500">
                     {% if linha.ultima %}{{ linha.ultima|date:"d/m H:i" }}{% else %}—{% endif %}
                   </td>
-                  <td class="celula text-right">
-                    <div class="flex justify-end gap-1.5">
+                  <td class="celula">
+                    <div class="flex gap-1.5">
                       {% if linha.matricula.status == "approved" %}
                         <a href="{% url 'painel_certificado' linha.matricula.id %}" class="btn btn-secundario btn-sm"
                            title="Baixar o certificado do aluno">{{ icons.documento|safe }} Certificado</a>
@@ -388,8 +368,67 @@
     </div>
   </div>
 </div>
+
+<dialog id="matricula-dialogo"
+        class="cartao m-auto w-[calc(100%-2rem)] max-w-2xl overflow-hidden p-0 backdrop:bg-slate-950/60">
+  <div class="max-h-[85vh] overflow-y-auto p-6">
+    <div class="flex items-start justify-between gap-4">
+      <div class="min-w-0">
+        <h2 class="text-sm font-semibold text-slate-800">Matricular médicos</h2>
+        <p class="mt-1 text-xs text-slate-500">
+          Matrícula individual por CPF ou em lote.
+        </p>
+      </div>
+      <button type="button" class="btn btn-fantasma btn-sm shrink-0"
+              data-dialogo-matricula-fechar>Fechar</button>
+    </div>
+
+    <form method="post" class="mt-5 space-y-2">
+      {% csrf_token %}
+      <input type="hidden" name="acao" value="matricular_cpf">
+      <p class="rotulo">Matricular um aluno</p>
+      <div class="mt-2 flex gap-2">
+        <input type="text" name="cpf" inputmode="numeric" autocomplete="off"
+               placeholder="CPF do aluno" class="campo font-mono">
+        <button class="btn btn-secundario btn-sm shrink-0" type="submit">Matricular</button>
+      </div>
+    </form>
+
+    <form method="post" class="mt-6 space-y-3 border-t border-slate-100 pt-5">
+      {% csrf_token %}
+      <input type="hidden" name="acao" value="matricular_lote_cpfs">
+      <p class="rotulo">Matricular em lote — lista de CPFs</p>
+      <textarea name="cpfs" rows="6" class="campo mt-2 font-mono text-sm"
+                placeholder="000.000.000-00&#10;111.222.333-44&#10;999.888.777-66"></textarea>
+      <p class="text-xs text-slate-500">
+        Um CPF por linha (aceita pontos e traços).
+      </p>
+      <button class="btn btn-primary btn-sm" type="submit">Matricular listados</button>
+    </form>
+  </div>
+</dialog>
 {% endblock %}
 
 {% block scripts %}
 {% include "partials/dialogo_aluno.html" %}
+<script>
+  // Dialog de matrícula: os dois formulários saem da página e abrem aqui.
+  (function () {
+    var dialogo = document.getElementById('matricula-dialogo');
+    if (!dialogo || typeof dialogo.showModal !== 'function') {
+      return; // sem <dialog> nativo: o botão simplesmente não faz nada
+    }
+    document.addEventListener('click', function (evento) {
+      if (evento.target.closest('[data-matricula-dialogo]')) {
+        evento.preventDefault();
+        dialogo.showModal();
+        return;
+      }
+      if (evento.target.closest('[data-dialogo-matricula-fechar]') ||
+          evento.target === dialogo) {
+        dialogo.close();
+      }
+    });
+  })();
+</script>
 {% endblock %}

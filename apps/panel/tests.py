@@ -898,6 +898,31 @@ class TestAbasEDialogsDoCurso(TestCase):
         self.assertIn(f"?curso={self.curso.pk}", html)
         self.assertIn('id="medico-dialogo"', html)
 
+    def test_acoes_da_turma_na_coluna_acoes(self):
+        self._matricular_com_progresso()
+        html = self.client.get(f"/painel/cursos/{self.curso.pk}/").content.decode()
+        self.assertIn('<th class="cabecalho-tabela">Ações</th>', html)
+        self.assertNotIn('<th class="cabecalho-tabela"></th>', html)
+        # Botões alinhados como as demais listagens (cabeçalho e conteúdo
+        # à esquerda, sem o velho alinhamento à direita).
+        self.assertNotIn('class="celula text-right"', html)
+        self.assertNotIn("flex justify-end gap-1.5", html)
+        self.assertIn(">Aprovar<", html)
+
+    def test_formulario_de_matricula_vai_para_o_dialogo(self):
+        html = self.client.get(f"/painel/cursos/{self.curso.pk}/").content.decode()
+        # Um botão na aba de matriculados; os dois formulários só no dialog.
+        self.assertIn('data-matricula-dialogo', html)
+        inicio = html.index('<dialog id="matricula-dialogo"')
+        dialogo = html[inicio : html.index("</dialog>", inicio)]
+        self.assertIn('value="matricular_cpf"', dialogo)
+        self.assertIn('value="matricular_lote_cpfs"', dialogo)
+        self.assertIn("Matricular um aluno", dialogo)
+        self.assertIn("Matricular em lote", dialogo)
+        # Fora do dialog não há formulário: os vêm depois da tabela da turma.
+        self.assertLess(html.index("Turma ("), html.index('value="matricular_cpf"'))
+        self.assertIn('id="matricula-dialogo"', html)
+
     def test_dialogo_mostra_progresso_por_aula_e_dados_basicos(self):
         medico, _ = self._matricular_com_progresso()
         resposta = self.client.get(
