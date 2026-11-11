@@ -868,6 +868,56 @@ class TestAbasEDialogsDoCurso(TestCase):
         )
         self.client.force_login(self.admin)
 
+    def _matricular_com_progresso(self):
+        user = User.objects.create_user("aluno-abas", password="x")
+        medico = Medico.objects.create(
+            user=user,
+            cpf="55544433322",
+            nome="Aluno Abas",
+            must_change_password=False,
+        )
+        matricula = Enrollment.objects.create(medico=medico, course=self.curso)
+        Progress.objects.create(
+            enrollment=matricula,
+            video=self.video,
+            covered=30,
+            furthest=30,
+            intervals=[[0, 30]],
+        )
+        return medico, matricula
+
+    def test_turma_mostra_somente_a_porcentagem_geral(self):
+        self._matricular_com_progresso()
+        html = self.client.get(f"/painel/cursos/{self.curso.pk}/").content.decode()
+        # Só a porcentagem geral na linha: sem barra nem percentuais das aulas.
+        self.assertRegex(html, r'<td class="celula">\d+(?:[.,]\d)?%</td>')
+        self.assertNotIn("h-2 flex-1", html)
+        self.assertNotIn('title="Aula abaixo do percentual mínimo', html)
+        # O nome do aluno é o gatilho do diálogo (com o curso na URL).
+        self.assertIn("data-medico-dialog", html)
+        self.assertIn(f"?curso={self.curso.pk}", html)
+        self.assertIn('id="medico-dialogo"', html)
+
+    def test_dialogo_mostra_progresso_por_aula_e_dados_basicos(self):
+        medico, _ = self._matricular_com_progresso()
+        resposta = self.client.get(
+            f"/painel/medicos/{medico.pk}/detalhe/?curso={self.curso.pk}"
+        )
+        self.assertEqual(resposta.status_code, 200)
+        html = resposta.content.decode()
+        self.assertIn("Progresso nas aulas", html)
+        self.assertIn("Curso abas", html)
+        self.assertIn("Aula 1", html)
+        self.assertRegex(html, r"50(?:[.,]\d)?%")  # 30 s assistidos de 60 s
+        self.assertIn("Aluno Abas", html)  # dados básicos
+        self.assertIn(medico.cpf, html)
+
+        # Sem ?curso= continua exibindo a lista de matrículas.
+        sem_curso = self.client.get(
+            f"/painel/medicos/{medico.pk}/detalhe/"
+        ).content.decode()
+        self.assertIn("Matrículas (1)", sem_curso)
+
     def test_detalhe_do_curso_tem_abas_para_cada_assunto(self):
         resposta = self.client.get(f"/painel/cursos/{self.curso.pk}/")
         self.assertEqual(resposta.status_code, 200)

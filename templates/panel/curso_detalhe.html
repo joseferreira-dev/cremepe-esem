@@ -285,24 +285,15 @@
               {% for linha in linhas %}
                 <tr class="transition hover:bg-slate-50/70" data-matricula-row>
                   <td class="celula">
-                    <span class="font-semibold text-slate-800">{{ linha.matricula.medico.nome }}</span>
+                    <a href="{% url 'painel_medico_detalhe' linha.matricula.medico.id %}?curso={{ curso.id }}"
+                       data-medico-dialog
+                       class="font-semibold text-slate-800 hover:text-marca-700 hover:underline"
+                       title="Ver dados e progresso nas aulas">
+                      {{ linha.matricula.medico.nome }}
+                    </a>
                     <span class="block text-xs text-slate-500">{{ linha.matricula.medico.cpf }}</span>
                   </td>
-                  <td class="celula w-48">
-                    <div class="flex items-center gap-2">
-                      <span class="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
-                        <span class="block h-full rounded-full {% if linha.aprovado %}bg-marca-500{% else %}bg-pacifico-500{% endif %}"
-                              style="width: {{ linha.cobertura }}%"></span>
-                      </span>
-                      <span class="w-10 text-right text-xs font-semibold text-slate-600">{{ linha.cobertura }}%</span>
-                    </div>
-                    {% if linha.pendencias %}
-                      <p class="mt-1.5 text-xs font-medium text-rose-600"
-                         title="Aula abaixo do percentual mínimo exigido para a aprovação">
-                        {% for item in linha.pendencias %}{{ item.video.title }}: {{ item.atual }}% (mín. {{ item.exigido|floatformat:0 }}%){% if not forloop.last %}; {% endif %}{% endfor %}
-                      </p>
-                    {% endif %}
-                  </td>
+                  <td class="celula">{{ linha.cobertura }}%</td>
                   <td class="celula">
                     <span class="etiqueta {{ linha.matricula.status|cor_status }}" data-status-badge>{{ linha.matricula.get_status_display }}</span>
                   </td>
@@ -397,4 +388,8 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+{% include "partials/dialogo_aluno.html" %}
 {% endblock %}

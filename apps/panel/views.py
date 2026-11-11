@@ -32,6 +32,7 @@ from apps.courses.services import (
     criterios_de_aprovacao,
     format_hours,
     posicionar_video,
+    progresso_por_aula,
     record_audit,
     renumerar_videos,
     reset_progress,
@@ -355,14 +356,10 @@ def curso_detalhe(request, pk):
     )
     for matricula in turma:
         progresses = Progress.objects.filter(enrollment=matricula)
-        criterio = criterios_de_aprovacao(matricula)
         linhas.append(
             {
                 "matricula": matricula,
-                "cobertura": round(criterio["cobertura"], 1),
-                "exigido": criterio["exigido"],
-                "pendencias": criterio["pendencias"],
-                "aprovado": matricula.status == Enrollment.Status.APPROVED,
+                "cobertura": round(course_coverage(matricula), 1),
                 "ultima": progresses.aggregate(last=Max("last_seen_at"))["last"],
                 "tempo": format_hours(progresses.aggregate(total=Sum("watch_seconds"))["total"] or 0),
                 "sessoes": WatchSession.objects.filter(enrollment=matricula).count(),
@@ -530,7 +527,11 @@ def medicos(request):
 
 
 def medico_detalhe(request, pk):
-    """Dados do aluno e de suas matrículas (conteúdo do diálogo da listagem)."""
+    """Dados do aluno e de suas matrículas (conteúdo do diálogo da listagem).
+
+    Com ?curso=<id> (vindo da turma do curso), mostra o progresso do aluno
+    em cada aula daquele curso em vez da lista de matrículas.
+    """
     medico = get_object_or_404(Medico.objects.select_related("user"), pk=pk)
 
     matriculas = []
@@ -546,13 +547,34 @@ def medico_detalhe(request, pk):
             }
         )
 
+    curso = None
+    aulas = []
+    matriculado = False
+    curso_id = request.GET.get("curso", "").strip()
+    if curso_id:
+        curso = Course.objects.filter(pk=curso_id).first()
+        if curso:
+            matricula = Enrollment.objects.filter(
+                medico=medico, course=curso
+            ).first()
+            if matricula:
+                matriculado = True
+                aulas = progresso_por_aula(matricula)
+
     ultimo_geral = Progress.objects.filter(enrollment__medico=medico).aggregate(
         last=Max("last_seen_at")
     )["last"]
     return render(
         request,
         "panel/medico_detalhe.html",
-        {"medico": medico, "matriculas": matriculas, "ultimo": ultimo_geral},
+        {
+            "medico": medico,
+            "matriculas": matriculas,
+            "ultimo": ultimo_geral,
+            "curso": curso,
+            "aulas": aulas,
+            "matriculado": matriculado,
+        },
     )
 
 

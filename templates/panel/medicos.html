@@ -107,57 +107,8 @@
   </div>
 </div>
 {% include "partials/paginacao.html" %}
-
-<dialog id="medico-dialogo"
-        class="cartao m-auto w-[calc(100%-2rem)] max-w-2xl overflow-hidden p-0 backdrop:bg-slate-950/60">
-  <div id="medico-dialogo-conteudo" class="max-h-[85vh] overflow-y-auto p-6"></div>
-</dialog>
 {% endblock %}
 
 {% block scripts %}
-<script>
-  // Diálogo do aluno: busca os dados (HTML pronto) ao clicar no nome da lista.
-  (function () {
-    var dialogo = document.getElementById('medico-dialogo');
-    var conteudo = document.getElementById('medico-dialogo-conteudo');
-    if (!dialogo || !conteudo || typeof dialogo.showModal !== 'function') {
-      return; // sem <dialog> nativo: o link segue navegando normalmente
-    }
-
-    document.addEventListener('click', function (evento) {
-      var gatilho = evento.target.closest('[data-medico-dialog]');
-      if (gatilho) {
-        evento.preventDefault();
-        conteudo.innerHTML = '<p class="text-sm text-slate-500">Carregando…</p>';
-        dialogo.showModal();
-        fetch(gatilho.getAttribute('href'), {
-          credentials: 'same-origin',
-          headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        })
-          .then(function (resposta) {
-            if (!resposta.ok) {
-              throw new Error('HTTP ' + resposta.status);
-            }
-            return resposta.text();
-          })
-          .then(function (html) {
-            conteudo.innerHTML = html;
-          })
-          .catch(function () {
-            conteudo.innerHTML =
-              '<p class="text-sm text-rose-600">' +
-              'Não foi possível carregar os dados do aluno. Feche e tente novamente.</p>';
-          });
-        return;
-      }
-      if (evento.target.closest('[data-dialogo-fechar]')) {
-        dialogo.close();
-        return;
-      }
-      if (evento.target === dialogo) {
-        dialogo.close(); // clique no fundo escuro
-      }
-    });
-  })();
-</script>
+{% include "partials/dialogo_aluno.html" %}
 {% endblock %}

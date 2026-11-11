@@ -190,6 +190,35 @@ def aulas_abaixo_do_minimo(enrollment: Enrollment) -> list[dict]:
     return pendencias
 
 
+def progresso_por_aula(enrollment: Enrollment) -> list[dict]:
+    """Progresso do aluno em cada aula do curso (diálogo da turma).
+
+    Diferente de aulas_abaixo_do_minimo, devolve TODAS as aulas — inclusive
+    as que já atingiram o mínimo e as sem mínimo definido.
+    """
+    curso = enrollment.course
+    progresses = {
+        progress.video_id: progress
+        for progress in Progress.objects.filter(enrollment=enrollment)
+    }
+    aulas = []
+    # Todas as aulas do curso (inclusive sem arquivo/prontas) — é a
+    # estrutura da turma, diferente do player (course_videos).
+    for video in curso.videos.all():
+        progress = progresses.get(video.pk)
+        atual = video_coverage(progress) if progress else 0.0
+        minimo = minimo_da_aula(video, curso)
+        aulas.append(
+            {
+                "video": video,
+                "atual": round(atual, 1),
+                "exigido": minimo,
+                "atende": minimo <= 0 or atual >= minimo,
+            }
+        )
+    return aulas
+
+
 def criterios_de_aprovacao(enrollment: Enrollment) -> dict:
     """Avalia os dois critériios de aprovação da matrícula.
 
