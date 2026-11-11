@@ -50,6 +50,26 @@ def duracao(seconds):
 
 
 @register.filter
+def posicao(seconds):
+    """Segundos como posição do player: ``7:31`` / ``1:03:12``.
+
+    Diferente de ``duracao`` (que resume em minutos), preserva os segundos —
+    é o formato do ponto de retomada exibido no CTA "Continuar".
+    """
+    try:
+        total = int(float(seconds or 0))
+    except (TypeError, ValueError):
+        total = 0
+    if total <= 0:
+        return "0:00"
+    horas, resto = divmod(total, 3600)
+    minutos, segundos = divmod(resto, 60)
+    if horas:
+        return f"{horas}:{minutos:02d}:{segundos:02d}"
+    return f"{minutos}:{segundos:02d}"
+
+
+@register.filter
 def porcento(valor, casas=1):
     try:
         return f"{float(valor or 0):.{casas}f}".replace(".", ",") + "%"

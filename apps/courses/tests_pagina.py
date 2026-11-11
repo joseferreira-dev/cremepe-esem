@@ -6,7 +6,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 
 from apps.accounts.models import Medico
-from apps.courses.models import Course, Enrollment, Video
+from apps.courses.models import Course, Enrollment, Progress, Video
 
 
 class TestPaginaDoCurso(TestCase):
@@ -333,6 +333,85 @@ class TestCatalogoDoAdmin(TestCase):
         for url in ("/cursos/", "/meus-certificados/", "/validar/"):
             html = self.client.get(url).content.decode()
             self.assertIn("bg-painel-gradiente", html, url)
+
+
+class TestCTADeRetomadaNoMeusCursos(TestCase):
+    """O card do aluno aponta a aula e a posição que o player reabriria."""
+
+    def setUp(self):
+        self.aluno = User.objects.create_user("aluno-retoma", password="x")
+        self.medico = Medico.objects.create(
+            user=self.aluno,
+            cpf="66655544433",
+            nome="Aluno Retoma",
+            must_change_password=False,
+        )
+        self.curso = Course.objects.create(
+            title="Curso Retoma", status=Course.Status.ACTIVE
+        )
+        self.aula1 = Video.objects.create(
+            course=self.curso,
+            order=1,
+            title="Aula 1",
+            duration=100,
+            status=Video.Status.READY,
+        )
+        self.aula2 = Video.objects.create(
+            course=self.curso,
+            order=2,
+            title="Aula 2",
+            duration=100,
+            status=Video.Status.READY,
+        )
+        self.matricula = Enrollment.objects.create(
+            medico=self.medico, course=self.curso
+        )
+        self.client.force_login(self.aluno)
+
+    def test_sem_progresso_mostra_comecar_curso(self):
+        html = self.client.get("/cursos/").content.decode()
+        self.assertIn("Começar curso", html)
+        self.assertNotIn("Continuar de onde parei", html)
+
+    def test_cta_mostra_aula_e_posicao_da_retomada(self):
+        # Aula 1 concluída; aula 2 parada em55 s — o player reabre a aula 2.
+        Progress.objects.create(
+            enrollment=self.matricula,
+            video=self.aula1,
+            covered=100,
+            furthest=100,
+            last_position=100,
+        )
+        Progress.objects.create(
+            enrollment=self.matricula,
+            video=self.aula2,
+            covered=55,
+            furthest=55,
+            last_position=55,
+        )
+        html = self.client.get("/cursos/").content.decode()
+        self.assertIn("Continuar — Aula 2 · 0:55", html)
+        self.assertNotIn("Continuar de onde parei", html)
+
+    def test_primeira_aula_em_andamento_mostra_a_posicao(self):
+        # Sem concluir a primeira: o alvo é a própria aula 1 (40%).
+        Progress.objects.create(
+            enrollment=self.matricula,
+            video=self.aula1,
+            covered=40,
+            furthest=40,
+            last_position=40,
+        )
+        html = self.client.get("/cursos/").content.decode()
+        self.assertIn("Continuar — Aula 1 · 0:40", html)
+
+    def test_filtro_posicao_formata_como_o_player(self):
+        from apps.web.templatetags.web import posicao
+
+        self.assertEqual(posicao(451.9), "7:31")
+        self.assertEqual(posicao(3725), "1:02:05")
+        self.assertEqual(posicao(0), "0:00")
+        self.assertEqual(posicao(None), "0:00")
 
 
 class TestPaginaDeLogin(TestCase):

@@ -14,6 +14,42 @@ from .models import Course, Enrollment, Progress
 from .services import course_coverage, format_hours, minimo_da_aula, unlocked_videos
 
 
+def _retomada(enrollment, videos, progresses):
+    """Destino que o player reabriria para este aluno.
+
+    Espelha o ``iniciar()`` do player.js: a primeira aula liberada ainda não
+    concluída (percentual < 99, mesmo critério do ``data-completed`` da
+    página) — senão a primeira liberada. A posição segue a fórmula do
+    ``player_state``: ``min(last_position, furthest)``.
+
+    Devolve ``{"video": ..., "posicao": ...}`` ou ``None`` sem aula liberada.
+    """
+    unlocked_ids = {video.id for video in unlocked_videos(enrollment)}
+    if not unlocked_ids:
+        return None
+
+    def percentual(video):
+        progress = progresses.get(video.id)
+        if progress is None or not video.duration:
+            return 0.0
+        return progress.covered / video.duration * 100
+
+    alvo = next(
+        (video for video in videos if video.id in unlocked_ids and percentual(video) < 99),
+        None,
+    )
+    if alvo is None:
+        alvo = next((video for video in videos if video.id in unlocked_ids), None)
+    if alvo is None:
+        return None
+
+    progress = progresses.get(alvo.id)
+    posicao = 0.0
+    if progress is not None:
+        posicao = min(progress.last_position or 0.0, progress.furthest or 0.0)
+    return {"video": alvo, "posicao": round(posicao, 1)}
+
+
 @never_cache
 @login_required_limpo
 def my_courses(request):
@@ -54,6 +90,14 @@ def my_courses(request):
         .order_by("-created_at")
     )
 
+    # Progressos de todas as matrículas em uma única consulta — alimenta o
+    # rótulo do CTA "Continuar" (aula + posição da retomada).
+    progresses: dict[int, dict[int, Progress]] = {}
+    for progress in Progress.objects.filter(enrollment__in=enrollments):
+        progresses.setdefault(progress.enrollment_id, {})[
+            progress.video_id
+        ] = progress
+
     items = []
     for enrollment in enrollments:
         curso = enrollment.course
@@ -76,6 +120,13 @@ def my_courses(request):
                     "Arquivado"
                     if curso.status == Course.Status.ARCHIVED
                     else ("Prazo encerrado" if curso.expirado else "")
+                ),
+                "retomada": (
+                    None
+                    if bloqueado
+                    else _retomada(
+                        enrollment, videos, progresses.get(enrollment.id, {})
+                    )
                 ),
             }
         )

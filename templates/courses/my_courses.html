@@ -160,7 +160,12 @@
               {% else %}
                 <a href="{% url 'course' item.enrollment.id %}"
                    class="btn {% if item.coverage > 0 %}btn-primary{% else %}btn-secundario{% endif %} mt-5 w-full">
-                  {% if item.coverage > 0 %}
+                  {% if item.coverage > 0 and item.retomada %}
+                    {{ icons.reproduzir|safe }}
+                    <span class="min-w-0 truncate">
+                      Continuar — {{ item.retomada.video.title }}{% if item.retomada.posicao > 0 %} · {{ item.retomada.posicao|posicao }}{% endif %}
+                    </span>
+                  {% elif item.coverage > 0 %}
                     {{ icons.reproduzir|safe }} Continuar de onde parei
                   {% else %}
                     {{ icons.reproduzir|safe }} Começar curso
