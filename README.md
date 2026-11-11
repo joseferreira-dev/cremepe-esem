@@ -98,6 +98,10 @@ sequenceDiagram
     Note over N: alunos passam a ver a nova versão
 ```
 
+Se a transcodificação falhar, o worker **repete automaticamente até `TRANSCODE_MAX_RETRIES`
+tentativas** (padrão 3, com nova tentativa em cada volta da fila); só depois o vídeo vira
+**Erro no processamento** e pode ser reprocessado à mão pelo painel.
+
 > Enquanto a nova versão processa, a **antiga continua no ar**. Se o vídeo é
 > totalmente diferente, o progresso dos alunos é reiniciado ao concluir; se é
 > apenas uma nova versão do mesmo conteúdo, o progresso é mantido.
@@ -329,6 +333,11 @@ Se o navegador estiver com cookies antigos: **DevTools → Application → Stora
 # ./scripts/backup.sh  (no host; usa pg_dump + rsync)
 30 2 * * * /opt/cremepe-esem/scripts/backup.sh
 ```
+
+**Cópia offsite (opcional):** defina no `.env` para levar dumps e mídia fora desta
+máquina — `BACKUP_RSYNC_TARGET=user@servidor:/var/backups/cremepe` (SSH) ou um caminho
+local de outro disco. Sem `rsync` a cópia é pulada com aviso; uma falha encerra o script
+com erro (o backup local já está feito) para o cron sinalizar.
 
 Gera `backups/db-<timestamp>.dump` e `backups/media/`, com retenção de 30 dias.
 **Teste a restauração trimestralmente.**

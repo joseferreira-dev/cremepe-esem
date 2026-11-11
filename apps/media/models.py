@@ -63,6 +63,8 @@ class Job(models.Model):
         "Situação", max_length=20, choices=Status, default=Status.QUEUED
     )
     progress = models.PositiveIntegerField("Progresso (%)", default=0)
+    # Tentativas já executadas (retry automático no worker até o limite).
+    attempts = models.PositiveIntegerField("Tentativas", default=0)
     error = models.TextField("Erro", blank=True)
     created_at = models.DateTimeField("Criado em", auto_now_add=True)
     finished_at = models.DateTimeField("Finalizado em", null=True, blank=True)

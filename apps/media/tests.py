@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 from django.conf import settings
 from django.contrib.auth.models import User
@@ -893,3 +894,81 @@ class TestRecuperacaoDeJobs(TestCase):
         Job.objects.create(video=self.video, status=Job.Status.DONE)
         Job.objects.create(video=self.video, status=Job.Status.FAILED)
         self.assertEqual(recuperar_jobs_orfaos(), 0)
+
+
+class TestRetryAutomaticoDoVideo(TestCase):
+    """Falha de transcodificação reenfileira até o limite; depois vira Erro."""
+
+    def setUp(self):
+        import tempfile
+
+        from django.test import override_settings
+
+        self.media_tmp = tempfile.mkdtemp(prefix="retry-media-")
+        self._override = override_settings(MEDIA_ROOT=self.media_tmp)
+        self._override.enable()
+
+        self.curso = Course.objects.create(
+            title="Curso Retry", status=Course.Status.ACTIVE
+        )
+        self.video = Video.objects.create(
+            course=self.curso,
+            order=1,
+            title="Aula Retry",
+            substituicao=Video.Substituicao.NOVA_VERSAO,
+        )
+        from apps.media.models import Job
+
+        self.job = Job.objects.create(kind=Job.Kind.TRANSCODE, video=self.video)
+
+    def tearDown(self):
+        import shutil
+
+        self._override.disable()
+        shutil.rmtree(self.media_tmp, ignore_errors=True)
+
+    @patch(
+        "apps.media.management.commands.runworker.process_transcode",
+        side_effect=Exception("ffmpeg quebrou"),
+    )
+    def test_reenfileira_ate_o_limite_e_depois_falha(self, mock_transcode):
+        from django.core.management import call_command
+
+        from apps.courses.models import AuditLog
+        from apps.media.models import Job
+
+        #1ª e2ª falha: volta para a fila com o vídeo ainda "processando"
+        # e a substituição pendente preservada (promote acontece no sucesso).
+        for tentativa in (1, 2):
+            call_command("runworker", "--once")
+            self.job.refresh_from_db()
+            self.video.refresh_from_db()
+            self.assertEqual(self.job.attempts, tentativa)
+            self.assertEqual(self.job.status, Job.Status.QUEUED)
+            self.assertIsNone(self.job.finished_at)
+            self.assertEqual(self.video.status, Video.Status.PROCESSING)
+            self.assertEqual(
+                self.video.substituicao, Video.Substituicao.NOVA_VERSAO
+            )
+
+        #3ª falha: tentativas esgotadas → vídeo Erro, tarefa Falhou.
+        call_command("runworker", "--once")
+        self.job.refresh_from_db()
+        self.video.refresh_from_db()
+        self.assertEqual(self.job.attempts, 3)
+        self.assertEqual(self.job.status, Job.Status.FAILED)
+        self.assertIsNotNone(self.job.finished_at)
+        self.assertEqual(self.video.status, Video.Status.ERROR)
+        self.assertEqual(self.video.substituicao, Video.Substituicao.NENHUMA)
+        self.assertEqual(mock_transcode.call_count, 3)
+
+        # Auditoria: uma entrada automática por retry (2) — a falha final
+        # já aparece como status do vídeo/tarefa.
+        retries = AuditLog.objects.filter(
+            action="video_reprocessado", detail__origem="automatica"
+        )
+        self.assertEqual(retries.count(), 2)
+        self.assertEqual(
+            {registro.detail.get("tentativa") for registro in retries},
+            {1, 2},
+        )

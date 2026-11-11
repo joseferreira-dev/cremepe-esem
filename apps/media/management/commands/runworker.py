@@ -3,12 +3,13 @@
 import shutil
 import time
 
+from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
 
 from apps.courses.models import Video
-from apps.courses.services import reset_video_progress
+from apps.courses.services import record_audit, reset_video_progress
 from apps.media.models import Job
 from apps.media.services import (
     hls_pending_dir,
@@ -86,6 +87,9 @@ class Command(BaseCommand):
     def _process(self, job: Job) -> None:
         video = job.video
         self.stdout.write(f"Processando vídeo #{video.pk} ({video.title})...")
+        job.attempts += 1
+        job.error = ""
+        job.save(update_fields=["attempts", "error"])
         video.status = Video.Status.PROCESSING
         video.error_message = ""
         video.save(update_fields=["status", "error_message"])
@@ -125,13 +129,47 @@ class Command(BaseCommand):
             pendente = hls_pending_dir(video)
             if pendente.exists():
                 shutil.rmtree(pendente, ignore_errors=True)
-            video.status = Video.Status.ERROR
-            video.error_message = str(exc)[:4000]
-            video.substituicao = Video.Substituicao.NENHUMA
-            video.save(update_fields=["status", "error_message", "substituicao"])
-            job.status = Job.Status.FAILED
-            job.error = str(exc)[:4000]
-            self.stderr.write(self.style.ERROR(f"Falha no v��deo #{video.pk}: {exc}"))
+            if job.attempts < settings.TRANSCODE_MAX_RETRIES:
+                # Retry automático: o vídeo continua "processando" e a
+                # substituição pendente fica intacta para a próxima tentativa.
+                job.status = Job.Status.QUEUED
+                job.error = str(exc)[:4000]
+                record_audit(
+                    "video_reprocessado",
+                    actor=None,
+                    target=f"Vídeo #{video.pk}",
+                    detail={
+                        "origem": "automatica",
+                        "titulo": video.title,
+                        "tentativa": job.attempts,
+                        "erro": str(exc)[:200],
+                    },
+                )
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Falha #{job.attempts} no vídeo #{video.pk}; "
+                        f"tentativa automática agendada: {exc}"
+                    )
+                )
+            else:
+                video.status = Video.Status.ERROR
+                video.error_message = str(exc)[:4000]
+                video.substituicao = Video.Substituicao.NENHUMA
+                video.save(
+                    update_fields=["status", "error_message", "substituicao"]
+                )
+                job.status = Job.Status.FAILED
+                job.error = str(exc)[:4000]
+                self.stderr.write(
+                    self.style.ERROR(
+                        f"Falha no vídeo #{video.pk} após {job.attempts} "
+                        f"tentativa(s): {exc}"
+                    )
+                )
         finally:
-            job.finished_at = timezone.now()
-            job.save(update_fields=["status", "error", "finished_at"])
+            if job.status == Job.Status.QUEUED:
+                # Reenfileirado pelo retry: nada terminou — sem finished_at.
+                job.save(update_fields=["status", "error"])
+            else:
+                job.finished_at = timezone.now()
+                job.save(update_fields=["status", "error", "finished_at"])

@@ -21,7 +21,7 @@ class UploadSessionAdmin(admin.ModelAdmin):
 
 @admin.register(Job)
 class JobAdmin(admin.ModelAdmin):
-    list_display = ("id", "kind", "video", "status", "progress", "created_at", "finished_at")
+    list_display = ("id", "kind", "video", "status", "progress", "attempts", "created_at", "finished_at")
     list_filter = ("status", "kind")
     search_fields = ("video__title",)
     readonly_fields = [field.name for field in Job._meta.fields]
@@ -32,6 +32,9 @@ class JobAdmin(admin.ModelAdmin):
         for job in queryset:
             job.status = Job.Status.QUEUED
             job.progress = 0
+            # Reinicia a contagem: senão o retry automático consideraria
+            # as tentativas gastas e falharia de novo sem processar.
+            job.attempts = 0
             job.error = ""
             job.finished_at = None
             job.save()

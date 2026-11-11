@@ -183,6 +183,9 @@ HLS_SEGMENT_SECONDS = env_int("HLS_SEGMENT_SECONDS", 4)
 #   transcode-> sempre gera 720p/540p/360p (mais leve, melhor para o aluno)
 VIDEO_PIPELINE = os.environ.get("VIDEO_PIPELINE", "auto").strip().lower()
 VIDEO_MAX_HEIGHT = env_int("VIDEO_MAX_HEIGHT", 720)
+# Tentativas automáticas por tarefa antes de marcar o vídeo como erro
+# (0 = sem retry: a primeira falha já vira "Erro no processamento").
+TRANSCODE_MAX_RETRIES = env_int("TRANSCODE_MAX_RETRIES", 3)
 
 LOGGING = {
     "version": 1,
