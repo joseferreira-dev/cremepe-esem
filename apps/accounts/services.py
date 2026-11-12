@@ -93,3 +93,21 @@ def preservar_sessoes(user) -> int:
             sessao.save(update_fields=["session_data"])
             atualizadas += 1
     return atualizadas
+
+
+def encerrar_sessoes(user) -> int:
+    """Apaga as sessoes abertas do usuario (exclusao de dados / LGPD).
+
+    Sem isso a sessao antiga continuaria valida ate o ``expire_date`` mesmo
+    depois que a conta deixa de existir. Devolve quantas sessoes foram
+    encerradas (o id do usuario fica gravado como texto na sessao).
+    """
+    from django.contrib.sessions.models import Session
+    from django.utils import timezone
+
+    encerradas = 0
+    for sessao in Session.objects.filter(expire_date__gt=timezone.now()):
+        if str(sessao.get_decoded().get("_auth_user_id")) == str(user.pk):
+            sessao.delete()
+            encerradas += 1
+    return encerradas

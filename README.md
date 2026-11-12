@@ -461,6 +461,10 @@ docs/              sistema de design e decisões técnicas
 - Senhas com PBKDF2; sessão `HttpOnly` + `SameSite`; CSRF ativo.
 - Login com mensagem genérica + rate limit no nginx.
 - O aluno só acessa as próprias matrículas e mídia (testes cobrem isso).
+- **Exclusão de dados do aluno (LGPD)**: em **Médicos → Excluir**, cadastro,
+  conta e sessões abertas são apagados em transação, com registro na auditoria.
+  A exclusão fica **bloqueada enquanto o aluno tiver matrícula**; a tentativa
+  bloqueada também é auditada.
 - Toda **exportação** (CSV/XLSX) fica registrada na auditoria — é egresso de
   dados pessoais.
 - Dados pessoais e logs de acesso exigem base legal, aviso de privacidade

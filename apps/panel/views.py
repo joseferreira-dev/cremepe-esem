@@ -26,7 +26,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_GET, require_POST
 
 from apps.accounts.models import Medico, normalize_cpf
-from apps.accounts.services import criar_conta_medico, redefinir_senha
+from apps.accounts.services import criar_conta_medico, encerrar_sessoes, redefinir_senha
 from apps.certificates.models import Certificate
 from apps.courses.models import AuditLog, Course, Enrollment, Progress, Video, WatchSession
 from apps.courses.services import (
@@ -746,6 +746,48 @@ def medico_acao(request, pk):
             f"Senha provisória de {medico.nome}: {senha} "
             "(ele será obrigado a trocá-la no próximo acesso).",
         )
+    elif acao == "excluir":
+        # LGPD: exclusão real só é permitida sem vínculos. Enquanto houver
+        # matrícula, apagar a conta destruiria histórico de progresso e
+        # certificados — o bloqueio fica registrado na auditoria.
+        vinculos = medico.enrollments.count()
+        if vinculos:
+            record_audit(
+                "medico_exclusao_bloqueada",
+                actor=request.user,
+                target=medico.nome,
+                detail={"cpf": medico.cpf, "matriculas": vinculos},
+                ip=request.META.get("REMOTE_ADDR"),
+            )
+            messages.error(
+                request,
+                f"Exclusão de {medico.nome} bloqueada: o aluno tem "
+                f"{vinculos} matrícula(s) no portal. Remova os vínculos "
+                "antes de apagar os dados.",
+            )
+        else:
+            nome, cpf, user_id = medico.nome, medico.cpf, medico.user_id
+            with transaction.atomic():
+                # A conta (User) carrega o login: apagá-la derruba o cadastro
+                # em cascata. As sessões abertas do aluno são encerradas antes,
+                # para não sobrar sessão válida apontando para conta inexistente.
+                usuario = User.objects.filter(pk=user_id).first() if user_id else None
+                sessoes = encerrar_sessoes(usuario) if usuario else 0
+                if usuario:
+                    usuario.delete()
+                else:
+                    medico.delete()
+                record_audit(
+                    "medico_excluido",
+                    actor=request.user,
+                    target=nome,
+                    detail={"cpf": cpf, "sessoes_encerradas": sessoes},
+                    ip=request.META.get("REMOTE_ADDR"),
+                )
+            messages.success(
+                request,
+                f"Dados de {nome} excluídos do portal (cadastro, conta e sessões).",
+            )
     return redirect("painel_medicos")
 
 

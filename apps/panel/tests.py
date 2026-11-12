@@ -1560,13 +1560,15 @@ class TestListagemDeAlunos(TestCase):
         # Cinco colunas: Médico, CPF, Última atividade, Situação, Ações.
         self.assertEqual(html.count("cabecalho-tabela"), 5)
 
-    def test_desativar_pedee_confirmacao(self):
+    def test_desativar_e_excluir_pedem_confirmacao(self):
         ativo = self._criar(1)
         self._criar(2, ativo=False)
         html = self.client.get("/painel/medicos/").content.decode()
-        # Só a desativação pede confirmação (a reativação não).
-        self.assertEqual(html.count("data-confirm="), 1)
+        # Desativar só quando o aluno está ativo; excluir (LGPD) sempre:
+        # 1 confirmação de desativação + 2 de exclusão.
+        self.assertEqual(html.count("data-confirm="), 3)
         self.assertIn("Desativar o aluno", html)
+        self.assertIn("Excluir definitivamente os dados de", html)
         self.assertIn(f"/painel/medicos/{ativo.pk}/acao/", html)
 
     def test_ativar_e_desativar_sao_auditados(self):
@@ -1981,3 +1983,84 @@ class TestExportacaoGeral(TestCase):
         html_matriculas = self.client.get("/painel/matriculas/").content.decode()
         self.assertIn("tipo=progresso&amp;formato=csv", html_matriculas)
         self.assertIn("tipo=certificados&amp;formato=xlsx", html_matriculas)
+
+
+class TestExclusaoLgpdDoAluno(TestCase):
+    """Exclusão real de dados do aluno, bloqueada quando há vínculos."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            "admin-lgpd", "a@b.c", "senha12345"
+        )
+        self.client.force_login(self.admin)
+
+    def _aluno(self):
+        user = User.objects.create_user("aluno-lgpd", password="senha12345")
+        return Medico.objects.create(
+            user=user, cpf="55566677788", nome="Aluno LGPD",
+            must_change_password=False,
+        )
+
+    def test_exclusao_bloqueada_quando_ha_matricula(self):
+        medico = self._aluno()
+        curso = Course.objects.create(title="Curso LGPD", status=Course.Status.ACTIVE)
+        Enrollment.objects.create(medico=medico, course=curso)
+
+        resposta = self.client.post(
+            f"/painel/medicos/{medico.pk}/acao/", {"acao": "excluir"}
+        )
+
+        self.assertEqual(resposta.status_code, 302)
+        # Nada é apagado enquanto houver vínculo.
+        self.assertTrue(Medico.objects.filter(pk=medico.pk).exists())
+        self.assertTrue(User.objects.filter(pk=medico.user_id).exists())
+        self.assertTrue(
+            AuditLog.objects.filter(action="medico_exclusao_bloqueada").exists()
+        )
+        # O aviso explica o motivo na listagem.
+        pagina = self.client.get("/painel/medicos/").content.decode()
+        self.assertIn(f"Exclusão de {medico.nome} bloqueada", pagina)
+
+    def test_exclusao_sem_vinculo_apaga_conta_e_cadastro(self):
+        medico = self._aluno()
+        user_id = medico.user_id
+
+        resposta = self.client.post(
+            f"/painel/medicos/{medico.pk}/acao/", {"acao": "excluir"}
+        )
+
+        self.assertEqual(resposta.status_code, 302)
+        self.assertFalse(Medico.objects.filter(pk=medico.pk).exists())
+        self.assertFalse(User.objects.filter(pk=user_id).exists())
+        log = AuditLog.objects.filter(action="medico_excluido").first()
+        self.assertIsNotNone(log)
+        # O model normaliza o nome no save: o alvo da auditoria é o nome gravado.
+        self.assertEqual(log.target, medico.nome)
+        self.assertEqual(log.detail.get("cpf"), "55566677788")
+
+    def test_exclusao_encerra_as_sessoes_abertas_do_aluno(self):
+        from django.contrib.sessions.backends.db import SessionStore
+        from django.contrib.sessions.models import Session
+
+        medico = self._aluno()
+        user_id = medico.user_id
+        loja = SessionStore()
+        loja["_auth_user_id"] = str(user_id)
+        loja.create()
+
+        self.client.post(f"/painel/medicos/{medico.pk}/acao/", {"acao": "excluir"})
+
+        sobraram = [
+            sessao
+            for sessao in Session.objects.all()
+            if str(sessao.get_decoded().get("_auth_user_id")) == str(user_id)
+        ]
+        self.assertEqual(sobraram, [])
+
+    def test_botao_excluir_pede_confirmacao_na_listagem(self):
+        self._aluno()
+
+        html = self.client.get("/painel/medicos/").content.decode()
+
+        self.assertIn('name="acao" value="excluir"', html)
+        self.assertIn("Excluir definitivamente os dados de", html)

@@ -108,6 +108,12 @@
                     {% if linha.medico.ativo %}Desativar{% else %}Ativar{% endif %}
                   </button>
                 </form>
+                <form method="post" action="{% url 'painel_medico_acao' linha.medico.id %}"
+                      data-confirm="Excluir definitivamente os dados de “{{ linha.medico.nome }}”? Cadastro e conta serão apagados — esta ação não pode ser desfeita.">
+                  {% csrf_token %}
+                  <input type="hidden" name="acao" value="excluir">
+                  <button class="btn btn-fantasma btn-sm text-rose-600" type="submit">Excluir</button>
+                </form>
               </div>
             </td>
           </tr>
