@@ -9,7 +9,23 @@
     <h1 class="text-3xl font-bold tracking-tight text-slate-900">Médicos</h1>
     <p class="mt-2 text-sm text-slate-500">Listagem dos alunos cadastrados no portal.</p>
   </div>
-  <div class="flex flex-wrap gap-2">
+  <div class="flex flex-wrap items-center gap-2">
+    <div class="relative">
+      <button type="button" data-dropdown-toggle="exportar-alunos" class="btn btn-secundario">
+        {{ icons.baixar|safe }} Exportar
+      </button>
+      <div id="exportar-alunos" data-dropdown-menu
+           class="absolute right-0 mt-2 hidden w-60 overflow-hidden rounded-2xl bg-white p-1.5 ring-1 ring-slate-200 sombra-forte">
+        <a href="{% url 'painel_exportar' %}?tipo=alunos&amp;formato=csv&amp;q={{ busca|urlencode }}&amp;situacao={{ situacao|urlencode }}"
+           class="flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
+          {{ icons.baixar|safe }} Alunos em CSV
+        </a>
+        <a href="{% url 'painel_exportar' %}?tipo=alunos&amp;formato=xlsx&amp;q={{ busca|urlencode }}&amp;situacao={{ situacao|urlencode }}"
+           class="flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
+          {{ icons.baixar|safe }} Alunos em XLSX
+        </a>
+      </div>
+    </div>
     <a href="{% url 'painel_medico_lote' %}" class="btn btn-secundario">Cadastrar em lote</a>
     <a href="{% url 'painel_medico_novo' %}" class="btn btn-primary">{{ icons.mais|safe }} Novo médico</a>
   </div>

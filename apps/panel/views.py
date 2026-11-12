@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import csv
 import io
 import re
 import secrets
-from datetime import datetime
+from datetime import date, datetime
 
 import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -15,17 +16,18 @@ from django.contrib import messages
 from django.contrib.auth.models import User
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Max, Q, Sum, TextField
+from django.db.models import Count, Max, Q, Sum, TextField
 from django.db.models.functions import Cast
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from apps.accounts.models import Medico, normalize_cpf
 from apps.accounts.services import criar_conta_medico, redefinir_senha
+from apps.certificates.models import Certificate
 from apps.courses.models import AuditLog, Course, Enrollment, Progress, Video, WatchSession
 from apps.courses.services import (
     course_coverage,
@@ -884,36 +886,47 @@ def matricula_acao(request, pk):
     return redirect(_destino_matricula(request, curso_id))
 
 
+def _linha_de_progresso(matricula) -> dict:
+    """Monta uma linha de exportação do progresso de uma matrícula.
+
+    Compartilhada pela planilha da turma (``matricula_exportar``) e pela
+    exportação geral de progresso (``exportar_geral``).
+    """
+    progresses = Progress.objects.filter(enrollment=matricula)
+    ultima = progresses.aggregate(last=Max("last_seen_at"))["last"]
+    tempo = progresses.aggregate(total=Sum("watch_seconds"))["total"] or 0
+    criterio = criterios_de_aprovacao(matricula)
+    pendencias = " | ".join(
+        f"{item['video'].title}: {item['atual']:.1f}% (min. {item['exigido']:.0f}%)"
+        for item in criterio["pendencias"]
+    )
+    return {
+        "nome": matricula.medico.nome,
+        "cpf": matricula.medico.cpf,
+        "crm": matricula.medico.crm or "",
+        "curso": matricula.course.title,
+        "situacao": matricula.get_status_display(),
+        "status": matricula.status,
+        "cobertura": round(criterio["cobertura"], 1),
+        "exigido": float(criterio["exigido"]),
+        "atende": criterio["atende"],
+        "pendencias": pendencias,
+        "tempo": format_hours(tempo),
+        "sessoes": WatchSession.objects.filter(enrollment=matricula).count(),
+        "ultima": ultima,
+    }
+
+
 def matricula_exportar(request, pk):
     """Planilha XLSX da turma, formatada (título, cores, filtros e larguras)."""
     curso = get_object_or_404(Course, pk=pk)
 
-    linhas = []
-    for matricula in curso.enrollments.select_related("medico").order_by("medico__nome"):
-        progresses = Progress.objects.filter(enrollment=matricula)
-        ultima = progresses.aggregate(last=Max("last_seen_at"))["last"]
-        tempo = progresses.aggregate(total=Sum("watch_seconds"))["total"] or 0
-        criterio = criterios_de_aprovacao(matricula)
-        pendencias = " | ".join(
-            f"{item['video'].title}: {item['atual']:.1f}% (min. {item['exigido']:.0f}%)"
-            for item in criterio["pendencias"]
-        )
-        linhas.append(
-            {
-                "nome": matricula.medico.nome,
-                "cpf": matricula.medico.cpf,
-                "crm": matricula.medico.crm or "",
-                "situacao": matricula.get_status_display(),
-                "status": matricula.status,
-                "cobertura": round(criterio["cobertura"], 1),
-                "exigido": float(criterio["exigido"]),
-                "atende": criterio["atende"],
-                "pendencias": pendencias,
-                "tempo": format_hours(tempo),
-                "sessoes": WatchSession.objects.filter(enrollment=matricula).count(),
-                "ultima": ultima,
-            }
-        )
+    linhas = [
+        _linha_de_progresso(matricula)
+        for matricula in curso.enrollments.select_related(
+            "medico", "course"
+        ).order_by("medico__nome")
+    ]
 
     cabecalhos = [
         "Matrícula",
@@ -1047,6 +1060,387 @@ def matricula_exportar(request, pk):
     )
     response["Content-Disposition"] = f'attachment; filename="turma-{curso.pk}.xlsx"'
     return response
+
+
+# --------------------------------------------------------------------------
+# Exportação geral (CSV/XLSX): alunos, certificados e progresso
+# --------------------------------------------------------------------------
+EXPORTACAO_TIPOS = ("alunos", "certificados", "progresso")
+EXPORTACAO_FORMATOS = ("csv", "xlsx")
+
+
+def _dados_alunos(request) -> dict:
+    """Linhas do export de alunos (reaproveita os filtros da listagem)."""
+    busca = request.GET.get("q", "").strip()
+    situacao = request.GET.get("situacao", "").strip()
+
+    consulta = Medico.objects.all()
+    if busca:
+        consulta = consulta.filter(
+            Q(nome__icontains=busca)
+            | Q(cpf__icontains=busca.replace(".", "").replace("-", ""))
+            | Q(crm__icontains=busca)
+        )
+    if situacao == "ativo":
+        consulta = consulta.filter(ativo=True)
+    elif situacao == "inativo":
+        consulta = consulta.filter(ativo=False)
+    elif situacao == "provisoria":
+        consulta = consulta.filter(must_change_password=True)
+    consulta = consulta.order_by("nome")
+
+    # Agregados em duas consultas (em vez de uma por linha).
+    matriculas = dict(
+        Enrollment.objects.values("medico_id")
+        .annotate(total=Count("id"))
+        .values_list("medico_id", "total")
+    )
+    ultimas = dict(
+        Progress.objects.values("enrollment__medico_id")
+        .annotate(ultima=Max("last_seen_at"))
+        .values_list("enrollment__medico_id", "ultima")
+    )
+
+    linhas = [
+        [
+            medico.nome,
+            medico.cpf,
+            medico.crm or "",
+            medico.email or "",
+            medico.telefone or "",
+            "Ativo" if medico.ativo else "Inativo",
+            "Sim" if medico.must_change_password else "Não",
+            matriculas.get(medico.pk, 0),
+            ultimas.get(medico.pk),
+            medico.created_at,
+        ]
+        for medico in consulta
+    ]
+
+    filtros = []
+    if busca:
+        filtros.append(f'busca "{busca}"')
+    if situacao:
+        rotulos = {
+            "ativo": "somente ativos",
+            "inativo": "somente inativos",
+            "provisoria": "senha provisória",
+        }
+        filtros.append(rotulos.get(situacao, situacao))
+
+    return {
+        "nome": "alunos",
+        "titulo": "Alunos do portal",
+        "filtros": filtros,
+        "cabecalhos": [
+            "Nome",
+            "CPF",
+            "CRM",
+            "E-mail",
+            "Telefone",
+            "Situação",
+            "Senha provisória",
+            "Matrículas",
+            "Última atividade",
+            "Cadastrado em",
+        ],
+        "linhas": linhas,
+        "larguras": [34, 15, 13, 30, 16, 12, 16, 12, 18, 18],
+        "texto": {1, 4, 5},
+        "percentual": set(),
+        "data": {9, 10},
+    }
+
+
+def _dados_certificados(request) -> dict:
+    """Linhas do export de certificados emitidos (mais recentes primeiro)."""
+    busca = request.GET.get("q", "").strip()
+    consulta = Certificate.objects.select_related(
+        "enrollment__medico", "enrollment__course", "issued_by"
+    )
+    if busca:
+        consulta = consulta.filter(
+            Q(code__icontains=busca)
+            | Q(enrollment__medico__nome__icontains=busca)
+            | Q(
+                enrollment__medico__cpf__icontains=busca.replace(".", "").replace("-", "")
+            )
+            | Q(enrollment__course__title__icontains=busca)
+        )
+
+    linhas = []
+    for certificado in consulta:
+        # O payload é a cópia congelada do que foi impresso no PDF.
+        payload = certificado.payload or {}
+        matricula = certificado.enrollment
+        linhas.append(
+            [
+                certificado.code,
+                payload.get("aluno") or matricula.medico.nome,
+                matricula.medico.cpf,
+                payload.get("curso") or matricula.course.title,
+                payload.get("percentual", ""),
+                payload.get("carga", ""),
+                certificado.issued_at,
+                certificado.issued_by.username if certificado.issued_by else "—",
+            ]
+        )
+
+    return {
+        "nome": "certificados",
+        "titulo": "Certificados emitidos",
+        "filtros": [f'busca "{busca}"'] if busca else [],
+        "cabecalhos": [
+            "Código",
+            "Aluno",
+            "CPF",
+            "Curso",
+            "Percentual %",
+            "Carga horária",
+            "Emitido em",
+            "Emitido por",
+        ],
+        "linhas": linhas,
+        "larguras": [22, 34, 15, 34, 14, 14, 18, 18],
+        "texto": {2, 4},
+        "percentual": {5},
+        "data": {7},
+    }
+
+
+def _dados_progresso(request) -> dict:
+    """Linhas do export de progresso (reaproveita os filtros da listagem)."""
+    busca = request.GET.get("q", "").strip()
+    situacao = request.GET.get("status", "").strip()
+
+    consulta = Enrollment.objects.select_related(
+        "medico", "course"
+    ).prefetch_related("course__videos")
+    if busca:
+        consulta = consulta.filter(
+            Q(medico__nome__icontains=busca)
+            | Q(medico__cpf__icontains=busca.replace(".", "").replace("-", ""))
+        )
+    if situacao:
+        consulta = consulta.filter(status=situacao)
+    consulta = consulta.order_by("medico__nome", "course__title")
+
+    linhas = []
+    for matricula in consulta:
+        linha = _linha_de_progresso(matricula)
+        linhas.append(
+            [
+                linha["nome"],
+                linha["cpf"],
+                linha["crm"],
+                linha["curso"],
+                linha["situacao"],
+                linha["cobertura"],
+                linha["exigido"],
+                "Sim" if linha["atende"] else "Não",
+                linha["pendencias"],
+                linha["tempo"],
+                linha["sessoes"],
+                linha["ultima"],
+            ]
+        )
+
+    filtros = []
+    if busca:
+        filtros.append(f'busca "{busca}"')
+    if situacao:
+        filtros.append(dict(Enrollment.Status.choices).get(situacao, situacao).lower())
+
+    return {
+        "nome": "progresso",
+        "titulo": "Progresso dos alunos",
+        "filtros": filtros,
+        "cabecalhos": [
+            "Aluno",
+            "CPF",
+            "CRM",
+            "Curso",
+            "Situação",
+            "Cobertura %",
+            "Exigido %",
+            "Aprovado",
+            "Aulas abaixo do mínimo",
+            "Tempo em aula",
+            "Sessões",
+            "Última atividade",
+        ],
+        "linhas": linhas,
+        "larguras": [34, 15, 13, 34, 16, 13, 12, 11, 45, 13, 9, 18],
+        "texto": {1, 4, 9},
+        "percentual": {6, 7},
+        "data": {12},
+    }
+
+
+def _contexto_exportacao(dados) -> str:
+    """Texto da linha de contexto: data, total de registros e filtros."""
+    exportado = timezone.localtime().strftime("%d/%m/%Y às %H:%M")
+    partes = [f"Exportado em {exportado}", f"{len(dados['linhas'])} registro(s)"]
+    if dados["filtros"]:
+        partes.append("filtros: " + ", ".join(dados["filtros"]))
+    return " · ".join(partes)
+
+
+def _valor_csv(valor):
+    """Converte um valor para o CSV no padrão Excel pt-BR (vírgula decimal)."""
+    if valor is None:
+        return ""
+    if isinstance(valor, datetime):
+        if valor.tzinfo is not None:
+            valor = timezone.localtime(valor)
+        return valor.strftime("%d/%m/%Y %H:%M")
+    if isinstance(valor, date):
+        return valor.strftime("%d/%m/%Y")
+    if isinstance(valor, bool):
+        return "Sim" if valor else "Não"
+    if isinstance(valor, float):
+        # O Excel pt-BR lê o ponto como separador de milhar: usa vírgula.
+        return str(valor).replace(".", ",")
+    return valor
+
+
+def _csv_geral(dados) -> HttpResponse:
+    """CSV com BOM (abre com acentos no Excel) e separador ``;``."""
+    buffer = io.StringIO()
+    escritor = csv.writer(buffer, delimiter=";", lineterminator="\r\n")
+    escritor.writerow(dados["cabecalhos"])
+    for linha in dados["linhas"]:
+        escritor.writerow([_valor_csv(valor) for valor in linha])
+
+    resposta = HttpResponse(
+        b"\xef\xbb\xbf" + buffer.getvalue().encode("utf-8"),
+        content_type="text/csv; charset=utf-8",
+    )
+    resposta["Content-Disposition"] = f'attachment; filename="{dados["nome"]}.csv"'
+    return resposta
+
+
+def _xlsx_geral(dados) -> HttpResponse:
+    """Planilha formatada (título, cabeçalho congelado, filtros e larguras)."""
+    cabecalhos = dados["cabecalhos"]
+    linhas = dados["linhas"]
+    ultima_coluna = get_column_letter(len(cabecalhos))
+
+    verde_escuro = "006448"  # marca-700
+    borda_cor = "E2E8F0"  # slate-200
+    borda = Border(
+        left=Side(style="thin", color=borda_cor),
+        right=Side(style="thin", color=borda_cor),
+        top=Side(style="thin", color=borda_cor),
+        bottom=Side(style="thin", color=borda_cor),
+    )
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = dados["nome"].capitalize()
+
+    # Linha 1: título.
+    ws.merge_cells(f"A1:{ultima_coluna}1")
+    titulo = ws["A1"]
+    titulo.value = dados["titulo"]
+    titulo.font = Font(bold=True, size=14, color="FFFFFF")
+    titulo.fill = PatternFill("solid", fgColor=verde_escuro)
+    titulo.alignment = Alignment(vertical="center", indent=1)
+    ws.row_dimensions[1].height = 28
+
+    # Linha 2: contexto da exportação.
+    ws.merge_cells(f"A2:{ultima_coluna}2")
+    contexto = ws["A2"]
+    contexto.value = _contexto_exportacao(dados)
+    contexto.font = Font(size=9, italic=True, color="64748B")
+    contexto.alignment = Alignment(vertical="center", indent=1)
+    ws.row_dimensions[2].height = 16
+
+    # Linha 3: cabeçalho (congelado e com filtro).
+    for indice, texto in enumerate(cabecalhos, start=1):
+        celula = ws.cell(row=3, column=indice, value=texto)
+        celula.font = Font(bold=True, color="FFFFFF")
+        celula.fill = PatternFill("solid", fgColor=verde_escuro)
+        celula.alignment = Alignment(
+            horizontal="center", vertical="center", wrap_text=True
+        )
+        celula.border = borda
+    ws.row_dimensions[3].height = 30
+    ws.freeze_panes = "A4"
+
+    # Dados.
+    for indice, linha in enumerate(linhas, start=4):
+        for coluna, valor in enumerate(linha, start=1):
+            # O Excel não aceita datetime consciente do fuso (USE_TZ) —
+            # openpyxl levanta TypeError no save. Converte para horário
+            # local sem tzinfo.
+            if isinstance(valor, datetime) and valor.tzinfo is not None:
+                valor = timezone.localtime(valor).replace(tzinfo=None)
+            celula = ws.cell(row=indice, column=coluna, value=valor)
+            celula.border = borda
+            texto_coluna = coluna in dados["texto"]
+            celula.alignment = Alignment(
+                horizontal="left" if texto_coluna else "center",
+                vertical="center",
+                wrap_text=texto_coluna,
+            )
+            if coluna in dados["percentual"] and isinstance(valor, (int, float)):
+                # Percentual com formato literal (o valor é 0–100).
+                celula.number_format = '0.0"%"'
+            elif coluna in dados["data"] and isinstance(valor, datetime):
+                celula.number_format = "dd/mm/yyyy hh:mm"
+
+    for indice, largura in enumerate(dados["larguras"], start=1):
+        ws.column_dimensions[get_column_letter(indice)].width = largura
+    if linhas:
+        ws.auto_filter.ref = f"A3:{ultima_coluna}{3 + len(linhas)}"
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    resposta = HttpResponse(
+        buffer.getvalue(),
+        content_type=(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        ),
+    )
+    resposta["Content-Disposition"] = f'attachment; filename="{dados["nome"]}.xlsx"'
+    return resposta
+
+
+@require_GET
+def exportar_geral(request):
+    """Exporta alunos, certificados ou progresso em CSV ou XLSX.
+
+    Os filtros da listagem (``q``, ``situacao``, ``status``) são reaproveitados:
+    o arquivo acompanha o que o painel está mostrando. Valores inválidos de
+    ``tipo``/``formato`` caem no padrão (alunos em CSV) em vez de dar erro.
+    """
+    tipo = request.GET.get("tipo", "").strip().lower()
+    if tipo not in EXPORTACAO_TIPOS:
+        tipo = "alunos"
+    formato = request.GET.get("formato", "").strip().lower()
+    if formato not in EXPORTACAO_FORMATOS:
+        formato = "csv"
+
+    if tipo == "certificados":
+        dados = _dados_certificados(request)
+    elif tipo == "progresso":
+        dados = _dados_progresso(request)
+    else:
+        dados = _dados_alunos(request)
+
+    # Exportar é egresso de dados: fica registrado na auditoria.
+    record_audit(
+        "exportacao_geral",
+        actor=request.user,
+        target=tipo,
+        detail={"formato": formato, "registros": len(dados["linhas"])},
+        ip=request.META.get("REMOTE_ADDR"),
+    )
+
+    if formato == "xlsx":
+        return _xlsx_geral(dados)
+    return _csv_geral(dados)
 
 
 # --------------------------------------------------------------------------

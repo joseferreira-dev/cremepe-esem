@@ -274,6 +274,9 @@ são do curso — iguais para todos os alunos da turma.
 - **Turma**: % de cada aluno, tempo em aula, última atividade e ações de
   **aprovar / reprovar / remover**.
 - **Exportar planilha XLSX** da turma (formatada, com cores e filtros).
+- **Exportar** (botão no topo de **Médicos** e de **Matrículas**): gera **CSV** ou
+  **XLSX** com a lista de **alunos**, o **progresso** das matrículas ou os
+  **certificados emitidos** — respeitando os filtros da tela (busca e situação).
 - **Auditoria**: registro de todas as ações administrativas.
 
 ### 6. Regras de aprovação
@@ -458,6 +461,8 @@ docs/              sistema de design e decisões técnicas
 - Senhas com PBKDF2; sessão `HttpOnly` + `SameSite`; CSRF ativo.
 - Login com mensagem genérica + rate limit no nginx.
 - O aluno só acessa as próprias matrículas e mídia (testes cobrem isso).
+- Toda **exportação** (CSV/XLSX) fica registrada na auditoria — é egresso de
+  dados pessoais.
 - Dados pessoais e logs de acesso exigem base legal, aviso de privacidade
   e política de retenção — ver `docs/decisoes-tecnicas.md`.
 

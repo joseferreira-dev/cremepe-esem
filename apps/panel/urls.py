@@ -71,6 +71,12 @@ urlpatterns = [
         somente_admin(views.medico_acao),
         name="painel_medico_acao",
     ),
+    # Exportação geral (CSV/XLSX)
+    path(
+        "exportar/",
+        somente_admin(views.exportar_geral),
+        name="painel_exportar",
+    ),
     # Matrículas
     path("matriculas/", somente_admin(views.matriculas), name="painel_matriculas"),
     path(

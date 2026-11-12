@@ -1765,3 +1765,219 @@ class TestListagemDeCursos(TestCase):
 
         vazio = self.client.get("/painel/cursos/?q=nao-existe").content.decode()
         self.assertIn("Nenhum curso encontrado com esses filtros", vazio)
+
+
+class TestExportacaoGeral(TestCase):
+    """Exportação geral em CSV/XLSX: alunos, certificados e progresso."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            "admin-export", "a@b.c", "senha12345"
+        )
+        self.client.force_login(self.admin)
+
+    def _aluno(self, numero, nome="Aluno Export", ativo=True):
+        user = User.objects.create_user(f"export-{numero}", password="x")
+        return Medico.objects.create(
+            user=user,
+            cpf=f"{numero:011d}",
+            nome=f"{nome} {numero:02d}",
+            ativo=ativo,
+            must_change_password=False,
+        )
+
+    def test_alunos_em_csv(self):
+        self._aluno(1, "Ana Export")
+        self._aluno(2, "Bruno Export", ativo=False)
+
+        resposta = self.client.get("/painel/exportar/?tipo=alunos&formato=csv")
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn("text/csv", resposta["Content-Type"])
+        self.assertIn('filename="alunos.csv"', resposta["Content-Disposition"])
+        # BOM para o Excel reconhecer os acentos.
+        self.assertTrue(resposta.content.startswith(b"\xef\xbb\xbf"))
+        linhas = resposta.content.decode("utf-8-sig").splitlines()
+        self.assertEqual(
+            linhas[0].split(";"),
+            [
+                "Nome",
+                "CPF",
+                "CRM",
+                "E-mail",
+                "Telefone",
+                "Situação",
+                "Senha provisória",
+                "Matrículas",
+                "Última atividade",
+                "Cadastrado em",
+            ],
+        )
+        self.assertIn("Ana Export 01", linhas[1])
+        self.assertIn("Inativo", linhas[2])
+
+    def test_csv_respeita_o_filtro_de_busca(self):
+        self._aluno(1, "Ana Export")
+        self._aluno(2, "Bruno Export")
+
+        resposta = self.client.get(
+            "/painel/exportar/?tipo=alunos&formato=csv&q=Bruno"
+        )
+        texto = resposta.content.decode("utf-8-sig")
+
+        self.assertIn("Bruno Export 02", texto)
+        self.assertNotIn("Ana Export 01", texto)
+
+    def test_csv_respeita_o_filtro_de_situacao(self):
+        self._aluno(1, "Ana Export")
+        self._aluno(2, "Bruno Export", ativo=False)
+
+        resposta = self.client.get(
+            "/painel/exportar/?tipo=alunos&formato=csv&situacao=inativo"
+        )
+        texto = resposta.content.decode("utf-8-sig")
+
+        self.assertIn("Bruno Export 02", texto)
+        self.assertNotIn("Ana Export 01", texto)
+
+    def test_alunos_em_xlsx(self):
+        self._aluno(1, "Ana Export")
+
+        resposta = self.client.get("/painel/exportar/?tipo=alunos&formato=xlsx")
+
+        self.assertIn("spreadsheetml", resposta["Content-Type"])
+        self.assertIn('filename="alunos.xlsx"', resposta["Content-Disposition"])
+        # XLSX é um ZIP no formato OOXML.
+        self.assertTrue(resposta.content.startswith(b"PK"))
+
+        import io as _io
+
+        import openpyxl
+
+        wb = openpyxl.load_workbook(_io.BytesIO(resposta.content))
+        ws = wb.active
+        self.assertIn("Alunos do portal", ws["A1"].value)
+        cabecalhos = [celula.value for celula in ws[3]]
+        self.assertEqual(cabecalhos[0], "Nome")
+        self.assertIn("Matrículas", cabecalhos)
+        # Cabeçalho congelado e filtro automático sobre os dados.
+        self.assertEqual(ws.freeze_panes, "A4")
+        self.assertEqual(ws.auto_filter.ref, f"A3:J{ws.max_row}")
+        self.assertEqual(ws["A4"].value, "Ana Export 01")
+
+    def test_certificados_em_csv(self):
+        from apps.certificates.models import Certificate
+
+        curso = Course.objects.create(
+            title="Curso Export", status=Course.Status.ACTIVE
+        )
+        user = User.objects.create_user("cert-export", password="x")
+        medico = Medico.objects.create(
+            user=user, cpf="99988877766", nome="Cert Export",
+            must_change_password=False,
+        )
+        matricula = Enrollment.objects.create(medico=medico, course=curso)
+        Certificate.objects.create(
+            enrollment=matricula,
+            code="ESEM-EXPORT-1",
+            payload={
+                "aluno": "Cert Export",
+                "curso": "Curso Export",
+                "carga": "1 minuto",
+                "percentual": 75.5,
+            },
+        )
+
+        resposta = self.client.get(
+            "/painel/exportar/?tipo=certificados&formato=csv"
+        )
+
+        self.assertIn('filename="certificados.csv"', resposta["Content-Disposition"])
+        texto = resposta.content.decode("utf-8-sig")
+        cabecalho, linha = texto.splitlines()[:2]
+        self.assertEqual(cabecalho.split(";")[0], "Código")
+        self.assertIn("ESEM-EXPORT-1", linha)
+        self.assertIn("Cert Export", linha)
+        self.assertIn("Curso Export", linha)
+        # Percentual com vírgula decimal (padrão do Excel pt-BR).
+        self.assertIn("75,5", linha)
+
+    def test_progresso_em_xlsx(self):
+        from django.utils import timezone
+
+        curso = Course.objects.create(
+            title="Curso Progresso", status=Course.Status.ACTIVE, min_percent=50
+        )
+        video = Video.objects.create(
+            course=curso, order=1, title="Aula 1", duration=100,
+            status=Video.Status.READY,
+        )
+        user = User.objects.create_user("prog-export", password="x")
+        medico = Medico.objects.create(
+            user=user, cpf="12345678901", nome="Prog Export",
+            must_change_password=False,
+        )
+        matricula = Enrollment.objects.create(medico=medico, course=curso)
+        Progress.objects.create(
+            enrollment=matricula,
+            video=video,
+            furthest=60,
+            covered=60,
+            last_position=60,
+            last_seen_at=timezone.now(),
+        )
+
+        resposta = self.client.get("/painel/exportar/?tipo=progresso&formato=xlsx")
+
+        import io as _io
+
+        import openpyxl
+
+        wb = openpyxl.load_workbook(_io.BytesIO(resposta.content))
+        ws = wb.active
+        cabecalhos = [celula.value for celula in ws[3]]
+        self.assertEqual(cabecalhos[0], "Aluno")
+        self.assertIn("Curso", cabecalhos)
+        self.assertIn("Cobertura %", cabecalhos)
+        self.assertEqual(ws["A4"].value, "Prog Export")
+        self.assertEqual(ws["D4"].value, "Curso Progresso")
+        self.assertAlmostEqual(ws["F4"].value, 60.0, delta=0.1)
+        self.assertAlmostEqual(ws["G4"].value, 50.0, delta=0.1)
+
+    def test_tipo_e_formato_invalidos_caem_no_padrao(self):
+        self._aluno(1)
+
+        resposta = self.client.get("/painel/exportar/?tipo=xpto&formato=zip")
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn("text/csv", resposta["Content-Type"])
+        self.assertIn('filename="alunos.csv"', resposta["Content-Disposition"])
+
+    def test_export_registra_auditoria(self):
+        self._aluno(1)
+
+        self.client.get("/painel/exportar/?tipo=alunos&formato=xlsx")
+
+        log = AuditLog.objects.filter(action="exportacao_geral").first()
+        self.assertIsNotNone(log)
+        self.assertEqual(log.target, "alunos")
+        self.assertEqual(log.detail.get("formato"), "xlsx")
+        self.assertEqual(log.detail.get("registros"), 1)
+
+    def test_export_exige_administrador(self):
+        self.client.logout()
+
+        resposta = self.client.get("/painel/exportar/")
+
+        self.assertEqual(resposta.status_code, 302)
+        self.assertIn("/painel/entrar/", resposta["Location"])
+
+    def test_botoes_de_exportacao_nas_listagens(self):
+        html_medicos = self.client.get("/painel/medicos/").content.decode()
+        self.assertIn("Exportar", html_medicos)
+        self.assertIn("tipo=alunos&amp;formato=csv", html_medicos)
+        self.assertIn("tipo=alunos&amp;formato=xlsx", html_medicos)
+
+        html_matriculas = self.client.get("/painel/matriculas/").content.decode()
+        self.assertIn("tipo=progresso&amp;formato=csv", html_matriculas)
+        self.assertIn("tipo=certificados&amp;formato=xlsx", html_matriculas)
