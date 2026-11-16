@@ -23,7 +23,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
-RUN chmod +x scripts/*.sh
+# Defesa contra CRLF no contexto de build (clone feito no Windows): o shebang
+# com \r no entrypoint quebra o exec com "no such file or directory".
+RUN sed -i 's/\r$//' scripts/*.sh && chmod +x scripts/*.sh
 
 EXPOSE 8000
 

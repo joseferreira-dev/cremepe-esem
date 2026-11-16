@@ -1,0 +1,8 @@
+# Os scripts .sh sao executados pelo kernel (Docker/Linux): um shebang com
+# CRLF falha com "no such file or directory". Sempre LF, em qualquer SO.
+*.sh text eol=lf
+
+# Arquivos de configuracao do compose/Docker tambem em LF.
+docker-compose.yml text eol=lf
+Dockerfile text eol=lf
+.env.example text eol=lf
