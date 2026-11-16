@@ -179,8 +179,8 @@ cp .env.example .env
 # Edite .env: DJANGO_SECRET_KEY, POSTGRES_PASSWORD, DJANGO_ALLOWED_HOSTS,
 #              DJANGO_CSRF_TRUSTED_ORIGINS (https://cursos.cremepe.org.br)
 
-# 3. Subir
-docker compose up -d --build
+# 3. Subir (este mesmo comando é usado nas atualizações)
+./scripts/deploy.sh
 
 # 4. Administrador do portal
 docker compose exec app python manage.py criar_admin admin --email admin@cremepe.org.br
@@ -194,7 +194,29 @@ O administrador acessa o painel em **`/painel/entrar/`**. O **Django admin**
 > com **HTTP 400** — inclusive nas chamadas internas entre containers (`nginx`, `app`).
 > No ambiente local, use `localhost,127.0.0.1,nginx,app`.
 
-O portal responde em `http://<servidor>:8080` (ou por HTTPS após configurar o certbot).
+O portal responde em `http://<servidor>:<HTTP_PORT>` — a porta definida no
+`.env` (o padrão é `8080`; escolha uma porta livre no servidor).
+
+### Atualizações (via GitHub)
+
+O servidor recebe o código do repositório no GitHub e **não há deploy
+automático**: cada nova versão é publicada com um comando no servidor:
+
+```bash
+cd /opt/cremepe-esem
+./scripts/deploy.sh
+```
+
+O script:
+
+1. atualiza o código (`git fetch` + merge fast-forward da `main`) — **recusa**
+   se houver alterações locais não commitadas no servidor;
+2. reconstrói e reinicia os containers (`docker compose up -d --build`); as
+   migrations e o `collectstatic` rodam sozinhos na subida;
+3. espera o `/healthz` responder (até 3 minutos) e remove imagens antigas.
+
+Se o repositório ficar privado, configure antes no servidor uma credencial de
+leitura no `git remote` do clone (token ou chave de deploy).
 
 ### HTTPS (recomendado)
 
@@ -204,6 +226,13 @@ docker compose exec app apt-get update && docker compose exec app apt-get instal
 ```
 
 Depois, no `.env`: `SECURE_COOKIES=true` e `DJANGO_CSRF_TRUSTED_ORIGINS=https://...`.
+
+No servidor do CREMEPE o HTTPS é terminado pelo **Apache do host** (proxy
+reverso para a porta do `.env`), como nos demais sistemas já publicados:
+crie o vhost do subdomínio copiando um existente (ex.: `netbox.conf`, com
+`ProxyPass / http://localhost:<HTTP_PORT>/` e `ProxyPreserveHost On`) e emita
+o certificado com `certbot --apache -d <subdominio>` — a renovação fica
+automática no `certbot.timer`.
 
 ---
 
