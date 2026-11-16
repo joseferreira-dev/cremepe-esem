@@ -40,13 +40,18 @@ echo "[deploy] codigo: $(git describe --tags --always) ($(git rev-parse --short 
 echo "[deploy] reconstruindo e reiniciando os containers..."
 docker compose up -d --build
 
+# O nginx so resolve o DNS do app na subida: se o container do app foi
+# recriado com outro IP, reiniciar o nginx evita 502 com o IP antigo.
+docker compose restart nginx
+
 # Porta publicada pelo nginx (HTTP_PORT no .env; padrao 8080).
 PORTA="$(grep -E '^HTTP_PORT=' .env | head -n 1 | cut -d= -f2- | tr -d ' \r"')"
 PORTA="${PORTA:-8080}"
 
+# 600s: o collectstatic --clear na subida pode demorar mais que 3 min.
 echo "[deploy] aguardando http://localhost:${PORTA}/healthz ..."
 TENTATIVA=0
-while [ "${TENTATIVA}" -lt 90 ]; do
+while [ "${TENTATIVA}" -lt 300 ]; do
     if curl -fsS "http://localhost:${PORTA}/healthz" >/dev/null 2>&1; then
         echo "[deploy] aplicacao saudavel; removendo imagens antigas..."
         docker image prune -f >/dev/null 2>&1 || true
@@ -57,7 +62,7 @@ while [ "${TENTATIVA}" -lt 90 ]; do
     sleep 2
 done
 
-echo "[deploy] ERRO: sem resposta apos 180s. Diagnostico:" >&2
+echo "[deploy] ERRO: sem resposta apos 600s. Diagnostico:" >&2
 echo "  docker compose logs --tail=100 app" >&2
 echo "  docker compose ps" >&2
 exit 1
