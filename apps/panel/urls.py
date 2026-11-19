@@ -1,3 +1,4 @@
+from django.shortcuts import redirect
 from django.urls import path
 
 from apps.accounts import views as accounts_views
@@ -6,8 +7,19 @@ from apps.certificates import views as certificates_views
 from . import views
 from .decorators import somente_admin
 
+
+def login_antigo(request):
+    """Endereço antigo do login do painel (/painel/entrar/).
+
+    Agora o acesso administrativo é /login/ e este caminho leva para o
+    login do portal. Aceita qualquer método: um formulário antigo aberto
+    no navegador não pode cair em erro 405.
+    """
+    return redirect("login")
+
+
 urlpatterns = [
-    path("entrar/", accounts_views.admin_login_view, name="painel_login"),
+    path("entrar/", login_antigo),
     path("sair/", accounts_views.admin_logout_view, name="painel_logout"),
     path("", somente_admin(views.index), name="painel_index"),
     # Cursos

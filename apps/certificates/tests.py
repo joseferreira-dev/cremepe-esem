@@ -316,7 +316,7 @@ class TestAcessoAoCertificado(BaseCertificado):
             reverse("painel_certificado", args=[self.matricula.pk])
         )
         self.assertEqual(resposta.status_code, 302)
-        self.assertIn("/painel/entrar/", resposta.url)
+        self.assertIn("/login/", resposta.url)
 
     def test_botao_aparece_somente_quando_aprovada(self):
         url = reverse("course", args=[self.matricula.pk])

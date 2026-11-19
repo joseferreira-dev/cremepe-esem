@@ -130,7 +130,7 @@ class TestSeparacaoDeContas(TestCase):
     def test_painel_nao_aceita_conta_de_medico(self):
         self._medico_staff()
         resposta = self.client.post(
-            "/painel/entrar/",
+            "/login/",
             {"username": "medico-duplo", "password": "senha12345"},
         )
         self.assertEqual(resposta.status_code, 200)

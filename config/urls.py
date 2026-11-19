@@ -26,6 +26,8 @@ urlpatterns = [
     path("healthz", healthz, name="healthz"),
     path("admin/", admin.site.urls),
     path("entrar/", accounts_views.login_view, name="login"),
+    # Login do painel administrativo (usuario + senha).
+    path("login/", accounts_views.admin_login_view, name="painel_login"),
     path("sair/", accounts_views.logout_view, name="logout"),
     path("trocar-senha/", accounts_views.password_change_view, name="password_change"),
     # A página inicial é a própria página de login.

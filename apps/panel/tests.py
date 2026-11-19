@@ -47,10 +47,10 @@ class TestAcessoAoPainel(TestCase):
     def test_anônimo_redirecionado_para_login_administrativo(self):
         resposta = self.client.get("/painel/")
         self.assertEqual(resposta.status_code, 302)
-        self.assertIn("/painel/entrar/", resposta["Location"])
+        self.assertIn("/login/", resposta["Location"])
 
     def test_pagina_de_login_administrativo(self):
-        resposta = self.client.get("/painel/entrar/")
+        resposta = self.client.get("/login/")
         self.assertEqual(resposta.status_code, 200)
         self.assertContains(resposta, "Acesso restrito")
         self.assertContains(resposta, "bg-marca-gradiente")
@@ -58,9 +58,22 @@ class TestAcessoAoPainel(TestCase):
         # telas; aqui ele fica coberto pelo gradiente da própria tela de acesso.
         self.assertContains(resposta, "bg-painel-gradiente")
 
+    def test_endereco_antigo_do_login_do_painel_leva_para_o_portal(self):
+        """Quem tem o link antigo (/painel/entrar/) cai no login do portal."""
+        resposta = self.client.get("/painel/entrar/")
+        self.assertEqual(resposta.status_code, 302)
+        self.assertEqual(resposta["Location"], "/entrar/")
+
+        # Um formulário antigo aberto no navegador não pode dar erro 405.
+        resposta = self.client.post(
+            "/painel/entrar/", {"username": "admin", "password": "senha12345"}
+        )
+        self.assertEqual(resposta.status_code, 302)
+        self.assertEqual(resposta["Location"], "/entrar/")
+
     def test_login_administrativo_por_usuario_e_senha(self):
         resposta = self.client.post(
-            "/painel/entrar/",
+            "/login/",
             {"username": "admin", "password": "senha12345"},
         )
         self.assertRedirects(resposta, "/painel/")
@@ -69,7 +82,7 @@ class TestAcessoAoPainel(TestCase):
     def test_login_auditado(self):
         """Entrada bem-sucedida e tentativas que falham ficam na auditoria."""
         self.client.post(
-            "/painel/entrar/", {"username": "admin", "password": "senha12345"}
+            "/login/", {"username": "admin", "password": "senha12345"}
         )
         self.assertTrue(
             AuditLog.objects.filter(action="login_sucesso", target="admin").exists()
@@ -77,7 +90,7 @@ class TestAcessoAoPainel(TestCase):
         self.client.logout()
 
         self.client.post(
-            "/painel/entrar/", {"username": "admin", "password": "errada"}
+            "/login/", {"username": "admin", "password": "errada"}
         )
         falha = AuditLog.objects.filter(action="login_falha", target="admin")
         self.assertEqual(falha.count(), 1)
@@ -85,7 +98,7 @@ class TestAcessoAoPainel(TestCase):
 
         # Conta existente sem perfil de admin também é registrada.
         self.client.post(
-            "/painel/entrar/", {"username": "medico", "password": "senha12345"}
+            "/login/", {"username": "medico", "password": "senha12345"}
         )
         sem_permissao = AuditLog.objects.filter(action="login_falha", target="medico")
         self.assertEqual(sem_permissao.count(), 1)
@@ -95,7 +108,7 @@ class TestAcessoAoPainel(TestCase):
 
     def test_login_administrativo_respeita_next(self):
         resposta = self.client.post(
-            "/painel/entrar/?next=/painel/medicos/",
+            "/login/?next=/painel/medicos/",
             {"username": "admin", "password": "senha12345"},
         )
         self.assertRedirects(resposta, "/painel/medicos/")
@@ -105,7 +118,7 @@ class TestAcessoAoPainel(TestCase):
             "gestor-login", password="senha12345", is_staff=True
         )
         resposta = self.client.post(
-            "/painel/entrar/",
+            "/login/",
             {"username": "gestor-login", "password": "senha12345"},
         )
         self.assertRedirects(resposta, "/painel/")
@@ -113,7 +126,7 @@ class TestAcessoAoPainel(TestCase):
 
     def test_medico_nao_entra_pelo_login_administrativo(self):
         resposta = self.client.post(
-            "/painel/entrar/",
+            "/login/",
             {"username": "medico", "password": "senha12345"},
         )
         self.assertEqual(resposta.status_code, 200)
@@ -123,7 +136,7 @@ class TestAcessoAoPainel(TestCase):
     def test_logout_do_painel_volta_para_login_administrativo(self):
         self.client.force_login(self.admin)
         resposta = self.client.post("/painel/sair/")
-        self.assertRedirects(resposta, "/painel/entrar/")
+        self.assertRedirects(resposta, "/login/")
         self.assertEqual(self.client.get("/painel/").status_code, 302)
 
     def test_logout_do_painel_por_get_nao_encerra_sessao(self):
@@ -135,7 +148,7 @@ class TestAcessoAoPainel(TestCase):
     def test_logout_global_de_admin_volta_para_login_do_painel(self):
         self.client.force_login(self.admin)
         resposta = self.client.post("/sair/")
-        self.assertRedirects(resposta, "/painel/entrar/")
+        self.assertRedirects(resposta, "/login/")
 
     def test_troca_de_senha_de_admin_volta_para_o_painel(self):
         self.client.force_login(self.admin)
@@ -2039,7 +2052,7 @@ class TestExportacaoGeral(TestCase):
         resposta = self.client.get("/painel/exportar/")
 
         self.assertEqual(resposta.status_code, 302)
-        self.assertIn("/painel/entrar/", resposta["Location"])
+        self.assertIn("/login/", resposta["Location"])
 
     def test_botoes_de_exportacao_nas_listagens(self):
         html_medicos = self.client.get("/painel/medicos/").content.decode()

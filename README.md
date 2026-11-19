@@ -56,7 +56,7 @@ flowchart TD
 | Perfil | Acesso | Login |
 |---|---|---|
 | Médico / aluno | Assiste aos cursos em que está matriculado | `/entrar/` (CPF + senha) |
-| Administrador | Cria cursos, envia gravações, cadastra alunos e matricula | `/painel/entrar/` (usuário + senha) |
+| Administrador | Cria cursos, envia gravações, cadastra alunos e matricula | `/login/` (usuário + senha) |
 | Suporte de TI | Manutenção avançada do banco/dados | `/admin/` (superusuário) |
 
 ---
@@ -186,7 +186,7 @@ cp .env.example .env
 docker compose exec app python manage.py criar_admin admin --email admin@cremepe.org.br
 ```
 
-O administrador acessa o painel em **`/painel/entrar/`**. O **Django admin**
+O administrador acessa o painel em **`/login/`**. O **Django admin**
 (`/admin/`) é exclusivo do suporte de TI (superusuários).
 
 > **`DJANGO_ALLOWED_HOSTS` é obrigatório**: deve conter o domínio/IP pelo qual o portal será
@@ -245,7 +245,7 @@ automática no `certbot.timer`.
 | Meus cursos | `/cursos/` | aluno matriculado |
 | Catálogo de cursos do admin | `/cursos/` | administrador |
 | Página do curso | `/cursos/<id>/` | aluno matriculado |
-| Acesso administrativo | `/painel/entrar/` | público (usuário + senha) |
+| Acesso administrativo | `/login/` | público (usuário + senha) |
 | Painel administrativo | `/painel/` | administrador (`is_staff`) |
 | Cadastro de alunos em lote | `/painel/medicos/lote/` | administrador |
 | Usuários do painel | `/painel/usuarios/` | superusuário |

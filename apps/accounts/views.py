@@ -56,8 +56,8 @@ def login_view(request):
             if medico.user.is_staff:
                 messages.error(
                     request,
-                    "Esta conta é administrativa. Entre pelo Acesso "
-                    "administrativo com usuário e senha.",
+                    "Esta conta é administrativa. Entre com usuário e senha "
+                    "na página /login.",
                 )
                 return render(request, "accounts/login.html", {"form": form})
             login(request, medico.user)

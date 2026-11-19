@@ -449,6 +449,15 @@ class TestPaginaDeLogin(TestCase):
         self.assertNotIn("Sua posição é salva", html)
         self.assertNotIn("A evolução fica registrada", html)
 
+    def test_login_nao_anuncia_o_acesso_administrativo(self):
+        """A área do admin sai da vitrine: só quem sabe /login/ entra lá."""
+        for rota in ("/", "/entrar/"):
+            html = self.client.get(rota).content.decode()
+            self.assertNotIn(
+                "Acesso administrativo", html, f"{rota} anunciava o painel"
+            )
+            self.assertNotIn('href="/login/"', html, f"{rota} linkava /login/")
+
     def test_credenciais_invalidas_mostram_erro(self):
         resposta = self.client.post(
             self.url,
