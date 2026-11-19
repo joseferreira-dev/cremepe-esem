@@ -462,6 +462,7 @@ e o navegador baixa a versão nova.
 | `API_TOKEN_TTL_SECONDS` | `28800` | Validade do token de API usado pelo player |
 | `HLS_SEGMENT_SECONDS` | `4` | Duração de cada segmento HLS |
 | `MEDIA_ROOT` | `/srv/media` | Raiz da mídia (originais + HLS) |
+| `PESQUISA_SATISFACAO_URL` | Google Forms | URL da pesquisa de satisfação exibida como QR Code na página do curso. Vazio desliga o bloco. |
 | `EXIGIR_TROCA_SENHA` | `true` | Exige troca da senha no 1º acesso. **Em produção, mantenha `true`.** |
 
 ---

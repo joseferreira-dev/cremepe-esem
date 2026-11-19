@@ -12,7 +12,6 @@ consulta pública ``/validar/?codigo=...``.
 from __future__ import annotations
 
 import base64
-import io
 import logging
 import secrets
 from pathlib import Path
@@ -26,6 +25,7 @@ from weasyprint import HTML
 
 from apps.courses.models import Course, Enrollment
 from apps.courses.services import course_coverage, course_videos, record_audit
+from apps.web.qrcode import qr_data_uri
 
 from .docx import ModeloInvalido, extrair_modelo, paragrafos_do_modelo
 from .models import Certificate
@@ -56,11 +56,7 @@ def _qr_data_uri(url: str) -> str:
     """QR Code (PNG) apontando para a validação pública do certificado."""
     if not url:
         return ""
-    import segno
-
-    buffer = io.BytesIO()
-    segno.make(url).save(buffer, kind="png", scale=8, border=4)
-    return _data_uri_bytes(buffer.getvalue(), "png")
+    return qr_data_uri(url)
 
 
 def aplicar_modelo_certificado(curso: Course, conteudo: bytes) -> None:

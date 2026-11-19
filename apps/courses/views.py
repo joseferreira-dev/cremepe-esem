@@ -186,7 +186,9 @@ def course_view(request, enrollment_id: int):
             "enrollment": enrollment,
             "items": items,
             "coverage": course_coverage(enrollment),
-            "duration": format_hours(enrollment.course.total_duration),            # Token de API: permite ao player funcionar mesmo em ambientes que
+            "duration": format_hours(enrollment.course.total_duration),
+            # QR Code da pesquisa de satisfação (bloco exibido na página).
+            "pesquisa_satisfacao_url": settings.PESQUISA_SATISFACAO_URL,            # Token de API: permite ao player funcionar mesmo em ambientes que
             # reescrevem o cabecalho Cookie das requisicoes fetch.
             "api_token": gerar_token_api(
                 request.user,

@@ -36,6 +36,13 @@ CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS", "")
 # do certificado para imprimir o link de validação. Vazio = não imprime.
 SITE_URL = os.environ.get("SITE_URL", "").rstrip("/")
 
+# Pesquisa de satisfação exibida como QR Code na página do curso. Por enquanto
+# um único formulário serve todos os cursos; vazio desliga o bloco.
+PESQUISA_SATISFACAO_URL = os.environ.get(
+    "PESQUISA_SATISFACAO_URL",
+    "https://docs.google.com/forms/d/e/1FAIpQLSdT1054pqratQl5cKN8mwnLwTKujD1yf2EQzhFonV3i9aaamg/viewform",
+).strip()
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",

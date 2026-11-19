@@ -2,6 +2,7 @@
 
 from datetime import date
 
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.test import TestCase
 
@@ -67,6 +68,21 @@ class TestPaginaDoCurso(TestCase):
         self.assertIn('data-unlocked="1"', html)
         # O percentual mínimo por aula não é mais exibido ao aluno.
         self.assertNotIn("mín.", html)
+
+    def test_pagina_mostra_qrcode_da_pesquisa(self):
+        """Bloco da pesquisa de satisfação com QR Code e link de reserva."""
+        self.client.force_login(self.user)
+        html = self.client.get(f"/cursos/{self.enrollment.id}/").content.decode()
+        self.assertIn("QR Code da pesquisa de satisfação", html)
+        self.assertIn("data:image/png;base64,", html)
+        self.assertIn(settings.PESQUISA_SATISFACAO_URL, html)
+
+    def test_pagina_oculta_qrcode_quando_nao_ha_pesquisa(self):
+        """URL vazia desliga o bloco (nenhum QR inválido é emitido)."""
+        self.client.force_login(self.user)
+        with self.settings(PESQUISA_SATISFACAO_URL=""):
+            html = self.client.get(f"/cursos/{self.enrollment.id}/").content.decode()
+        self.assertNotIn("QR Code da pesquisa de satisfação", html)
 
     def test_configuracao_do_player_vem_antes_do_script(self):
         self.client.force_login(self.user)

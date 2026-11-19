@@ -2,6 +2,8 @@ from django import template
 
 import os
 
+from ..qrcode import qr_data_uri as _gerar_qr
+
 register = template.Library()
 
 
@@ -124,3 +126,11 @@ def cor_status(status):
         "archived": "bg-slate-100 text-slate-500 ring-1 ring-slate-200",
     }
     return mapa.get(str(status), "bg-slate-100 text-slate-700 ring-1 ring-slate-200")
+
+
+@register.simple_tag
+def qr(url):
+    """QR Code (data URI) para a URL pedida; vazio quando não há URL."""
+    if not url:
+        return ""
+    return _gerar_qr(str(url))
