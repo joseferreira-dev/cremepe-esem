@@ -35,29 +35,6 @@
          style="width: {{ coverage|floatformat:1 }}%"></div>
   </div>
 
-  {% if pesquisa_satisfacao_url %}
-  <!-- Pesquisa de satisfação (QR Code) -->
-  <div class="cartao mt-6 flex flex-col items-center gap-5 p-5 sm:flex-row">
-    <img src="{% qr pesquisa_satisfacao_url %}"
-         alt="QR Code da pesquisa de satisfação"
-         width="128" height="128"
-         class="w-32 shrink-0 rounded-lg bg-white p-1 ring-1 ring-slate-100">
-    <div class="min-w-0 flex-1 text-center">
-      <h2 class="flex items-center justify-center gap-2 text-sm font-semibold text-slate-800">
-        {{ icons.estrela|safe }} Avalie este curso
-      </h2>
-      <p class="mt-1 text-sm text-slate-500">
-        Aponte a câmera do celular para o QR Code e responda à pesquisa de satisfação.
-        Sua avaliação ajuda a melhorar o webnário.
-      </p>
-      <a href="{{ pesquisa_satisfacao_url }}" target="_blank" rel="noopener"
-         class="btn btn-secundario btn-sm mt-3">
-        {{ icons.seta_direita|safe }} Abrir a pesquisa
-      </a>
-    </div>
-  </div>
-  {% endif %}
-
   <div class="mt-8 grid gap-6 lg:grid-cols-3">
 
     <!-- Player -->
@@ -94,11 +71,11 @@
       </div>
     </div>
 
-    <!-- Lista de vídeos -->
-    <aside class="min-w-0 lg:col-span-1">
-      <div class="cartao h-full">
+    <!-- Lista de vídeos + pesquisa de satisfação -->
+    <aside class="flex min-w-0 flex-col lg:col-span-1">
+      <div class="cartao flex-1">
         <div class="border-b border-slate-100 px-5 py-4">
-          <h3 class="text-sm font-semibold text-slate-800">Encontros do webnário</h3>
+          <h3 class="text-sm font-semibold text-slate-800">Aulas</h3>
           <p class="mt-1 text-xs text-slate-500">Liberados na ordem de exibição.</p>
         </div>
         <ul class="divide-y divide-slate-100" id="video-list">
@@ -136,6 +113,27 @@
           {% endfor %}
         </ul>
       </div>
+
+      {% if pesquisa_satisfacao_url %}
+      <!-- Pesquisa de satisfação (QR Code) -->
+      <div class="cartao mt-6 p-5 text-center">
+        <img src="{% qr pesquisa_satisfacao_url %}"
+             alt="QR Code da pesquisa de satisfação"
+             width="128" height="128"
+             class="mx-auto w-32 rounded-lg bg-white p-1 ring-1 ring-slate-100">
+        <h2 class="mt-3 flex items-center justify-center gap-2 text-sm font-semibold text-slate-800">
+          {{ icons.estrela|safe }} Avalie este curso
+        </h2>
+        <p class="mt-1 text-sm text-slate-500">
+          Aponte a câmera do celular para o QR Code e responda à pesquisa de satisfação.
+          Sua avaliação ajuda a melhorar o webnário.
+        </p>
+        <a href="{{ pesquisa_satisfacao_url }}" target="_blank" rel="noopener"
+           class="btn btn-secundario btn-sm mt-3">
+          {{ icons.seta_direita|safe }} Abrir a pesquisa
+        </a>
+      </div>
+      {% endif %}
     </aside>
   </div>
 </div>
