@@ -2,6 +2,7 @@
 
 import json
 
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
@@ -1490,6 +1491,18 @@ class TestPaginacaoDasListagens(TestCase):
                 must_change_password=False,
             )
 
+    def _criar_turma(self, curso, quantidade):
+        """Matricula `quantidade` alunos no curso (paginacao da turma: 50)."""
+        for i in range(quantidade):
+            user = User.objects.create_user(f"pag-turma-{i}", password="x")
+            medico = Medico.objects.create(
+                user=user,
+                cpf=f"{i:011d}",
+                nome=f"Aluno Pag {i:02d}",
+                must_change_password=False,
+            )
+            Enrollment.objects.create(medico=medico, course=curso)
+
     def test_medicos_paginam_em_blocos_de_10(self):
         self._criar_medicos(60)
         pagina1 = self.client.get("/painel/medicos/").content.decode()
@@ -1528,6 +1541,60 @@ class TestPaginacaoDasListagens(TestCase):
             AuditLog.objects.create(action="teste_pag", target=f"log {i}")
         html_aud = self.client.get("/painel/auditoria/").content.decode()
         self.assertIn("<strong>1–50</strong> de 55", html_aud)
+
+    def test_detalhe_do_curso_conta_a_turma_inteira_na_pagina_2(self):
+        """Os contadores do detalhe usam o total paginado, não a página."""
+        curso = Course.objects.create(
+            title="Curso turma", status=Course.Status.ACTIVE
+        )
+        self._criar_turma(curso, 60)
+
+        html = self.client.get(f"/painel/cursos/{curso.pk}/?pagina=2").content.decode()
+        # A página 2 traz só 10 alunos (50 por página)...
+        self.assertIn("<strong>51–60</strong> de 60", html)
+        self.assertEqual(html.count("data-matricula-row"), 10)
+        self.assertIn("Aluno Pag 50", html)
+        self.assertNotIn("Aluno Pag 49", html)
+        # ...mas os contadores mostram a turma inteira.
+        self.assertIn("Turma (60)", html)
+        self.assertIn('font-semibold text-slate-600">60</span>', html)
+        self.assertIn('text-2xl font-bold text-slate-900">60</p>', html)
+
+    def test_paginacao_fica_dentro_do_bloco_de_abas(self):
+        """A paginação vive em [data-tabs]: é lá que o JS anexa o hash da aba.
+
+        Fora do bloco os links perderiam a aba ativa a cada troca de página.
+        """
+        curso = Course.objects.create(
+            title="Curso abas", status=Course.Status.ACTIVE
+        )
+        self._criar_turma(curso, 60)
+
+        html = self.client.get(f"/painel/cursos/{curso.pk}/").content.decode()
+        self.assertIn('aria-label="Paginação"', html)
+        self.assertLess(
+            html.index('<div class="mt-6" data-tabs>'),
+            html.index('aria-label="Paginação"'),
+        )
+        # O bloco de abas fecha antes do diálogo de matrícula (linha seguinte).
+        self.assertLess(
+            html.index('aria-label="Paginação"'),
+            html.index('<dialog id="matricula-dialogo"'),
+        )
+
+    def test_js_preserva_a_aba_na_sessao_e_no_hash(self):
+        """Guarda de regressão da correção da aba (não há runner de JS aqui).
+
+        O app.js precisa guardar a aba na sessão (válido para os POSTs, que
+        redirecionam sem fragmento) e anexar o hash aos links de página.
+        """
+        js = (settings.BASE_DIR / "static" / "js" / "app.js").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("sessionStorage.setItem", js)
+        self.assertIn("sessionStorage.getItem", js)
+        self.assertIn('a[href*="pagina="]', js)
+        self.assertIn("window.location.hash", js)
 
 
 class TestListagemDeAlunos(TestCase):

@@ -172,6 +172,47 @@
       return;
     }
 
+    // A aba ativa mora no hash da URL, mas a paginacao navega sem o
+    // fragmento e os POSTs (matricular, aprovar) redirecionam para a URL
+    // limpa: guardamos a ultima aba na sessao do navegador e anexamos o
+    // hash atual aos controles de paginacao, para o recarregamento manter
+    // a aba em vez de voltar para a primeira.
+    var chaveAba = 'aba:' + window.location.pathname;
+
+    function guardarAba(alvo) {
+      try {
+        window.sessionStorage.setItem(chaveAba, alvo);
+      } catch (erro) {
+        // sem armazenamento de sessao (modo restrito): segue so com o hash.
+      }
+    }
+
+    function abaGuardada() {
+      try {
+        return window.sessionStorage.getItem(chaveAba) || '';
+      } catch (erro) {
+        return '';
+      }
+    }
+
+    function botaoDaAba(alvo) {
+      return botoes.filter(function (botao) {
+        return botao.getAttribute('data-tab-target') === alvo;
+      })[0];
+    }
+
+    function vincularPaginacao(alvo) {
+      tabs.querySelectorAll('a[href*="pagina="]').forEach(function (link) {
+        link.setAttribute(
+          'href',
+          link.getAttribute('href').split('#')[0] + '#' + alvo
+        );
+      });
+      tabs.querySelectorAll('option[value*="pagina="]').forEach(function (opcao) {
+        opcao.value = opcao.value.split('#')[0] + '#' + alvo;
+      });
+    }
+
     function ativar(botao) {
       var alvo = botao.getAttribute('data-tab-target');
       botoes.forEach(function (item) {
@@ -191,6 +232,8 @@
       if (window.history && window.history.replaceState) {
         window.history.replaceState(null, '', '#' + alvo);
       }
+      guardarAba(alvo);
+      vincularPaginacao(alvo);
     }
 
     botoes.forEach(function (botao) {
@@ -213,10 +256,10 @@
       });
     });
 
+    // Prioridade: hash da URL (link aberto/copiado) > aba da sessao >
+    // primeira aba. O hash continua sendo regravado a cada troca.
     var hash = (window.location.hash || '').replace('#', '');
-    var inicial = botoes.filter(function (botao) {
-      return botao.getAttribute('data-tab-target') === hash;
-    })[0];
+    var inicial = botaoDaAba(hash) || botaoDaAba(abaGuardada());
     ativar(inicial || botoes[0]);
   });
 
