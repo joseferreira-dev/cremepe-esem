@@ -1,5 +1,4 @@
-{# Bloco do QR da pesquisa de satisfacao. Incluir SO quando a matricula estiver
-   aprovada — e tambem devolvido por /cursos/<id>/pesquisa/ para o dialogo. #}
+{# Bloco do QR da pesquisa: incluir so com matricula aprovada (pagina ou endpoint /pesquisa/). #}
 {% load web %}
 <div id="pesquisa-bloco" class="cartao mt-6 p-5 text-center">
   <img src="{% qr pesquisa_satisfacao_url %}"

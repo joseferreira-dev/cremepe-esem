@@ -124,19 +124,19 @@
   <dialog id="pesquisa-dialogo"
           class="cartao m-auto w-[calc(100%-2rem)] max-w-md overflow-hidden p-0 backdrop:bg-slate-950/60">
     <div class="p-6 text-center">
-      <h2 class="text-base font-semibold text-slate-800">
-        Parabéns! Você atingiu o mínimo do curso
-      </h2>
+      <h2 class="text-base font-semibold text-slate-800">Sua opinião é importante</h2>
       <p class="mt-1 text-sm text-slate-500">
-        Você já pode emitir seu certificado e também participar da pesquisa de satisfação.
+        Aponte a câmera do celular para o QR Code abaixo ou clique em "Abrir a pesquisa".
+        Sua avaliação ajuda a melhorar o webnário.
       </p>
       <div id="pesquisa-dialogo-qr" class="mt-4 flex justify-center"></div>
-      <p class="mt-3 text-sm text-slate-500">
-        Aponte a câmera do celular para o QR Code acima ou clique em "Abrir a pesquisa".
-      </p>
-      <button type="button" data-pesquisa-fechar class="btn btn-primary btn-sm mt-4">
-        Fechar
-      </button>
+      <div class="mt-4 flex justify-center gap-2">
+        <a id="pesquisa-dialogo-link" href="#" target="_blank" rel="noopener"
+           class="btn btn-primary btn-sm">Abrir a pesquisa</a>
+        <button type="button" data-pesquisa-fechar class="btn btn-secundario btn-sm">
+          Fechar
+        </button>
+      </div>
     </div>
   </dialog>
 </div>
@@ -180,10 +180,22 @@
     function abrir() {
       if (jaViu() || dialogo.open) { return; }
       var blocoAtual = bloco();
+      var link = document.getElementById('pesquisa-dialogo-link');
+      var ancora = blocoAtual ? blocoAtual.querySelector('a[href]') : null;
       if (blocoAtual && alvo) {
         var imagem = blocoAtual.querySelector('img');
         alvo.innerHTML = '';
         if (imagem) { alvo.appendChild(imagem.cloneNode(true)); }
+      }
+      // O link da pesquisa só existe depois que o bloco aprovado está na
+      // página (não é embutido no HTML de quem ainda não atingiu o mínimo).
+      if (link) {
+        if (ancora) {
+          link.href = ancora.getAttribute('href');
+          link.classList.remove('hidden');
+        } else {
+          link.classList.add('hidden');
+        }
       }
       dialogo.showModal();
     }
