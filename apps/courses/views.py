@@ -187,8 +187,14 @@ def course_view(request, enrollment_id: int):
             "items": items,
             "coverage": course_coverage(enrollment),
             "duration": format_hours(enrollment.course.total_duration),
-            # QR Code da pesquisa de satisfação (bloco exibido na página).
-            "pesquisa_satisfacao_url": settings.PESQUISA_SATISFACAO_URL,            # Token de API: permite ao player funcionar mesmo em ambientes que
+            # QR da pesquisa: só para quem atingiu o mínimo do certificado
+            # (nunca para staff em pré-visualização da página do aluno).
+            "pesquisa_satisfacao_url": (
+                settings.PESQUISA_SATISFACAO_URL
+                if enrollment.status == Enrollment.Status.APPROVED
+                and not request.user.is_staff
+                else ""
+            ),            # Token de API: permite ao player funcionar mesmo em ambientes que
             # reescrevem o cabecalho Cookie das requisicoes fetch.
             "api_token": gerar_token_api(
                 request.user,
@@ -196,6 +202,34 @@ def course_view(request, enrollment_id: int):
                 validade=settings.API_TOKEN_TTL_SECONDS,
             ),
         },
+    )
+
+
+@never_cache
+@require_GET
+@login_required_limpo
+def pesquisa_do_curso(request, enrollment_id: int):
+    """Bloco do QR da pesquisa de satisfação (parcial usado pelo dialogo).
+
+    A página renderiza o bloco direto quando a matrícula já está aprovada.
+    Se a aprovação acontece com a página aberta (heartbeat), o HTML ainda não
+    tem o bloco — e o cliente busca este fragmento e o insere na coluna.
+    """
+    enrollment = get_object_or_404(
+        Enrollment.objects.select_related("course", "medico"), pk=enrollment_id
+    )
+    if enrollment.medico.user_id != request.user.id or request.user.is_staff:
+        raise PermissionDenied
+    if enrollment.course.indisponivel_para_aluno:
+        raise PermissionDenied
+    if enrollment.status != Enrollment.Status.APPROVED:
+        raise PermissionDenied
+    if not settings.PESQUISA_SATISFACAO_URL:
+        raise PermissionDenied
+    return render(
+        request,
+        "courses/pesquisa_bloco.html",
+        {"pesquisa_satisfacao_url": settings.PESQUISA_SATISFACAO_URL},
     )
 
 

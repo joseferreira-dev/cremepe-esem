@@ -70,19 +70,46 @@ class TestPaginaDoCurso(TestCase):
         self.assertNotIn("mín.", html)
 
     def test_pagina_mostra_qrcode_da_pesquisa(self):
-        """Bloco da pesquisa de satisfação com QR Code e link de reserva."""
+        """Bloco da pesquisa só aparece para quem atingiu o mínimo do curso."""
+        self.enrollment.status = Enrollment.Status.APPROVED
+        self.enrollment.save(update_fields=["status"])
         self.client.force_login(self.user)
         html = self.client.get(f"/cursos/{self.enrollment.id}/").content.decode()
+        self.assertIn('id="pesquisa-bloco"', html)
         self.assertIn("QR Code da pesquisa de satisfação", html)
         self.assertIn("data:image/png;base64,", html)
         self.assertIn(settings.PESQUISA_SATISFACAO_URL, html)
+        self.assertIn('id="pesquisa-dialogo"', html)
+
+    def test_pagina_nao_mostra_pesquisa_antes_do_minimo(self):
+        """Matrícula em andamento: nem o bloco nem o QR aparecem."""
+        self.client.force_login(self.user)
+        html = self.client.get(f"/cursos/{self.enrollment.id}/").content.decode()
+        self.assertNotIn('id="pesquisa-bloco"', html)
+        self.assertNotIn("Avalie este curso", html)
+        self.assertNotIn("data:image/png;base64,", html)
+
+    def test_staff_nao_ve_pesquisa_na_pagina_do_aluno(self):
+        """Aprovação é do aluno: staff em pré-visualização não recebe o QR."""
+        self.enrollment.status = Enrollment.Status.APPROVED
+        self.enrollment.save(update_fields=["status"])
+        staff = User.objects.create_user("staff-pesquisa", password="senha12345")
+        staff.is_staff = True
+        staff.save(update_fields=["is_staff"])
+        self.client.force_login(staff)
+        html = self.client.get(f"/cursos/{self.enrollment.id}/").content.decode()
+        self.assertNotIn('id="pesquisa-bloco"', html)
+        self.assertNotIn("Avalie este curso", html)
 
     def test_pagina_oculta_qrcode_quando_nao_ha_pesquisa(self):
         """URL vazia desliga o bloco (nenhum QR inválido é emitido)."""
+        self.enrollment.status = Enrollment.Status.APPROVED
+        self.enrollment.save(update_fields=["status"])
         self.client.force_login(self.user)
         with self.settings(PESQUISA_SATISFACAO_URL=""):
             html = self.client.get(f"/cursos/{self.enrollment.id}/").content.decode()
         self.assertNotIn("QR Code da pesquisa de satisfação", html)
+        self.assertNotIn("data:image/png;base64,", html)
 
     def test_configuracao_do_player_vem_antes_do_script(self):
         self.client.force_login(self.user)
@@ -107,6 +134,83 @@ class TestPaginaDoCurso(TestCase):
         conteudo = caminho.read_text(encoding="utf-8")
         self.assertNotIn("d-none", conteudo)
         self.assertIn("classList.remove('hidden')", conteudo)
+
+
+class TestPesquisaDoCurso(TestCase):
+    """Endpoint que devolve o bloco do QR quando o aluno é aprovado ao vivo."""
+
+    def setUp(self):
+        self.user = User.objects.create_user("medico-pesquisa", password="senha12345")
+        self.medico = Medico.objects.create(
+            user=self.user,
+            cpf="55544433311",
+            nome="Medico Pesquisa",
+            must_change_password=False,
+        )
+        self.curso = Course.objects.create(
+            title="Etica Medica", status=Course.Status.ACTIVE, sequential=True
+        )
+        self.enrollment = Enrollment.objects.create(
+            medico=self.medico, course=self.curso
+        )
+        self.client.force_login(self.user)
+
+    def _aprovar(self):
+        self.enrollment.status = Enrollment.Status.APPROVED
+        self.enrollment.save(update_fields=["status"])
+
+    def _url(self):
+        return f"/cursos/{self.enrollment.id}/pesquisa/"
+
+    def test_exige_login(self):
+        self.client.logout()
+        resposta = self.client.get(self._url())
+        self.assertEqual(resposta.status_code, 302)
+
+    def test_recusa_antes_do_minimo(self):
+        """Sem aprovação não há bloco: o cliente nem recebe o QR."""
+        resposta = self.client.get(self._url())
+        self.assertEqual(resposta.status_code, 403)
+
+    def test_devolve_o_bloco_quando_aprovado(self):
+        self._aprovar()
+        resposta = self.client.get(self._url())
+        self.assertEqual(resposta.status_code, 200)
+        html = resposta.content.decode()
+        self.assertIn('id="pesquisa-bloco"', html)
+        self.assertIn("data:image/png;base64,", html)
+        self.assertIn(settings.PESQUISA_SATISFACAO_URL, html)
+
+    def test_recusa_aluno_de_outra_matricula(self):
+        self._aprovar()
+        outro_user = User.objects.create_user("medico-outro-pesquisa", password="x")
+        outro = Medico.objects.create(
+            user=outro_user,
+            cpf="77788899911",
+            nome="Outro",
+            must_change_password=False,
+        )
+        Enrollment.objects.create(medico=outro, course=self.curso)
+        self.client.force_login(outro_user)
+        resposta = self.client.get(self._url())
+        self.assertEqual(resposta.status_code, 403)
+
+    def test_recusa_staff(self):
+        """O QR é do aluno; staff em pré-visualização não recebe."""
+        self._aprovar()
+        staff = User.objects.create_user("staff-pesquisa-2", password="x")
+        staff.is_staff = True
+        staff.save(update_fields=["is_staff"])
+        self.client.force_login(staff)
+        resposta = self.client.get(self._url())
+        self.assertEqual(resposta.status_code, 403)
+
+    def test_recusa_sem_url_configurada(self):
+        """URL da pesquisa vazia: nada a exibir (bloco desligado)."""
+        self._aprovar()
+        with self.settings(PESQUISA_SATISFACAO_URL=""):
+            resposta = self.client.get(self._url())
+        self.assertEqual(resposta.status_code, 403)
 
 
 class TestPaginaInicial(TestCase):

@@ -72,7 +72,7 @@
     </div>
 
     <!-- Lista de vídeos + pesquisa de satisfação -->
-    <aside class="flex min-w-0 flex-col lg:col-span-1">
+    <aside id="coluna-aulas" class="flex min-w-0 flex-col lg:col-span-1">
       <div class="cartao flex-1">
         <div class="border-b border-slate-100 px-5 py-4">
           <h3 class="text-sm font-semibold text-slate-800">Aulas</h3>
@@ -115,27 +115,30 @@
       </div>
 
       {% if pesquisa_satisfacao_url %}
-      <!-- Pesquisa de satisfação (QR Code) -->
-      <div class="cartao mt-6 p-5 text-center">
-        <img src="{% qr pesquisa_satisfacao_url %}"
-             alt="QR Code da pesquisa de satisfação"
-             width="128" height="128"
-             class="mx-auto w-32 rounded-lg bg-white p-1 ring-1 ring-slate-100">
-        <h2 class="mt-3 flex items-center justify-center gap-2 text-sm font-semibold text-slate-800">
-          {{ icons.estrela|safe }} Avalie este curso
-        </h2>
-        <p class="mt-1 text-sm text-slate-500">
-          Aponte a câmera do celular para o QR Code e responda à pesquisa de satisfação.
-          Sua avaliação ajuda a melhorar o webnário.
-        </p>
-        <a href="{{ pesquisa_satisfacao_url }}" target="_blank" rel="noopener"
-           class="btn btn-secundario btn-sm mt-3">
-          {{ icons.seta_direita|safe }} Abrir a pesquisa
-        </a>
-      </div>
+        {% include "courses/pesquisa_bloco.html" %}
       {% endif %}
     </aside>
   </div>
+
+  <!-- Dialogo da pesquisa: aparece ao atingir o minimo do curso (uma vez). -->
+  <dialog id="pesquisa-dialogo"
+          class="cartao m-auto w-[calc(100%-2rem)] max-w-md overflow-hidden p-0 backdrop:bg-slate-950/60">
+    <div class="p-6 text-center">
+      <h2 class="text-base font-semibold text-slate-800">
+        Parabéns! Você atingiu o mínimo do curso
+      </h2>
+      <p class="mt-1 text-sm text-slate-500">
+        Você já pode emitir seu certificado e também participar da pesquisa de satisfação.
+      </p>
+      <div id="pesquisa-dialogo-qr" class="mt-4 flex justify-center"></div>
+      <p class="mt-3 text-sm text-slate-500">
+        Aponte a câmera do celular para o QR Code acima ou clique em "Abrir a pesquisa".
+      </p>
+      <button type="button" data-pesquisa-fechar class="btn btn-primary btn-sm mt-4">
+        Fechar
+      </button>
+    </div>
+  </dialog>
 </div>
 {% endblock %}
 
@@ -146,8 +149,79 @@
     enrollmentId: "{{ enrollment.id }}",
     heartbeatUrl: "{% url 'heartbeat' %}",
     stateUrl: "{% url 'player_state' %}",
-    tokenUrl: "{% url 'player_token' enrollment.id %}"
+    tokenUrl: "{% url 'player_token' enrollment.id %}",
+    enrollmentStatus: "{{ enrollment.status }}",
+    pesquisaUrl: "{% url 'pesquisa_curso' enrollment.id %}",
+    pesquisaPronta: {% if pesquisa_satisfacao_url %}1{% else %}0{% endif %}
   };
 </script>
 <script src="{% static 'js/player.js' %}"></script>
+<script>
+  // Dialogo da pesquisa de satisfação: abre ao atingir o mínimo do curso,
+  // uma única vez por navegador (localStorage). Depois de fechado, o bloco
+  // com o QR permanece na coluna das aulas.
+  (function () {
+    'use strict';
+    var dialogo = document.getElementById('pesquisa-dialogo');
+    var alvo = document.getElementById('pesquisa-dialogo-qr');
+    if (!dialogo || typeof dialogo.showModal !== 'function') { return; }
+
+    var chave = 'cremepe-pesquisa-vista-' + window.CREMEPE.enrollmentId;
+    var buscando = false;
+
+    function jaViu() {
+      try { return window.localStorage.getItem(chave) === '1'; } catch (e) { return false; }
+    }
+    function marcarVista() {
+      try { window.localStorage.setItem(chave, '1'); } catch (e) { /* sem localStorage */ }
+    }
+    function bloco() { return document.getElementById('pesquisa-bloco'); }
+
+    function abrir() {
+      if (jaViu() || dialogo.open) { return; }
+      var blocoAtual = bloco();
+      if (blocoAtual && alvo) {
+        var imagem = blocoAtual.querySelector('img');
+        alvo.innerHTML = '';
+        if (imagem) { alvo.appendChild(imagem.cloneNode(true)); }
+      }
+      dialogo.showModal();
+    }
+
+    function mostrar() {
+      if (jaViu() || dialogo.open) { return; }
+      if (bloco()) { abrir(); return; }
+      // A matrícula foi aprovada com a página aberta: o bloco ainda não
+      // existe no HTML, então buscamos pronto no servidor e o inserimos.
+      if (buscando) { return; }
+      buscando = true;
+      window.fetch(window.CREMEPE.pesquisaUrl, {
+        credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      })
+        .then(function (resposta) {
+          if (!resposta.ok) { throw new Error('HTTP ' + resposta.status); }
+          return resposta.text();
+        })
+        .then(function (html) {
+          var coluna = document.getElementById('coluna-aulas');
+          if (coluna && html) { coluna.insertAdjacentHTML('beforeend', html); }
+          abrir();
+        })
+        .catch(function () { /* sem bloco aprovado: sem dialogo */ })
+        .then(function () { buscando = false; });
+    }
+
+    dialogo.addEventListener('close', marcarVista);
+    document.addEventListener('click', function (evento) {
+      if (evento.target.closest('[data-pesquisa-fechar]')) { dialogo.close(); return; }
+      if (evento.target === dialogo) { dialogo.close(); }
+    });
+
+    // Aprovado no carregamento da página (matrícula já aprovada antes).
+    if (window.CREMEPE.pesquisaPronta) { mostrar(); }
+    // Aprovou agora, durante a reprodução (disparado pelo player.js).
+    document.addEventListener('matricula-aprovada', mostrar);
+  })();
+</script>
 {% endblock %}

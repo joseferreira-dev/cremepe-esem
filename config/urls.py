@@ -45,6 +45,11 @@ urlpatterns = [
     ),
     path("cursos/<int:enrollment_id>/", courses_views.course_view, name="course"),
     path(
+        "cursos/<int:enrollment_id>/pesquisa/",
+        courses_views.pesquisa_do_curso,
+        name="pesquisa_curso",
+    ),
+    path(
         "cursos/<int:enrollment_id>/certificado/",
         certificates_views.certificado_aluno,
         name="certificado_baixar",

@@ -42,6 +42,9 @@
   var avisoConclusao = false;
   var heartbeatEmAndamento = false;
   var heartbeatPendente = false;
+  // Situação da matrícula na última batida: serve para detectar a transição
+  // para "approved" (a página abre o dialogo da pesquisa nesse momento).
+  var ultimoStatus = CONFIG.enrollmentStatus || '';
   var MAX_PLAYBACK_RATE = 1.25;
 
   // Ao retomar, nunca pular para alem do trecho liberado. Sem isso, um
@@ -322,6 +325,13 @@
         furthest = data.furthest;
         maxAllowed = data.max_allowed;
         updateBar();
+
+        // Matrícula aprovada nesta batida? A página (course.html) escuta o
+        // evento e mostra o QR da pesquisa — sem exigir reload.
+        if (data.enrollment_status === 'approved' && ultimoStatus !== 'approved') {
+          document.dispatchEvent(new CustomEvent('matricula-aprovada'));
+        }
+        if (data.enrollment_status) { ultimoStatus = data.enrollment_status; }
 
         if (data.completed && !avisoConclusao) {
           avisoConclusao = true;
